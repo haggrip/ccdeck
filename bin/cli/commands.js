@@ -69,6 +69,7 @@ export async function runCommand(flags) {
     case "switch": return switchCommand(flags, out);
     case "usage": return usageCommand(flags, out);
     case "sessions": return sessionsCommand(flags, out);
+    case "todo": return todoCommand(flags, out);
     case "open": return openCommand(flags, out);
     // The one that stays: a full screen over the same deck, until q. Loaded
     // only when asked for, like the picker.
@@ -532,6 +533,54 @@ async function sessionsCommand(flags, out) {
   out.say(`  ${P.muted}${parts.join(` ${G.bullet} `)}${ended && !flags.all ? ` ${G.bullet} \`--all\` adds ${ended} ended` : ""}${P.reset}`);
   out.say("");
   return out.done({ deck: { port: deck.port, version: deck.version ?? null }, sessions: shown });
+}
+
+// ── todo ────────────────────────────────────────────────────────────────────
+
+/**
+ * The Status pane's live Todo list, from a terminal or from inside a session.
+ *
+ * `ccdeck todo add <text>` puts an item on it. Run from a Claude Code session,
+ * the item links back to that session's card: Claude Code hands the commands
+ * it runs CLAUDE_CODE_SESSION_ID (checked against the 2.1.327 CLI, which sets
+ * it with CLAUDECODE and CLAUDE_PID for every command it runs). Without it,
+ * the item links to the folder it was added from. The words are shown as text
+ * and read by the list's keeper as data, never as instructions.
+ * `ccdeck todo` alone lists what is open.
+ */
+async function todoCommand(flags, out) {
+  const [sub = "list", ...rest] = flags.operands ?? [];
+  const { deck, port } = await deckFor(flags);
+  if (!deck) {
+    return out.fail(EXIT.NO_DECK, "no_deck", port != null
+      ? `no deck is listening on ${port} ${G.dash} \`${COMMAND} status\` lists them`
+      : `no deck is running ${G.dash} the Todo list lives in a running deck; \`${COMMAND}\` starts one`);
+  }
+  if (sub === "add") {
+    const title = rest.join(" ").trim();
+    if (!title) return out.fail(EXIT.USAGE, "no_text", `nothing to add ${G.dash} \`${COMMAND} todo add "approve the Okta PR"\``);
+    const sessionId = /^[\w.:-]{1,120}$/.test(process.env.CLAUDE_CODE_SESSION_ID ?? "") ? process.env.CLAUDE_CODE_SESSION_ID : null;
+    const r = await ask(deck, { method: "POST", path: "/api/status-todo/post", body: { title, sessionId, cwd: process.cwd() } });
+    if (!r.ok) {
+      const why = r.body?.reason === "too_many" ? `too many items from here in a minute ${G.dash} try again shortly` : deckTrouble(deck, r);
+      return out.fail(EXIT.FAILED, r.body?.reason ?? "deck_unreachable", why);
+    }
+    const item = r.body?.item ?? null;
+    const where = item?.link?.sessionId ? "linked to this session" : item?.link?.project ? `linked to ${item.link.project}` : "";
+    out.say(r.body?.duplicate ? `  ${P.muted}already on the Todo list${P.reset}` : `  added to the Todo list${where ? ` ${G.bullet} ${where}` : ""}`);
+    return out.done({ deck: { port: deck.port, version: deck.version ?? null }, duplicate: r.body?.duplicate === true, item, sessionId });
+  }
+  if (sub !== "list") return out.fail(EXIT.USAGE, "unknown_subcommand", `\`${COMMAND} todo\` lists the open items; \`${COMMAND} todo add <text>\` adds one`);
+  const r = await ask(deck, { path: "/api/status-todo" });
+  if (!r.ok || !Array.isArray(r.body?.open)) return out.fail(EXIT.FAILED, "deck_unreachable", deckTrouble(deck, r));
+  out.say("");
+  for (const i of r.body.open) {
+    const due = i.due ? ` ${P.warn}due ${new Date(i.due).toLocaleString()}${P.reset}` : "";
+    out.say(`  ${G.bullet} ${i.title}${due}${i.link?.project ? `  ${P.muted}${i.link.project}${P.reset}` : ""}`);
+  }
+  if (!r.body.open.length) out.say(`  ${P.muted}nothing on the Todo list${P.reset}`);
+  out.say("");
+  return out.done({ deck: { port: deck.port, version: deck.version ?? null }, open: r.body.open });
 }
 
 // ── open ────────────────────────────────────────────────────────────────────

@@ -36,6 +36,8 @@ import { eventsSince } from "./event-ring.mjs";
 import { summarizeSessions } from "./session-summary.mjs";
 // The Status pane's brief, its settings and its people — see status-brief-routes.mjs.
 import { handleStatusBrief, STATUS_BRIEF_ROUTE } from "./status-brief-routes.mjs";
+// The Status pane's live Todo list — see status-todo-routes.mjs.
+import { handleStatusTodo, startStatusTodo, STATUS_TODO_ROUTE } from "./status-todo-routes.mjs";
 // Exported from this file before they moved, and still.
 export { eventBufferStats, eventsSince } from "./event-ring.mjs";
 // The one door every event comes through, and what it does to each on the way
@@ -294,6 +296,8 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
   startQuotaHistory();
   startQuotaCloses();
   await startToolAudit();
+  // The Status pane's Todo list watches the deck's sessions for waits.
+  startStatusTodo();
   armLifecycle({ onRestart, onStop, persist, onSelfUpdate: () => reporter.noteSelfUpdate() });
   // Which tree and which CLIs, normalised once — see setDeckScope.
   setDeckScope({ workspace, claude, codex });
@@ -556,6 +560,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     }
     // The Status pane: GET the cached brief, POST refresh, settings and people.
     if (url.pathname === STATUS_BRIEF_ROUTE || url.pathname.startsWith(`${STATUS_BRIEF_ROUTE}/`)) return guard(handleStatusBrief(req, res, url), res);
+    if (url.pathname === STATUS_TODO_ROUTE || url.pathname.startsWith(`${STATUS_TODO_ROUTE}/`)) return guard(handleStatusTodo(req, res, url), res);
 
     // GET /api/clear — what a POST to this path would do, and to whose log.
     // See handleClearPreview.

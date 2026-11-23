@@ -35,6 +35,7 @@
 import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { writeFileAtomic } from "./atomic-write.mjs";
+import { LINK_STATES } from "./status-todo.mjs";
 
 export const BRIEF_FILE = "status-brief.json";
 export const MODELS = Object.freeze(["haiku", "sonnet", "opus"]);
@@ -210,12 +211,21 @@ export function normaliseBrief(json) {
     people.push(p);
     if (people.length >= MAX_PEOPLE) break;
   }
+  // What the brief read of the open Todo items' own pages: a PR merged, closed
+  // or approved, its checks green, a ticket done (status-todo.mjs closes on it).
+  const linkStates = [];
+  for (const raw of Array.isArray(j.linkStates) ? j.linkStates : []) {
+    const url = safeUrl(raw?.url);
+    if (url && LINK_STATES.includes(raw.state)) linkStates.push({ url, state: raw.state });
+    if (linkStates.length >= 30) break;
+  }
   return {
     summary: text(j.summary, MAX_SUMMARY),
     waiting: items(j.waiting, WAITING_KINDS, null),
     todo: items(j.todo, TODO_KINDS, "todo"),
     talkTo: items(j.talkTo, TALK_KINDS, "talk"),
     people,
+    linkStates,
   };
 }
 
@@ -314,7 +324,7 @@ export function sessionDigest(rows, envelopes, { now = Date.now(), maxRows = 30,
 const clock = at => (Number.isFinite(at) ? new Date(at).toISOString() : "never");
 
 /** What the model is asked. Pure, so the suite can read it. */
-export function buildPrompt({ sessions, reach, since, now = Date.now(), hidden = [] }) {
+export function buildPrompt({ sessions, reach, since, now = Date.now(), hidden = [], watch = [] }) {
   const lines = sessions.length
     ? sessions.map(s => `- [${s.id}] ${s.name ?? "(unnamed)"} · ${s.project ?? "?"} · ${s.state} since ${clock(s.since)}`
       + (s.question ? ` · asks: ${JSON.stringify(s.question)}` : "")
@@ -342,6 +352,12 @@ export function buildPrompt({ sessions, reach, since, now = Date.now(), hidden =
     "",
     want.length ? "ALSO LOOK AT, with the read-only tools you have:" : "No connector tools are available: brief from the sessions alone.",
     ...want.map(w => `- ${w}`),
+    ...(watch.length && want.length ? [
+      "",
+      "AND READ THE CURRENT STATE OF THESE OPEN TO-DO LINKS (only what you can read; skip any you cannot):",
+      ...watch.map(w => `- ${w.url} (${w.kind})`),
+      "Report each in \"linkStates\" as one of: open, approved, merged, closed, green (checks passing), done (ticket finished), answered.",
+    ] : []),
     "",
     "JSON SHAPE:",
     "{",
@@ -349,7 +365,8 @@ export function buildPrompt({ sessions, reach, since, now = Date.now(), hidden =
     '  "waiting": [{ "kind": "approve|merge|review|reply|decide", "title": "...", "detail": "...", "source": "github|slack|jira|session", "url": "https://...", "sessionId": "...", "person": "..." }],',
     '  "todo": [{ "kind": "todo|fix|follow-up", "title": "...", "detail": "...", "source": "...", "url": "...", "sessionId": "..." }],',
     '  "talkTo": [{ "kind": "feedback|talk", "person": "name", "title": "what about", "source": "...", "url": "..." }],',
-    '  "people": [{ "name": "...", "handle": "...", "why": "reviews, DMs or mentions that make them worth watching", "source": "github|slack|jira", "url": "https://..." }]',
+    '  "people": [{ "name": "...", "handle": "...", "why": "reviews, DMs or mentions that make them worth watching", "source": "github|slack|jira", "url": "https://..." }],',
+    '  "linkStates": [{ "url": "https://...", "state": "open|approved|merged|closed|green|done|answered" }]',
     "}",
   ].join("\n");
 }
@@ -364,7 +381,7 @@ export function buildPrompt({ sessions, reach, since, now = Date.now(), hidden =
  *                   contract module is absent or vetoed
  *   sessions()      resolves to { rows, envelopes } for sessionDigest
  */
-export function createStatusBrief({ dir, agent, sessions, now = () => Date.now(), log = () => {} }) {
+export function createStatusBrief({ dir, agent, sessions, todo = null, now = () => Date.now(), log = () => {} }) {
   const path = join(dir, BRIEF_FILE);
   let store = null;
   let loading = null;
@@ -449,8 +466,11 @@ export function createStatusBrief({ dir, agent, sessions, now = () => Date.now()
       const { rows, envelopes } = await sessions();
       digest = sessionDigest(rows, envelopes, { now: startedAt });
     } catch (err) { log(`status brief: sessions unreadable (${err?.message ?? err})`); }
+    // The open Todo items' PRs and tickets, for the brief to read the state of.
+    let watch = [];
+    try { watch = (await todo?.watched?.()) ?? []; } catch (err) { log(`status brief: the todo list could not be read (${err?.message ?? err})`); }
     const prompt = buildPrompt({
-      sessions: digest, reach, now: startedAt,
+      sessions: digest, reach, now: startedAt, watch,
       // Since the last brief, and never less than a day back: a DM that was
       // waiting at the last brief is still waiting until it is answered.
       since: Math.min(s.brief?.at ?? startedAt, startedAt - 24 * 3600_000),
@@ -477,6 +497,9 @@ export function createStatusBrief({ dir, agent, sessions, now = () => Date.now()
       s.brief = { ...brief, at: now(), model: s.settings.model, reach };
       s.error = null;
       s.failures = 0;
+      // The live Todo list takes what waits on the user from it, and closes
+      // what its link states settle (status-todo.mjs).
+      try { await todo?.brief?.(s.brief); } catch (err) { log(`status brief: the todo list did not take the brief (${err?.message ?? err})`); }
     } else {
       s.failures += 1;
       s.error = { at: now(), code: text(result?.code, 40) || "failed", message: text(result?.error, 300) || "The brief could not be written." };

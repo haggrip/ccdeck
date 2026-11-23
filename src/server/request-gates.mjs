@@ -451,6 +451,8 @@ export const GUARDED_READS = new Set([
   // The Status pane's brief: what the user's Slack, GitHub and Jira said, and
   // the sessions' own words, summarised (status-brief-routes.mjs).
   "/api/status-brief",
+  // The live Todo list: the same class of secret, plus the user's own notes.
+  "/api/status-todo",
   "/api/claude-accounts",
   // Reveals the local machine's Codex profile roster, even though paths and
   // credentials are deliberately omitted from the response.

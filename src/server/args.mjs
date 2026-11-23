@@ -182,6 +182,7 @@ export const COMMANDS = Object.freeze({
   switch: "switch", swap: "switch", use: "switch",
   usage: "usage", quota: "usage",
   sessions: "sessions", ps: "sessions",
+  todo: "todo",
   open: "open",
   tui: "tui",
 });

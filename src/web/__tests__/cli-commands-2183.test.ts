@@ -75,6 +75,8 @@ describe("a command word is a command", () => {
       ["switch", "switch"], ["swap", "switch"], ["use", "switch"],
       ["usage", "usage"], ["quota", "usage"], ["sessions", "sessions"], ["ps", "sessions"], ["open", "open"],
       ["tui", "tui"],
+      // ADDED ON PURPOSE (the Status pane's live Todo list): `ccdeck todo`.
+      ["todo", "todo"],
     ];
     for (const [word, command] of spellings) {
       expect(parseArgs([word, "2"]), word).toEqual({ command, commandWord: word, operands: ["2"], unknown: [], incomplete: [] });
