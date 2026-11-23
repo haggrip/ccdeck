@@ -3,9 +3,9 @@ import type { Catalog } from "../../catalogs";
 
 const catalog: Catalog = {
   "connectors.section.label": "Conectores",
-  "connectors.section.note": "Seus conectores do claude.ai, lidos pelo seu próprio Claude Code. Apenas ferramentas de leitura.",
-  "connectors.group.list": "Conectores que o seu Claude Code alcança",
-  "connectors.group.listNote": "Ative as ferramentas somente leitura com que o deck pode ler. Toda ferramenta começa desligada, e as que podem escrever nunca são oferecidas.",
+  "connectors.section.note": "Seus conectores do claude.ai e as ferramentas do próprio Claude Code, usados pelo seu Claude Code.",
+  "connectors.group.list": "Ferramentas que o seu Claude Code pode usar",
+  "connectors.group.listNote": "Toda ferramenta fica ligada até você desligá-la. Uma execução pode usar qualquer ferramenta ligada, incluindo o shell e as que enviam ou apagam, e o texto que ela lê do Slack, Jira ou GitHub pode trazer instruções.",
   "connectors.refresh": "Atualizar",
   "connectors.loading": "Perguntando ao Claude Code quais conectores ele alcança…",
   "connectors.vetoed": "AGENTS_DECK_NO_AGENT=1 mantém isto desligado nesta máquina.",
@@ -16,12 +16,11 @@ const catalog: Catalog = {
   "connectors.empty": "O Claude Code ainda não alcança nenhum conector. Adicione um no claude.ai e pressione Atualizar.",
   "connectors.saveFail": "Essa alteração não foi salva. Tente de novo.",
   "connectors.notConnected": "Conhecidos pelo Claude Code, mas não conectados: {names}",
-  "connectors.noReadOnly": "Conectados, sem ferramenta somente leitura para oferecer: {names}",
-  "connectors.summary": "Ferramentas somente leitura ligadas: {on} de {total}",
-  "connectors.writeTools": "ferramentas que podem escrever, nunca oferecidas: {count}",
+  "connectors.summary": "Ferramentas ligadas: {on} de {total}",
+  "connectors.writeTools": "podem mudar coisas: {count}",
   "connectors.showTools": "Mostrar ferramentas",
   "connectors.hideTools": "Ocultar ferramentas",
-  "connectors.toolAria": "Permitir que o deck leia com {tool} ({connector})",
+  "connectors.toolAria": "Permitir que o deck use {tool} ({connector})",
   "connectors.group.runs": "Execuções recentes",
   "connectors.group.runsNote": "Cada execução usa o seu plano do Claude. Nada do que foi perguntado ou respondido é guardado.",
   "connectors.runs.total": "Total: {cost}",
@@ -29,6 +28,7 @@ const catalog: Catalog = {
   "connectors.runs.tools": "chamadas de ferramentas: {count}",
   "connectors.runs.ok": "respondida",
   "connectors.runs.failed": "falhou: {code}",
+  "connectors.tool.writes": "Pode mudar coisas",
 };
 
 export default catalog;
