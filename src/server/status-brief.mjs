@@ -3,13 +3,19 @@
 // the user's own Claude Code from the deck's sessions and, where this machine's
 // Claude Code reaches them, GitHub, Slack and Jira.
 //
-// READ-ONLY, END TO END. The brief is asked for through runAgent (claude-agent.mjs,
-// the shared contract), which only permits the tools it is handed. This module
-// hands it the connector tools that listConnectors() marks read-only, and drops
-// any whose name still reads like a write (writeShaped below), so a connector
-// that labels a send as a read does not slip through. Nothing here posts,
-// sends, reacts, comments, schedules or edits anything, and the pane has no
-// route that would.
+// READ-ONLY, END TO END, AND THIS FILE IS WHAT KEEPS IT SO. The brief is asked
+// for through runAgent (claude-agent.mjs, the shared contract), which offers a
+// run exactly the tools it is handed when it is handed a list, and every tool
+// that is on when it is not. It no longer checks that a tool only reads, and
+// every tool, built-in or connector, is on unless the person switches it off.
+// So this module always hands it an explicit list (pickTools): only connector
+// tools (`mcp__…`, never a built-in such as Bash, Edit, Write or Task), only
+// from the GitHub, Slack and Jira connectors, only ones their own server marks
+// read-only, none switched off, and none whose name still reads like a write
+// (writeShaped below), so a connector that labels a send as a read does not
+// slip through. An empty list is a run with no tools at all. Nothing here
+// posts, sends, reacts, comments, schedules or edits anything, and the pane
+// has no route that would.
 //
 // THE CACHE IS WHAT THE PANE OPENS ON. The last brief is kept with its time in
 // the deck's data directory (status-brief.json), so a reload or a restart shows
@@ -80,19 +86,25 @@ export function writeShaped(name) {
   return WRITE_SHAPED.test(tail) || /^(send|post|create|update|delete|remove|add|merge|write|edit|set|transition|schedule|react|reply|comment|assign|close|approve|submit|upload|push|archive|invite|move|rename|resolve|share|unshare|dismiss|mark)[A-Z]/.test(tail);
 }
 
+/** A connector tool's name, as Claude Code spells it. A built-in tool (Bash,
+ *  Read, Write...) never matches, whatever connector it is listed under. */
+const CONNECTOR_TOOL = /^mcp__[A-Za-z0-9_-]{1,128}__[A-Za-z0-9_.-]{1,128}$/;
+
 /**
  * The tools a brief may use: the read-only tools of the connectors that serve
- * the sources switched on. `connectors` is listConnectors()'s answer;
- * `enabled`, when given, is what Settings › Connectors has switched on, and
- * runAgent refuses any other tool, so only those are picked. At most
- * MAX_TOOLS, taken from the sources in turn so none crowds the others out.
+ * the sources switched on. `connectors` is listConnectors()'s answer; the
+ * built-in pseudo-connector in it (server "builtin") is never read. `enabled`,
+ * when given, is what Settings › Connectors has on, and `off` what it has
+ * switched off; runAgent refuses a tool that is off, so none is picked. At
+ * most MAX_TOOLS, taken from the sources in turn so none crowds the others out.
  *
  * Returns the allowlist and, per source: "on" (tools picked), "off" (switched
  * off in the pane), "none" (no connector for it) or "disabled" (a connector,
  * none of whose read-only tools is switched on in Settings › Connectors).
  */
-export function pickTools(connectors, sources = DEFAULT_SETTINGS.sources, enabled = null) {
+export function pickTools(connectors, sources = DEFAULT_SETTINGS.sources, enabled = null, off = null) {
   const allowed = Array.isArray(enabled) ? new Set(enabled) : null;
+  const switchedOff = new Set(Array.isArray(off) ? off : []);
   const bySource = {};
   const reach = {};
   for (const source of SOURCES) {
@@ -100,14 +112,15 @@ export function pickTools(connectors, sources = DEFAULT_SETTINGS.sources, enable
     reach[source] = sources?.[source] === false ? "off" : "none";
   }
   for (const c of Array.isArray(connectors) ? connectors : []) {
+    if (c?.server === "builtin" || c?.source === "builtin") continue;
     const name = `${c?.server ?? ""} ${c?.label ?? ""}`;
     for (const source of SOURCES) {
       if (reach[source] === "off" || !SOURCE_MATCH[source].test(name)) continue;
       if (reach[source] === "none") reach[source] = "disabled";
       for (const tool of Array.isArray(c?.tools) ? c.tools : []) {
-        if (tool?.readOnly !== true || typeof tool.name !== "string" || !tool.name) continue;
+        if (tool?.readOnly !== true || typeof tool.name !== "string" || !CONNECTOR_TOOL.test(tool.name)) continue;
         if (writeShaped(tool.name)) continue;
-        if (allowed && !allowed.has(tool.name)) continue;
+        if ((allowed && !allowed.has(tool.name)) || switchedOff.has(tool.name)) continue;
         bySource[source].add(tool.name);
         reach[source] = "on";
       }
@@ -420,14 +433,17 @@ export function createStatusBrief({ dir, agent, sessions, now = () => Date.now()
     // switched on: runAgent refuses any other.
     let connectors = [];
     let enabled = null;
+    let off = null;
     try {
       if (typeof a.connectorsState === "function") {
         const state = await a.connectorsState();
         connectors = Array.isArray(state?.connectors) ? state.connectors : [];
-        enabled = Array.isArray(state?.enabled) ? state.enabled : [];
+        enabled = Array.isArray(state?.enabled) ? state.enabled : null;
+        off = Array.isArray(state?.off) ? state.off : null;
       } else connectors = await a.listConnectors();
     } catch (err) { log(`status brief: the connectors could not be listed (${err?.message ?? err})`); }
-    const { tools, reach } = pickTools(connectors, s.settings.sources, enabled);
+    // Always a list, never runAgent's default of every tool that is on.
+    const { tools, reach } = pickTools(connectors, s.settings.sources, enabled, off);
     let digest = [];
     try {
       const { rows, envelopes } = await sessions();

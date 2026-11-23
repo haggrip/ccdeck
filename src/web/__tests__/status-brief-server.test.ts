@@ -11,6 +11,7 @@ import { rmTempDir } from "./rm-temp-dir";
 import {
   BRIEF_FILE, MAX_TOOLS, MIN_GAP_MS, RUN_TAG, buildPrompt, createStatusBrief, normaliseBrief, pickTools, safeUrl, sessionDigest, writeShaped,
 } from "../../server/status-brief.mjs";
+import { BUILTIN_CONNECTOR } from "../../server/claude-agent.mjs";
 
 const dirs: string[] = [];
 const tempDir = () => { const d = mkdtempSync(join(tmpdir(), "status-brief-")); dirs.push(d); return d; };
@@ -73,6 +74,20 @@ describe("the tools a brief may use", () => {
     // A write switched on by name is still not picked: it is not read-only.
     expect(tools).toEqual(["mcp__github__pull_request_read"]);
     expect(reach).toEqual({ github: "on", slack: "disabled", jira: "disabled" });
+  });
+
+  // CHANGED ON PURPOSE (the contract, 00018534): every tool is on unless it is
+  // switched off, Claude Code's own included, and runAgent no longer checks
+  // that a tool only reads. The brief's list is the whole guarantee now.
+  it("never hands over a built-in tool or a switched-off one, with every tool on", () => {
+    const listing = [BUILTIN_CONNECTOR, ...CONNECTORS, { server: "github", label: "GitHub", tools: [{ name: "Read", readOnly: true }, { name: "Bash", readOnly: true }] }];
+    const everything = listing.flatMap(c => c.tools.map(t => t.name));
+    const { tools, reach } = pickTools(listing, undefined, everything.filter(n => n !== "mcp__slack__slack_read_thread"), ["mcp__slack__slack_read_thread"]);
+    expect(tools).toEqual(READS.filter(n => n !== "mcp__slack__slack_read_thread"));
+    expect(tools.every(n => n.startsWith("mcp__"))).toBe(true);
+    expect(reach).toEqual({ github: "on", slack: "on", jira: "on" });
+    // The switched-off list alone is enough to keep a tool out.
+    expect(pickTools(CONNECTORS, undefined, null, READS).tools).toEqual([]);
   });
 
   it("never hands over more than runAgent takes, sharing the room between sources", () => {
@@ -274,6 +289,16 @@ describe("the brief's runner", () => {
     expect((fake.calls[0] as { tag?: string }).tag).toBe(RUN_TAG);
     expect((await b.view()).brief?.reach).toEqual({ github: "disabled", slack: "on", jira: "on" });
     expect(fake.calls[0].prompt).not.toMatch(/GitHub: pull requests/);
+  });
+
+  it("asks for no tools at all, never runAgent's every-tool default, when no connector serves a source", async () => {
+    const dir = tempDir();
+    const fake = fakeAgent(() => ({ ok: true, json: GOOD }));
+    const agent = { ...fake.agent, connectorsState: async () => ({ connectors: [BUILTIN_CONNECTOR], enabled: BUILTIN_CONNECTOR.tools.map(t => t.name), off: [] }) };
+    const b = createStatusBrief({ dir, agent: async () => agent, sessions: SESSIONS, now: () => 1 });
+    await b.refresh(); await b.settled();
+    expect(fake.calls[0].tools).toEqual([]);
+    expect((await b.view()).brief?.reach).toEqual({ github: "none", slack: "none", jira: "none" });
   });
 
   it("answers with the agent off, never calling anything, when the contract is absent", async () => {
