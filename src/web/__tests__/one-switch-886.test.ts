@@ -61,7 +61,11 @@ describe("every switch is the one switch (#886)", () => {
     // CHANGED ON PURPOSE (V4's Figma): twenty-three since the version banner's
     // auto-restart switch went; the banner says its countdown in a sentence
     // and the preference is Settings › General's "Update when idle".
-    expect(switches, "the twenty-three switches in the source").toBe(23);
+    // CHANGED ON PURPOSE: twenty-five, with Settings › Connectors' tool switch
+    // (ConnectorsSection.tsx, from the connectors bridge this builds on) and
+    // Settings › General's goal titles switch (SessionRecoverySettings.tsx
+    // GoalTitlesRow).
+    expect(switches, "the twenty-five switches in the source").toBe(25);
     expect(count(/className="switch(?: ap-auto-state)?"/g)).toBe(switches);
     expect(count(/<span className="switch-knob" \/>/g)).toBe(switches);
   });

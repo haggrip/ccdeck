@@ -161,10 +161,10 @@ import { handlePrefsGiveBack, handlePrefsRead, handlePrefsWrite } from "./prefs-
 // session-name-route.mjs and session-deck-names.mjs.
 import { announceKeptNames, handleSessionNameWrite } from "./session-name-route.mjs";
 import { loadDeckNames } from "./session-deck-names.mjs";
-// The board's group titles: a person's, kept with room for an automatic one —
-// see group-title-route.mjs and group-titles.mjs.
-import { announceKeptGroupTitles, handleGoalTitleRequest, handleGoalTitleStatus, handleGroupTitleWrite } from "./group-title-route.mjs";
-import { loadGroupTitles } from "./group-titles.mjs";
+// The board's group titles: a person's, and the goal titler's (Haiku through
+// the connectors bridge) — see group-title-route.mjs and goal-titler.mjs.
+import { announceKeptGroupTitles, connectGoalTitler, handleGoalTitleRequest, handleGoalTitleStatus, handleGroupTitleWrite } from "./group-title-route.mjs";
+import { startGoalTitler } from "./goal-titler-boot.mjs";
 // Usage reports and the feedback dialog (#1853). The requests to
 // api.ccdeck.dev are made in reports.mjs, never in this file.
 import {
@@ -342,8 +342,9 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
   // and told to the sessions the replay put back — see announceKeptNames.
   await loadDeckNames();
   announceKeptNames(eventsSince(0));
-  // The groups' titles the same way (group-title-route.mjs).
-  await loadGroupTitles();
+  // The groups' titles the same way, and the titler that writes the automatic
+  // ones, started after the replay so it never titles from a log alone.
+  await startGoalTitler({ connect: connectGoalTitler });
   announceKeptGroupTitles(eventsSince(0));
   // The async handlers below are dispatched as floating promises. Node's
   // default for an unhandled rejection is to kill the process, which would

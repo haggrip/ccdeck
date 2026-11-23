@@ -94,6 +94,11 @@ export const DEFAULTS = Object.freeze({
   // stop (stop-continue.mjs, #2193). OFF: it stops and restarts a session's
   // process on the user's behalf, and that is something a person turns on.
   continueStopped: false,
+  // Title the board's groups by their goal with Haiku, through the person's own
+  // Claude Code (goal-titler.mjs). ON, bounded by the titler's hourly and daily
+  // budget, and only for groups no person has named; the machine veto
+  // AGENTS_DECK_NO_AGENT=1 turns the bridge it runs through off altogether.
+  goalTitles: true,
   // The Electron window can open on a new localhost port after an update.
   // Its tour marker must outlive that origin; browser tabs still use their
   // own localStorage marker and never read this preference.
@@ -386,6 +391,7 @@ export function normalise(raw) {
     notifyReset: flagOr(src.notifyReset, DEFAULTS.notifyReset),
     notifyStopped: flagOr(src.notifyStopped, DEFAULTS.notifyStopped),
     continueStopped: flagOr(src.continueStopped, DEFAULTS.continueStopped),
+    goalTitles: flagOr(src.goalTitles, DEFAULTS.goalTitles),
     tourSeen: flagOr(src.tourSeen, DEFAULTS.tourSeen),
     // A whole number, or none: a string, a fraction or a negative from a
     // hand-edited file is not an edition anybody was shown.
@@ -777,7 +783,7 @@ export function publicPrefs(prefs) {
  */
 export const PAGE_FIELDS = Object.freeze({
   top: Object.freeze([
-    "notifications", "notifySwap", "notifyQuota", "notifyReset", "notifyStopped", "continueStopped",
+    "notifications", "notifySwap", "notifyQuota", "notifyReset", "notifyStopped", "continueStopped", "goalTitles",
     "tourSeen", "tourEdition", "autoUpdate", "recoverCodexSessions", "recoverClaudeSessions", "terminal",
   ]),
   lan: Object.freeze([

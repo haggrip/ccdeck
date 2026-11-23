@@ -357,6 +357,7 @@ function newTranscriptState() {
     aiTitle: null,      // newest "ai-title" entry, the session's sentence title
     agentName: null,    // newest "agent-name" entry, the session's short name
     customTitle: null,  // newest "custom-title" entry, the name the user gave it
+    gitBranch: null,    // the branch the root's newest assistant line was written on
     recap: null,        // newest "away_summary" no later turn retired — session-recap.mjs
     usage: newUsageTotals(),
     // The same totals, split by the model that produced them (#686). The flat
@@ -446,6 +447,10 @@ function foldTranscriptLine(state, line) {
   // Model before usage, always: a usage block is charged to the model the same
   // line names, which is the one foldModelLine has just read off it.
   foldModelLine(state, record);
+  // The branch Claude Code stamps on every line, read off the same parse: the
+  // goal titler's hint at what the session is for (goal-context.mjs). The
+  // root's own lines only — a sidechain runs in the same checkout anyway.
+  if (record && typeof record.gitBranch === "string" && record.gitBranch && record.isSidechain !== true) state.gitBranch = record.gitBranch;
   foldUsageLine(state, line, record);
   foldContextLine(state, line, record);
 }

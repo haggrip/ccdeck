@@ -163,6 +163,9 @@ const WRITES: [string, unknown, (p: any) => unknown, unknown][] = [
   // Settings › General › Claude sessions (SessionRecoverySettings.tsx), off
   // until somebody turns it on (#2193).
   ["continueStopped", { continueStopped: true }, p => p.continueStopped, true],
+  // Settings › General › Sessions (SessionRecoverySettings.tsx GoalTitlesRow):
+  // on until somebody turns it off (goal-titler.mjs).
+  ["goalTitles", { goalTitles: false }, p => p.goalTitles, false],
   ["tourSeen", { tourSeen: true }, p => p.tourSeen, true],
   // V4's tour (use-welcome-and-notes.ts TOUR_SEEN_PREFS): the edition, posted
   // beside the 3.x marker in the one body.
@@ -259,7 +262,7 @@ describe("the fields a page may write", () => {
     // page that writes `tourSeen`, and worth nothing to anybody else.
     expect(PAGE_FIELDS).toEqual({
       top: [
-        "notifications", "notifySwap", "notifyQuota", "notifyReset", "notifyStopped", "continueStopped",
+        "notifications", "notifySwap", "notifyQuota", "notifyReset", "notifyStopped", "continueStopped", "goalTitles",
         "tourSeen", "tourEdition", "autoUpdate", "recoverCodexSessions", "recoverClaudeSessions", "terminal",
       ],
       lan: [

@@ -720,6 +720,13 @@ const catalog: Catalog = {
   "settings.account.preview.none": "이 계정에는 아직 공유 설정이 없습니다. 이 ccdeck의 설정을 게시하면 다른 ccdeck가 함께 쓸 수 있습니다.",
   "settings.account.preview.same": "이 ccdeck는 이미 공유 설정을 사용 중입니다.",
   "settings.account.preview.stale": "보는 사이에 공유 설정이 바뀌었습니다. 다시 표시합니다.",
+  "settings.goals.name": "그룹에 목표 제목 붙이기",
+  "settings.goals.note": "Haiku가 보드의 각 그룹에 세션을 바탕으로 이름을 붙입니다. 직접 입력한 제목이 항상 우선합니다.",
+  "settings.goals.details": "내 Claude Code를 한 번에 하나씩 사용합니다. 새 그룹일 때, 그리고 세션이 다른 티켓이나 브랜치로 옮겨 갈 때 다시 실행합니다. 시간당 최대 30회, 하루 최대 150회입니다. 세션의 제목, 프롬프트, 브랜치를 읽고, 읽기 전용 커넥터로 언급된 티켓, 풀 리퀘스트, Slack 스레드를 읽을 수 있습니다.",
+  "settings.goals.aria": "그룹에 목표 제목 자동으로 붙이기",
+  "settings.goals.now": "지금 모든 그룹에 제목 붙이기",
+  "settings.goals.queued": "대기 중인 그룹: {count}",
+  "settings.search.kw.goal-titles": "목표, 제목, 그룹, 폴더, 자동 제목, 이름 바꾸기, 티켓",
 };
 
 export default catalog;

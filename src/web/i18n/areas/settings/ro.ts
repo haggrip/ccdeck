@@ -729,6 +729,13 @@ const catalog: Catalog = {
   "settings.account.preview.none": "Nu există încă setări partajate în acest cont. Publică-le pe cele ale acestui ccdeck și celelalte ccdeck-uri ale tale se pot alătura.",
   "settings.account.preview.same": "Acest ccdeck arată deja setările partajate.",
   "settings.account.preview.stale": "Setările partajate s-au schimbat cât te uitai. Iată-le din nou.",
+  "settings.goals.name": "Titluri de grup după obiectiv",
+  "settings.goals.note": "Haiku numește fiecare grup de pe tablă după sesiunile lui. Un titlu scris de tine câștigă mereu.",
+  "settings.goals.details": "Folosește propriul tău Claude Code, câte o rulare pe rând: pentru un grup nou și din nou când o sesiune trece la alt tichet sau branch. Cel mult 30 de rulări pe oră și 150 pe zi. Citește titlurile, prompturile și branch-ul sesiunilor și poate citi tichetele, pull request-urile și firele Slack menționate, prin conectori doar pentru citire.",
+  "settings.goals.aria": "Titluri de grup automate după obiectiv",
+  "settings.goals.now": "Dă titluri tuturor grupurilor acum",
+  "settings.goals.queued": "Grupuri în coadă: {count}.",
+  "settings.search.kw.goal-titles": "obiectiv, titlu, grup, dosar, haiku, titlu automat, redenumire, tichet",
 };
 
 export default catalog;

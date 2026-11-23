@@ -196,13 +196,16 @@ describe("each page's groups, in order", () => {
     // and a group per provider were.
     expect(labels).toEqual(["Sessions", "Updates", "Elsewhere on the deck", "Experimental"]);
   });
-  it("General's Sessions group: V4's four rows in V4's order, Claude before Codex, and none lost", () => {
+  // CHANGED ON PURPOSE: a fifth row, Title groups by their goal (goal-titler.mjs),
+  // last and Claude's like Continue stopped: it is what a session's group is
+  // called on its own, and it runs through Claude Code.
+  it("General's Sessions group: V4's four rows in V4's order, Claude before Codex, then goal titles, and none lost", () => {
     const html = draw("general");
     const group = html.slice(html.indexOf('aria-labelledby="settings-sessions-caption"'), html.indexOf('aria-labelledby="settings-updates-caption"'));
     const rows = [...group.matchAll(/data-setting="([^"]+)"/g)].map(m => m[1]);
-    expect(rows).toEqual(["hide-finished", "claude-session-recovery", "codex-session-recovery", "claude-continue-stopped"]);
+    expect(rows).toEqual(["hide-finished", "claude-session-recovery", "codex-session-recovery", "claude-continue-stopped", "goal-titles"]);
     const names = [...group.matchAll(/<span class="settings-row-name"[^>]*>([^<]*)</g)].map(m => m[1]);
-    expect(names).toEqual(["Hide finished sessions after", "Bring back busy Claude sessions", "Bring back unfinished Codex turns", "Continue stopped background sessions"]);
+    expect(names).toEqual(["Hide finished sessions after", "Bring back busy Claude sessions", "Bring back unfinished Codex turns", "Continue stopped background sessions", "Title groups by their goal"]);
     // Where Claude Code is not, its two rows go and Codex's stays.
     const codexOnly = draw("general", { providers: { kind: "reported", claude: false, codex: true } } as Partial<SettingsModalProps>);
     const left = codexOnly.slice(codexOnly.indexOf('aria-labelledby="settings-sessions-caption"'), codexOnly.indexOf('aria-labelledby="settings-updates-caption"'));
@@ -296,7 +299,9 @@ describe("no setting the pages drew before went missing", () => {
     // Continue stopped and Update when idle keep theirs (what stops it, the two
     // update paths), and the Command Panel's long note became a short line plus
     // a Details saying that turning it off leaves the sessions running.
-    expect({ general: details("general"), sounds: details("sounds") }).toEqual({ general: 3, sounds: 0 });
+    // CHANGED ON PURPOSE: 3 → 4 with Title groups by their goal, whose Details
+    // say what it reads and how often it may run.
+    expect({ general: details("general"), sounds: details("sounds") }).toEqual({ general: 4, sounds: 0 });
   });
 });
 

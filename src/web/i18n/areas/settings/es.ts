@@ -719,6 +719,13 @@ const catalog: Catalog = {
   "settings.account.preview.none": "Todavía no hay ajustes compartidos en esta cuenta. Publica los de este ccdeck y tus otros ccdeck podrán unirse a ellos.",
   "settings.account.preview.same": "Este ccdeck ya muestra los ajustes compartidos.",
   "settings.account.preview.stale": "Los ajustes compartidos cambiaron mientras mirabas. Aquí están otra vez.",
+  "settings.goals.name": "Titular los grupos por su objetivo",
+  "settings.goals.note": "Haiku nombra cada grupo del tablero a partir de sus sesiones. Un título que escribas siempre gana.",
+  "settings.goals.details": "Usa tu propio Claude Code, una ejecución cada vez: para un grupo nuevo y de nuevo cuando una sesión pasa a otro ticket o rama. Como máximo 30 ejecuciones por hora y 150 al día. Lee los títulos, prompts y rama de las sesiones, y puede leer los tickets, pull requests e hilos de Slack mencionados mediante conectores de solo lectura.",
+  "settings.goals.aria": "Titular automáticamente los grupos por su objetivo",
+  "settings.goals.now": "Titular todos los grupos ahora",
+  "settings.goals.queued": "Grupos en cola: {count}.",
+  "settings.search.kw.goal-titles": "objetivo, título, grupo, carpeta, haiku, título automático, renombrar, ticket",
 };
 
 export default catalog;
