@@ -25,9 +25,9 @@ function rig({ answer = { ok: true, json: { title: "Fix billing retry loop" }, t
   const titler = gt.createGoalTitler({
     run,
     connectors: async () => [
-      { server: "atlassian", label: "Jira", tools: [{ name: "jira_get_issue", readOnly: true }, { name: "jira_edit_issue", readOnly: false }] },
-      { server: "github", label: "GitHub", tools: [{ name: "gh_get_pr", readOnly: true }] },
-      { server: "slack", label: "Slack", tools: [{ name: "slack_read_thread", readOnly: true }, { name: "slack_send_message", readOnly: false }] },
+      { server: "claude_ai_Atlassian", label: "Jira", tools: [{ name: "mcp__claude_ai_Atlassian__getJiraIssue", readOnly: true }, { name: "mcp__claude_ai_Atlassian__editJiraIssue", readOnly: false }] },
+      { server: "github", label: "GitHub", tools: [{ name: "mcp__github__get_pull_request", readOnly: true }] },
+      { server: "claude_ai_Slack", label: "Slack", tools: [{ name: "mcp__claude_ai_Slack__slack_read_thread", readOnly: true }, { name: "mcp__claude_ai_Slack__slack_send_message", readOnly: false }] },
     ],
     envelopes: () => ring,
     readBranch: async () => branch,
@@ -82,7 +82,7 @@ describe("a new group", () => {
     const r = rig();
     r.say(SID, "ABC-1234 and https://github.com/o/r/pull/9");
     await r.advance(gt.DEBOUNCE_MS);
-    expect(r.runs[0].tools).toEqual(["jira_get_issue", "gh_get_pr"]);
+    expect(r.runs[0].tools).toEqual(["mcp__claude_ai_Atlassian__getJiraIssue", "mcp__github__get_pull_request"]);
     expect(r.runs[0].prompt).toContain("Tickets mentioned: ABC-1234");
   });
 
@@ -98,7 +98,7 @@ describe("a new group", () => {
     r.say(SID, "keep going");
     await r.advance(gt.DEBOUNCE_MS);
     expect(r.runs[0].prompt).toContain("Git branch: abc-77-dark-mode");
-    expect(r.runs[0].tools).toEqual(["jira_get_issue"]);
+    expect(r.runs[0].tools).toEqual(["mcp__claude_ai_Atlassian__getJiraIssue"]);
   });
 });
 
@@ -281,13 +281,53 @@ describe("on the bridge's contract", () => {
   });
 });
 
+describe("under the bridge's all-on contract (every tool on unless switched off)", () => {
+  // connectorsState() as the bridge now answers it: the built-in tools as a
+  // pseudo-connector first, every tool in `enabled` unless switched off.
+  const state = {
+    connectors: [
+      { server: "builtin", label: "Claude Code", source: "builtin", tools: [
+        { name: "Bash", readOnly: false }, { name: "Edit", readOnly: false }, { name: "Read", readOnly: true },
+        { name: "WebSearch", readOnly: true }, { name: "Task", readOnly: false },
+      ] },
+      { server: "claude_ai_Slack", label: "Slack", source: "claudeai", tools: [
+        { name: "mcp__claude_ai_Slack__slack_read_thread", readOnly: true },
+        { name: "mcp__claude_ai_Slack__slack_send_message", readOnly: false },
+        { name: "mcp__claude_ai_Slack__slack_search_public", readOnly: true },
+      ] },
+      // A connector whose name happens to match a kind and lists a bare name.
+      { server: "github-local", label: "GitHub", source: "local", tools: [{ name: "Read", readOnly: true }, { name: "mcp__github-local__get_pull_request", readOnly: true }] },
+    ],
+    enabled: ["Bash", "Edit", "Read", "WebSearch", "Task", "mcp__claude_ai_Slack__slack_read_thread", "mcp__claude_ai_Slack__slack_send_message", "mcp__github-local__get_pull_request"],
+    off: ["mcp__claude_ai_Slack__slack_search_public"],
+  };
+  const everything = { tickets: ["ABC-1"], pulls: ["https://github.com/acme/web-app/pull/42"], threads: ["https://acme.slack.com/archives/C1/p1700000000000000"] };
+
+  it("offers no built-in tool, read-only ones included, nothing that sends, and nothing switched off", () => {
+    const picked = gt.pickTools(gt.enabledConnectors(state), everything);
+    expect(picked).toEqual(["mcp__github-local__get_pull_request", "mcp__claude_ai_Slack__slack_read_thread"]);
+    for (const name of ["Bash", "Edit", "Read", "WebSearch", "Task", "mcp__claude_ai_Slack__slack_send_message", "mcp__claude_ai_Slack__slack_search_public"]) {
+      expect(picked, name).not.toContain(name);
+    }
+  });
+
+  it("always names its tools: an empty list when there is nothing to look up, never the bridge's 'all'", async () => {
+    const r = rig();
+    r.say(SID, "explore the radar code");
+    await r.advance(gt.DEBOUNCE_MS);
+    expect(Array.isArray(r.runs[0].tools)).toBe(true);
+    expect(r.runs[0].tools).toEqual([]);
+    expect(r.run.mock.calls[0][0]).toHaveProperty("tools");
+  });
+});
+
 describe("pickTools", () => {
   it("never offers a write-capable tool, and caps the list", () => {
-    const tools = Array.from({ length: 30 }, (_, i) => ({ name: `jira_read_${i}`, readOnly: true }));
-    const picked = gt.pickTools([{ server: "jira", label: "Jira", tools: [...tools, { name: "jira_delete", readOnly: false }, { name: "jira_maybe" }] }], { tickets: ["ABC-1"], pulls: [], threads: [] });
+    const tools = Array.from({ length: 30 }, (_, i) => ({ name: `mcp__jira__read_${i}`, readOnly: true }));
+    const picked = gt.pickTools([{ server: "jira", label: "Jira", tools: [...tools, { name: "mcp__jira__delete", readOnly: false }, { name: "mcp__jira__maybe" }] }], { tickets: ["ABC-1"], pulls: [], threads: [] });
     expect(picked).toHaveLength(gt.MAX_TOOLS);
-    expect(picked).not.toContain("jira_delete");
-    expect(picked).not.toContain("jira_maybe");
+    expect(picked).not.toContain("mcp__jira__delete");
+    expect(picked).not.toContain("mcp__jira__maybe");
     expect(gt.pickTools(null, { tickets: ["ABC-1"] })).toEqual([]);
   });
 });

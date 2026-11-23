@@ -5,9 +5,12 @@
 // person's own Claude Code, headless, one run at a time, asked for one JSON
 // object, with only read-only connector tools allowed. So a ticket or a pull
 // request a session mentions can be read for its title, and nothing can be
-// written anywhere. A tool is offered only once the person has turned it on
-// in Settings › Connectors (the bridge refuses any other); with none on, the
-// title is written from the session's own words alone.
+// written anywhere. Since the bridge turned every tool on unless the person
+// switches it off, the titler never leans on that: it names its tools itself,
+// every run, and names only the read-only tools of a Jira, Linear, GitHub or
+// Slack connector — never a built-in tool (the shell, files, the web, agents)
+// and never one that sends or deletes. A run with nothing to look up names
+// none (`tools: []`), so the bridge's "all" default is never reached.
 //
 // WHEN IT RUNS
 //   - for a new group: once a session has said something (a prompt, or a name),
@@ -53,7 +56,7 @@ export const MAX_TOOLS = 12;
  *  Code, turned off, or a deck without the bridge. */
 const UNAVAILABLE = new Set(["vetoed", "unavailable", "claude_missing", "not_signed_in"]);
 /** Answers that refuse the tools, not the run: tried again once with none. */
-const TOOL_REFUSALS = new Set(["tool_not_enabled", "tool_unavailable", "not_read_only", "tool_violation"]);
+const TOOL_REFUSALS = new Set(["tool_not_enabled", "tool_unavailable", "tool_violation"]);
 
 /** Which connectors can answer for which references. Matched on the
  *  connector's server name and label. */
@@ -63,11 +66,17 @@ const KINDS = [
   { refs: "threads", match: /slack/i },
 ];
 
+/** A connector tool's full name: `mcp__<server>__<tool>`. Built-in tools
+ *  (Bash, Read, WebSearch …) have bare names and never match. */
+const CONNECTOR_TOOL = /^mcp__[A-Za-z0-9_-]+__[A-Za-z0-9_.-]+$/;
+
 /**
  * The read-only tools of the connectors that can read the references the
- * session mentions, at most MAX_TOOLS. None when it mentions none. Only a tool
- * the bridge itself calls read-only is ever offered; runAgent enforces the
- * same allowlist again on its side.
+ * session mentions, at most MAX_TOOLS. None when it mentions none. Only a
+ * connector's own tool that the bridge calls read-only is ever offered: the
+ * bridge's built-in pseudo-connector is skipped whole, read-only built-ins
+ * like Read and WebSearch included, since a title needs neither the files
+ * nor the web.
  */
 export function pickTools(connectors, refs) {
   const out = [];
@@ -75,9 +84,11 @@ export function pickTools(connectors, refs) {
   for (const kind of KINDS) {
     if (!refs?.[kind.refs]?.length) continue;
     for (const c of connectors) {
-      if (!c || !kind.match.test(`${c.server ?? ""} ${c.label ?? ""}`)) continue;
+      if (!c || c.source === "builtin" || c.server === "builtin") continue;
+      if (!kind.match.test(`${c.server ?? ""} ${c.label ?? ""}`)) continue;
       for (const tool of Array.isArray(c.tools) ? c.tools : []) {
-        if (tool?.readOnly === true && typeof tool.name === "string" && !out.includes(tool.name)) out.push(tool.name);
+        if (tool?.readOnly !== true || typeof tool.name !== "string" || !CONNECTOR_TOOL.test(tool.name)) continue;
+        if (!out.includes(tool.name)) out.push(tool.name);
       }
     }
   }
@@ -97,12 +108,14 @@ export function titleFromAnswer(res) {
 }
 
 /** The connectors in the bridge's Settings state (claude-agent.mjs
- *  connectorsState), each with only the tools the person has turned on in
- *  Settings › Connectors: the bridge refuses a run that asks for any other. */
+ *  connectorsState), each with only the tools that are on: in `enabled`, and
+ *  not in `off`, the ones the person switched off in Settings › Connectors.
+ *  The bridge refuses a run that names a switched-off tool. */
 export function enabledConnectors(state) {
   const on = new Set(Array.isArray(state?.enabled) ? state.enabled : []);
+  const off = new Set(Array.isArray(state?.off) ? state.off : []);
   return (Array.isArray(state?.connectors) ? state.connectors : [])
-    .map(c => ({ ...c, tools: (Array.isArray(c?.tools) ? c.tools : []).filter(t => on.has(t?.name)) }));
+    .map(c => ({ ...c, tools: (Array.isArray(c?.tools) ? c.tools : []).filter(t => on.has(t?.name) && !off.has(t?.name)) }));
 }
 
 /**
@@ -193,8 +206,11 @@ export function createGoalTitler({
     if (refs.tickets.length || refs.pulls.length || refs.threads.length) {
       try { tools = pickTools(await connectors(), refs); } catch { tools = []; }
     }
-    const ask = list => {
+    const ask = picked => {
       runs.push(now());
+      // Always an explicit list, never left out: the bridge reads a missing
+      // `tools` as "every tool that is on", the shell included.
+      const list = Array.isArray(picked) ? picked.filter(t => typeof t === "string" && CONNECTOR_TOOL.test(t)) : [];
       return run({ prompt: goalPrompt(ctx, { tools: list }), model: "haiku", tools: list, timeoutMs: RUN_TIMEOUT_MS, schema: TITLE_SCHEMA, maxBudgetUsd: RUN_BUDGET_USD, tag: RUN_TAG });
     };
     let res = await ask(tools);
