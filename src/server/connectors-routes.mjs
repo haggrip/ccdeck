@@ -1,13 +1,14 @@
 // Settings › Connectors' routes (claude-agent.mjs): what the person's Claude
-// Code reaches, which read-only tools are turned on, and the ledger of the
-// agent's last runs; and the one write, which tools are on.
+// Code reaches, which tools are on and off, and the ledger of the agent's last
+// runs; and the one write, which tools are off.
 //
 //   GET  /api/connectors[?refresh=1]  the listing (cached ten minutes; refresh
 //                                     lists again, at most once a minute), the
-//                                     enabled tools, the runs
-//   POST /api/connectors {tools}      turn on exactly these tools; a name that
-//                                     is not a read-only tool of the latest
-//                                     listing is dropped and named in `refused`
+//                                     tools on and off, the runs
+//   POST /api/connectors {off}        switch exactly these tools off and every
+//                                     other on ({tools} names the ones on
+//                                     instead); a name that is not a tool name
+//                                     is dropped and named in `refused`
 //
 // A guarded read (request-gates.mjs): which services the person is connected
 // to is theirs, and the only caller is the deck's own page. Listing starts the
@@ -45,8 +46,8 @@ export async function handleConnectorsWrite(req, res, agent = null) {
   const raw = await readBody(req, res).catch(() => null);
   let body = null;
   try { body = raw ? JSON.parse(raw) : null; } catch { body = null; }
-  const { connectorsState, setEnabledTools } = agent ?? await import(pathToFileURL(join(PKG_ROOT, "src/server/claude-agent.mjs")).href);
-  const saved = await setEnabledTools(body?.tools);
+  const { connectorsState, setEnabledTools, setOffTools } = agent ?? await import(pathToFileURL(join(PKG_ROOT, "src/server/claude-agent.mjs")).href);
+  const saved = Array.isArray(body?.off) ? await setOffTools(body.off) : await setEnabledTools(body?.tools);
   if (!saved.ok) return send(res, saved.code === "vetoed" ? 409 : 400, saved);
   const state = await connectorsState();
   return send(res, 200, { ok: true, ...state, refused: saved.refused });

@@ -96,7 +96,7 @@ describe("a door into Settings opens it at the section it names", () => {
       ["notifications", />While the deck is closed</],
       ["sounds", />Your own</],
       ["integrations", />GitHub</],
-      ["connectors", />Connectors your Claude Code reaches<\/h3>/],
+      ["connectors", />Tools your Claude Code can use<\/h3>/],
       ["data", />Tool history<\/h3>/],
       ["claude", />Messages from other sessions</],
       ["radar", /data-setting="radar-open"/],
