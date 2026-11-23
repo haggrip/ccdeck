@@ -79,6 +79,9 @@ export const MAX_WAITING = 4;
 const MCP_WAIT_MS = 20_000;
 /** How long a listing of the connectors stays good. */
 const LIST_TTL_MS = 10 * 60_000;
+/** The floor between two forced listings, spelled the way quota.mjs,
+ *  browser-watch.mjs and the other forcible reads spell it. */
+const FORCE_POLL_MS = 60_000;
 const LIST_TIMEOUT_MS = 45_000;
 const POLL_MS = 400;
 const KILL_GRACE_MS = 2_000;
@@ -116,6 +119,16 @@ const HARMLESS_SYNTHETIC = new Set(["StructuredOutput"]);
 /** Is the agent vetoed on this machine? */
 export function agentVetoed(env = process.env) {
   return env?.[AGENT_VETO_ENV] === "1";
+}
+
+/**
+ * Whether a forced listing (`GET /api/connectors?refresh=1`) may start a
+ * Claude Code process now. A GET needs no CORS and any page the person has
+ * open can send it in a loop; each forced listing is a Claude Code process
+ * for a few seconds. Once a minute is more than Refresh needs.
+ */
+export function mayForceList(lastForcedAt, now = Date.now()) {
+  return now - lastForcedAt >= FORCE_POLL_MS;
 }
 
 /**
@@ -306,7 +319,7 @@ function openSession({ spawn, file, args, opts = {}, cwd, env, onMessage }) {
     }), { processGroup });
   } catch (err) {
     end({ spawnError: err });
-    return { send() {}, request: async () => ({ error: "not running", exited: true }), close() {}, kill() {}, done };
+    return { send() {}, request: async () => ({ error: "not running", exited: true }), close() {}, kill() {}, finish() {}, done };
   }
   const write = (obj) => {
     if (ended || !child.stdin?.writable) return;
@@ -317,6 +330,15 @@ function openSession({ spawn, file, args, opts = {}, cwd, env, onMessage }) {
     killTree(child, "SIGTERM");
     clearTimeout(killTimer);
     killTimer = setTimeout(() => killTree(child, "SIGKILL"), KILL_GRACE_MS);
+    killTimer.unref?.();
+  };
+  // A run that has answered is let go the way Claude Code expects: its stdin
+  // ends and it exits by itself. Only one still there after the grace is killed.
+  const finish = () => {
+    if (ended) return;
+    try { child.stdin?.end(); } catch { /* gone */ }
+    clearTimeout(killTimer);
+    killTimer = setTimeout(kill, KILL_GRACE_MS);
     killTimer.unref?.();
   };
   child.stdin?.on("error", () => {});
@@ -364,6 +386,7 @@ function openSession({ spawn, file, args, opts = {}, cwd, env, onMessage }) {
     },
     close() { try { child.stdin?.end(); } catch { /* gone */ } },
     kill,
+    finish,
     done,
   };
 }
@@ -400,6 +423,8 @@ export function createClaudeAgent({
   let chain = Promise.resolve();
   let waiting = 0;
   let listing = null;            // { at, code, error, connectors }
+  let lastForced = 0;
+  let _inflight = null;          // the listing a concurrent caller joins
   const runs = [];
 
   const vetoed = () => agentVetoed(env);
@@ -426,7 +451,7 @@ export function createClaudeAgent({
   async function setEnabledTools(tools) {
     if (!Array.isArray(tools)) return fail("bad_request", "tools must be a list");
     if (vetoed()) return fail("vetoed", "AGENTS_DECK_NO_AGENT=1 keeps the Claude agent off on this machine");
-    if (!listing?.ok) await exclusive(() => listUnlocked());
+    if (!listing?.ok) await sharedListing(false);
     const known = new Map();
     for (const c of listing?.connectors ?? []) for (const t of c.tools) known.set(t.name, t);
     const keep = [], refused = [];
@@ -435,7 +460,7 @@ export function createClaudeAgent({
       else refused.push(String(t).slice(0, 160));
     }
     const dir = dataDir();
-    await mkdir(dir, { recursive: true });
+    await mkdir(dir, { recursive: true, mode: 0o700 });
     await writeFileAtomic(join(dir, SETTINGS_FILE), `${JSON.stringify({ tools: keep.sort() }, null, 2)}\n`);
     return { ok: true, enabled: keep.sort(), refused };
   }
@@ -487,8 +512,7 @@ export function createClaudeAgent({
       }
       return { ok: true, connectors: connectorsFrom(servers) };
     } finally {
-      session.close();
-      session.kill();
+      session.finish();
     }
   }
 
@@ -517,11 +541,30 @@ export function createClaudeAgent({
     return state.connectors;
   }
 
-  /** listConnectors with the why: for Settings › Connectors. */
+  /**
+   * One listing at a time: a caller that finds one running joins it, and a
+   * forced caller chains a fresh one after it, which then becomes the one
+   * running (browser-watch.mjs explains why the chain must take the slot).
+   */
+  function sharedListing(forced) {
+    if (_inflight && !forced) return _inflight;
+    const start = () => exclusive(() => listUnlocked({ refresh: true }));
+    const read = _inflight ? _inflight.then(start, start) : start();
+    const held = read.finally(() => { if (_inflight === held) _inflight = null; });
+    _inflight = held;
+    return held;
+  }
+
+  /** listConnectors with the why: for Settings › Connectors. A fresh listing
+   *  is answered at once, without waiting behind a run; `refresh` lists again,
+   *  at most once a minute (mayForceList). */
   async function connectorsState({ refresh = false } = {}) {
     const enabled = await enabledTools();
     if (vetoed()) return { vetoed: true, listedAt: 0, code: "vetoed", error: "", connectors: [], enabled, runs: recentRuns() };
-    const l = await exclusive(() => listUnlocked({ refresh }));
+    const forced = refresh && mayForceList(lastForced, now());
+    if (forced) lastForced = now();
+    const fresh = listing?.ok && now() - listing.at < listTtlMs;
+    const l = fresh && !forced ? listing : await sharedListing(forced);
     if (l && l.ok === false && !("connectors" in l)) {
       // The queue refused (busy) before a listing ran.
       return { vetoed: false, listedAt: listing?.at ?? 0, code: l.code, error: l.error, connectors: listing?.connectors ?? [], enabled, runs: recentRuns() };
@@ -545,15 +588,15 @@ export function createClaudeAgent({
     return agentDir().then(cwd => new Promise(resolve => {
       const file = bin();
       const spec = candidateSpec(file, agentArgs({ model, allow, deny, schema, maxBudgetUsd }));
-      let settled = false, toolCalls = 0;
+      let settled = false, toolCalls = 0, answered = false;
       let session = null;
       const settle = (out) => {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
         signal?.removeEventListener?.("abort", onAbort);
-        session?.close();
-        session?.kill();
+        if (answered) session?.finish();
+        else { session?.close(); session?.kill(); }
         resolve(out);
       };
       const onAbort = () => settle(fail("aborted", "the run was cancelled", { usage: usageFrom(null, { toolCalls, model }) }));
@@ -582,7 +625,7 @@ export function createClaudeAgent({
           }
           return;
         }
-        if (msg?.type === "result") settle(fromResult(msg, { toolCalls, model }));
+        if (msg?.type === "result") { answered = true; settle(fromResult(msg, { toolCalls, model })); }
       };
 
       session = openSession({ spawn, file: spec.file, args: spec.args, opts: spec.opts, cwd, env: agentEnv(env), onMessage });

@@ -519,6 +519,15 @@ const CENSUS: Record<string, {
         + "it is gentler than #580's shape and no reason at all to leave it "
         + "unbounded: a page they are not looking at can send this in a loop.",
   },
+  "/api/connectors": {
+    module: "claude-agent.mjs", fn: "connectorsState", guards: ["floor", "inflight"],
+    predicate: "mayForceList",
+    note: "Settings › Connectors. A forced listing starts the person's Claude Code "
+        + "for a few seconds and asks it which connectors it reaches — no prompt, so "
+        + "nothing of their plan, but a whole Claude Code process on their machine "
+        + "per request, which a page they are not looking at could send in a loop. "
+        + "A fresh listing is answered from its ten-minute cache without queueing.",
+  },
   "/api/ccusage": {
     module: "ccusage.mjs", fn: "fetchCcusageDaily", guards: ["inflight", "outstanding"],
     insteadOfFloor:
@@ -553,7 +562,7 @@ const CENSUS: Record<string, {
 describe("every route that lets a caller force a read", () => {
   const discovered = forcedReadRoutes(serverSource("index.mjs"), handlerModules().map(serverSource));
 
-  it("is one of exactly eight, and a ninth has to be named here before it ships", () => {
+  it("is one of exactly ten, and an eleventh has to be named here before it ships", () => {
     // The assertion #600 is really about. Nobody was counting: `?refresh=1` was
     // added an endpoint at a time and each one decided for itself what a forced
     // read costs, so the answer to "which of them has a guard" lived nowhere.
@@ -631,7 +640,7 @@ describe("every route that lets a caller force a read", () => {
     // number now, and a sixth that needs one has a name to reuse.
     const withFloor = Object.values(CENSUS).filter(r => r.guards.includes("floor"));
     expect(withFloor.map(r => r.guardedIn ?? r.module).sort()).toEqual([
-      "browser-watch.mjs", "claude-accounts.mjs", "claude-fm.mjs", "codex-quota.mjs",
+      "browser-watch.mjs", "claude-accounts.mjs", "claude-agent.mjs", "claude-fm.mjs", "codex-quota.mjs",
       "codex-usage.mjs", "npm-latest.mjs", "quota.mjs",
     ]);
     for (const row of withFloor) {

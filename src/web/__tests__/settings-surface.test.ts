@@ -96,6 +96,7 @@ describe("a door into Settings opens it at the section it names", () => {
       ["notifications", />While the deck is closed</],
       ["sounds", />Your own</],
       ["integrations", />GitHub</],
+      ["connectors", />Connectors your Claude Code reaches<\/h3>/],
       ["data", />Tool history<\/h3>/],
       ["claude", />Messages from other sessions</],
       ["radar", /data-setting="radar-open"/],
@@ -166,12 +167,13 @@ describe("a door into Settings opens it at the section it names", () => {
     }
   });
 
-  it("names the eleven sections in the nav, in order, About last", () => {
+  it("names the twelve sections in the nav, in order, About last", () => {
     // Integrations since #2178: the trackers this deck reads, between Sounds and Data.
+    // Connectors beside it: the person's claude.ai connectors (claude-agent.mjs).
     // Claude Code beside Radar, the other section that writes Claude Code's settings.
     // CHANGED ON PURPOSE (V4's Figma): no Experimental tab; its switch is a
     // group in General.
-    const names = ["General", "Appearance", "Text & density", "Keyboard", "Notifications", "Sounds", "Integrations", "Data", "Claude Code", "Radar", "About"];
+    const names = ["General", "Appearance", "Text & density", "Keyboard", "Notifications", "Sounds", "Integrations", "Connectors", "Data", "Claude Code", "Radar", "About"];
     expect(SETTINGS_SECTIONS.map(s => s.label)).toEqual(names);
     // Each tab's text, its glyph's markup stripped: a tab carries a drawn
     // glyph before its word now (the next block), and the word is still all

@@ -195,6 +195,9 @@ import { handleCcusage, handleCcusageSession, handleCodexQuota, handleCodexUsage
 // Connected trackers (#2178) and each provider's own reads. See
 // integrations/routes.mjs; nothing in it is shared with paired decks.
 import { handleIntegrations } from "./integrations/routes.mjs";
+// Settings › Connectors: the person's Claude connectors, read through their own
+// Claude Code — see connectors-routes.mjs and claude-agent.mjs.
+import { handleConnectorsRead, handleConnectorsWrite } from "./connectors-routes.mjs";
 // The Command Panel's eight routes, every one absent while the panel is
 // switched off and answered by the optional local engine while it is on —
 // see terminal-routes.mjs — its folder check, which the deck answers itself
@@ -537,6 +540,8 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "GET"  && url.pathname === "/api/good-life-radio") return guard(handleGoodLifeRadio(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/cafe-music-bgm") return guard(handleCafeMusicBgm(req, res), res);
     if (url.pathname === "/api/integrations" || url.pathname.startsWith("/api/integrations/")) return guard(handleIntegrations(req, res, url), res);
+    if (req.method === "GET"  && url.pathname === "/api/connectors") return guard(handleConnectorsRead(req, res, url), res);
+    if (req.method === "POST" && url.pathname === "/api/connectors") return guard(handleConnectorsWrite(req, res), res);
 
     // Through writeJsonArray rather than `send`, and through `guard` like every
     // route above it: this is the one answer whose size is the ring's size, and
