@@ -670,6 +670,18 @@ On a Mac, **cannot share here** is different from **expired here**. It means thi
 
 Step by step: [Repair Claude and Codex logins across machines](https://ccdeck.dev/guides/local-network/)
 
+## Claude connectors
+
+The connectors on your claude.ai account — Slack, Jira and Confluence, Linear, GitHub, SimpleLocalize and the rest — are already reachable from your own Claude Code. The deck can read through them by running that Claude Code headless (`claude -p`), so it never holds a token for any of those services: what a connector can see is what your Claude account can see, and a connector you add on claude.ai is one the deck can use after its next listing.
+
+**Settings › Connectors** lists the connectors your Claude Code reaches and each one's tools. Only a tool its own server marks read-only can be turned on; a tool marked destructive, or not marked at all, never can. Every tool starts off. A part of the deck that reads through a connector asks for named tools, and a tool that is not on there is refused before Claude Code starts.
+
+**Read-only by construction.** A run starts Claude Code with no built-in tools at all (no shell, no file edits, no web fetch, no subagents), in `--restricted` mode so none of your own settings, permission rules or hooks apply, with every permission it was not given refused and nobody to ask, and with the connectors' other tools taken out of what the model is shown. Before the prompt is sent it asks that same Claude Code which tools its servers have, and refuses one that is missing or no longer read-only. A run that is offered, or calls, any tool outside the ones it asked for is ended on the spot. What a Slack message or a Jira comment says is data to the model, never an instruction.
+
+**What it costs.** Each run uses your Claude plan, on Haiku unless a feature asks for another model, with a spending cap per run. The section shows the last runs: when, which model, what each cost and how many tool calls it made. Listing the connectors sends no prompt and costs nothing.
+
+**What it keeps.** Nothing of what is said: the prompt reaches Claude Code on its standard input, never on its command line, no transcript is saved, and no prompt, answer or tool result goes to the event log, the deck's own log or the usage reports. The runs never appear on the board. `AGENTS_DECK_NO_AGENT=1` turns all of it off.
+
 ## Options
 
 ```
@@ -818,6 +830,7 @@ Environment:
 | `AGENTS_DECK_LAN_TAILSCALE_ONLY=1` | Keep **Local network** to your own Tailscale machines: no beacon on the local network, and no deck outside the tailnet is heard, dialled or answered. Turn on its **Tailscale** switch too, or the deck finds nobody |
 | `AGENTS_DECK_NO_REPORTS=1` | Never send usage reports, nor the device fingerprint with feedback |
 | `AGENTS_DECK_NO_RADAR=1` | Keep Telemetry Radar from looking for Claude Code's collector or capturing in the background — see [Claude Telemetry Radar](#claude-telemetry-radar-macos-linux-and-windows) |
+| `AGENTS_DECK_NO_AGENT=1` | Never run your Claude Code for the deck: no connector reads, no summaries, and **Settings › Connectors** lists nothing — see [Claude connectors](#claude-connectors) |
 | `AGENTS_DECK_NO_OPENCODE=1` | Leave opencode alone: no ccdeck plugin (`ccdeck.js`) in its plugins folder, `~/.config/opencode/plugins` (one an earlier start wrote is taken out), so its sessions stay off the board. `ccdeck --uninstall` removes it too |
 | `AGENTS_DECK_NO_COPILOT=1` | Leave GitHub Copilot CLI alone: no `ccdeck.json` in its hooks directory (one an earlier start wrote is taken out), so its sessions stay off the board. `ccdeck --uninstall` removes it too |
 | `COPILOT_HOME` | Where GitHub Copilot CLI keeps its settings, as Copilot reads it; the deck's hooks file goes in its `hooks` directory |
