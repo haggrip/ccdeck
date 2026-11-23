@@ -16,7 +16,7 @@
 // item opens its PR, message or ticket in the browser. Nothing here posts,
 // sends or changes anything anywhere: the only writes are the pane's own
 // settings and the people pinned or hidden, in the deck's own file.
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useT, type TFunction } from "../i18n";
 import { KitIcon } from "./kit-icons";
 import { ExternalLinkGlyph, RefreshGlyph } from "./action-glyphs";
@@ -175,14 +175,14 @@ function Settings({ view, handle, t }: { view: BriefView; handle: StatusBriefHan
   return (
     <div className="stp-settings" id="stp-settings">
       <label className="stp-field">
-        <span>{t("brief.settings.model")}</span>
-        <SelectShell><select className="sm-select" value={s.model} onChange={e => handle.setSettings({ model: e.target.value as BriefModel })}>
+        <span id="stp-model-label">{t("brief.settings.model")}</span>
+        <SelectShell><select className="sm-select" aria-labelledby="stp-model-label" value={s.model} onChange={e => handle.setSettings({ model: e.target.value as BriefModel })}>
           {BRIEF_MODELS.map(m => <option key={m} value={m}>{MODEL_NAMES[m]}</option>)}
         </select></SelectShell>
       </label>
       <label className="stp-field">
-        <span>{t("brief.settings.every")}</span>
-        <SelectShell><select className="sm-select" value={s.everyMinutes} onChange={e => handle.setSettings({ everyMinutes: Number(e.target.value) as BriefSettings["everyMinutes"] })}>
+        <span id="stp-every-label">{t("brief.settings.every")}</span>
+        <SelectShell><select className="sm-select" aria-labelledby="stp-every-label" value={s.everyMinutes} onChange={e => handle.setSettings({ everyMinutes: Number(e.target.value) as BriefSettings["everyMinutes"] })}>
           {BRIEF_EVERY.map(n => <option key={n} value={n}>{n ? t("brief.settings.everyMin", { n }) : t("brief.settings.everyOff")}</option>)}
         </select></SelectShell>
       </label>
@@ -226,11 +226,14 @@ export interface StatusPaneProps {
   onTogglePin: () => void;
   /** The Inspector is open beside it, in the Board's right column. */
   besideInspector: boolean;
+  /** Workspace's docked side column, in px, or 0: the pane floats beside it
+   *  there rather than over it. */
+  sideWidth?: number;
   onOpenSession: (sessionId: string) => void;
   onClose: () => void;
 }
 
-export function StatusPaneView({ rows, now, brief, pinned, onTogglePin, besideInspector, onOpenSession, onClose }: StatusPaneProps) {
+export function StatusPaneView({ rows, now, brief, pinned, onTogglePin, besideInspector, sideWidth = 0, onOpenSession, onClose }: StatusPaneProps) {
   const t = useT();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [unfolded, setUnfolded] = useState(false);
@@ -265,7 +268,8 @@ export function StatusPaneView({ rows, now, brief, pinned, onTogglePin, besideIn
 
   return (
     <aside className="status-pane" id={STATUS_PANE_ID} aria-labelledby="stp-title"
-      data-pinned={pinned ? "" : undefined} data-fold={folded ? "inspector" : undefined}>
+      data-pinned={pinned ? "" : undefined} data-fold={folded ? "inspector" : undefined}
+      style={sideWidth > 0 ? { "--stp-side": `${sideWidth}px` } as CSSProperties : undefined}>
       <SheetHandle />
       <div className="stp-head">
         {besideInspector && !pinned ? (

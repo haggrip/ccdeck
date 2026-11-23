@@ -25,6 +25,8 @@
   color: var(--text);
   text-align: left;
 }
+/* Workspace with its side column docked: beside the column, not over it. */
+.app[data-view="workspace"] .status-pane[style] { right: calc(var(--rail-r) + var(--stp-side, 0px)); }
 @media (min-width: 641px) {
   .app[data-right-col] > .right-col > .status-pane {
     position: relative;
@@ -147,11 +149,7 @@
 .stp-src { display: inline-flex; align-items: center; gap: 3px; color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); }
 .stp-person-acts { display: flex; flex: none; gap: 2px; margin-top: 2px; }
 .stp-pin-person[aria-pressed="true"] { color: var(--accent); }
-/* Hide is the quieter of a person's two buttons: on a pointer it shows with
-   the row it acts on, and a key reaches it as always. */
-@media (hover: hover) and (pointer: fine) {
-  .stp-person:not(:hover, :focus-within) .stp-hide-person { opacity: 0; }
-}
+.stp-pin-person, .stp-hide-person { flex: none; }
 
 /* Settings: a short form under the counts while the gear is pressed. */
 .stp-settings {

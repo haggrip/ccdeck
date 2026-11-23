@@ -141,6 +141,11 @@ describe("the pane's markup", () => {
     expect(pinned).toMatch(/class="glyph-btn stp-pin" aria-pressed="true"/);
   });
 
+  it("floats beside Workspace's docked column instead of over it", () => {
+    expect(draw({ sideWidth: 320 })).toContain('style="--stp-side:320px"');
+    expect(draw()).not.toContain("--stp-side");
+  });
+
   it("says why there is no brief, and still lists the sessions", () => {
     const off = draw({ brief: handle({ ...VIEW, brief: null, agent: "off" }) });
     expect(off).toContain("Briefs need Claude Code on this deck.");

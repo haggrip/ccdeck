@@ -1664,6 +1664,7 @@ function Inner() {
         <StatusPane rows={buildRows(stateRef.current, now, watchingSessions)} now={now}
           pinned={statusPane.pinned} onTogglePin={statusPane.togglePin}
           besideInspector={rightCol && detailShown}
+          sideWidth={inWorkspace && side.on ? side.width : 0}
           onOpenSession={pickSession} onClose={() => statusPane.setOpen(false)} />
       )}
       <SideColumn on={side.on} split={side.split} width={side.width} share={side.share} onWidth={side.setWidth} onShare={side.setShare}>
