@@ -844,6 +844,21 @@ export function lanEnabled(prefs, env = process.env) {
 }
 
 /**
+ * Is the LAN engine held to the tailnet? AGENTS_DECK_LAN_TAILSCALE_ONLY=1 keeps
+ * the deck off the local network itself while discovery over Tailscale goes on
+ * working: no beacon to a broadcast address, and no address outside the
+ * tailnet heard, dialled or answered — see mayTalkTo in lan-engine.mjs.
+ *
+ * A claim about the machine, like AGENTS_DECK_NO_LAN, so nothing a page posts
+ * can lift it; and only ever a narrowing. It does not turn the Tailscale
+ * switch on: that stays the person's, and with it off a deck held to the
+ * tailnet finds nobody, which is what it was asked for.
+ */
+export function lanTailscaleOnly(env = process.env) {
+  return env.AGENTS_DECK_LAN_TAILSCALE_ONLY === "1";
+}
+
+/**
  * Is the Command Panel switched on? The `terminal` switch as normalise()
  * reads it: on unless a real false was stored, and nothing else: no
  * environment variable or launch flag turns it on or off.

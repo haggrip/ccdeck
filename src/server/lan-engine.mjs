@@ -327,6 +327,10 @@ export function createEngine({
     // is on this network, these only ever for machines signed in to this
     // person's own Tailscale account — see routeOf.
     tailscale: false, tailscaleAsk: true, tailscaleAccept: true,
+    // HELD TO THE TAILNET, from AGENTS_DECK_LAN_TAILSCALE_ONLY=1 (lanTailscaleOnly
+    // in deck-prefs.mjs): no broadcast, and no address outside the tailnet is
+    // heard, dialled or answered. Off, every route behaves as it always has.
+    tailscaleOnly: false,
   };
   // Bumped by every stop, a restart included: anything started before it
   // belongs to a listener that is gone.
@@ -385,6 +389,17 @@ export function createEngine({
   /** The same answer by the name a row carries: "tailscale" for a tailnet
    *  address, "lan" for every other. */
   const viaAt = addr => (routeTo(addr) ? "tailscale" : "lan");
+  /** Whether this deck may talk to an address at all: any, unless it is held
+   *  to the tailnet, and then only a tailnet one. The listener, the beacon and
+   *  every dial ask this one question, so a deck on the local network can
+   *  neither reach this one nor be reached by it — not even at an address
+   *  somebody typed, which would otherwise pair in one direction only. */
+  const mayTalkTo = addr => !cfg.tailscaleOnly || !!routeTo(addr);
+  /** connectToPeer behind that question. Refused the way a deck that is not
+   *  there refuses, so each caller's own failure handling is what runs. */
+  const dialPeer = opts => (mayTalkTo(opts.host)
+    ? connectToPeer(opts)
+    : Promise.reject(Object.assign(new Error("this deck talks to its tailnet only"), { code: "TAILSCALE_ONLY" })));
 
   /** A pairing somebody explicitly removed. Unlike `declined` in
    * lan-requests.mjs, this survives a restart because the old dial row
@@ -618,7 +633,7 @@ export function createEngine({
     let copy = false;
     let conn = null;
     try {
-      conn = await connectToPeer({
+      conn = await dialPeer({
         host: addr, port, fp: mine.fp, pub: mine.pub, secret: mine.secret, name: cfg.name,
         myPort: server?.port() ?? null, expectPub: mine.pub, ask: false, sealFrames, ephemeral,
       });
@@ -658,7 +673,7 @@ export function createEngine({
     // them — see the catch below.
     const done = [];
     try {
-      conn = await connectToPeer({
+      conn = await dialPeer({
         host: peer.addr, port: peer.port, timeoutMs: ROUND_MS,
         fp: identity.fp, pub: identity.pub, secret: identity.secret, name: cfg.name,
         // Where this deck listens, so the far side can reach back after it
@@ -1193,6 +1208,9 @@ export function createEngine({
         // in and a deck this one called have proved exactly the same thing —
         // see askToAccept in lan-requests.mjs.
         onPending: requests.askToAccept,
+        // Held to the tailnet, a caller from anywhere else is let go before
+        // the handshake, so it never becomes a row somebody could accept.
+        allowFrom: mayTalkTo,
       });
       server = startingServer;
       let port;
@@ -1227,7 +1245,10 @@ export function createEngine({
         trusted: () => cfg.trusted,
         // The owner's own machines on the tailnet, while the switch is on.
         unicast: () => (cfg.tailscale ? beaconTargets(tailnet?.snapshot?.() ?? null) : []),
-        routeFor: addr => (!routeTo(addr) ? "lan" : cfg.tailscale ? "tailscale" : null),
+        routeFor: addr => (!routeTo(addr) ? (cfg.tailscaleOnly ? null : "lan") : cfg.tailscale ? "tailscale" : null),
+        // Held to the tailnet, the beacon goes to the owner's machines there
+        // and to no broadcast address.
+        broadcast: () => !cfg.tailscaleOnly,
         onPeer: () => onChange?.(),
         // HEARING, AS OPPOSED TO RUNNING. A deck whose discovery port another
         // program holds keeps everything else — the listener, the rounds, its
@@ -1300,7 +1321,7 @@ export function createEngine({
         if (!stillJoining()) return { ok: false, reason: "not_running", tried };
         let conn = null;
         try {
-          conn = await connectToPeer({
+          conn = await dialPeer({
             host: at.addr, port: at.port, timeoutMs: ROUND_MS,
             fp: identity.fp, pub: identity.pub, secret: identity.secret,
             name: cfg.name, myPort: server.port(), code: inv.code,
@@ -1525,6 +1546,8 @@ export function createEngine({
         // Discovery over Tailscale: whether this machine has it at all, which
         // decides whether the dialog shows the switch, and what it can see.
         tailscale: tailnet ? tailnetStatus() : null,
+        // Whether the machine holds this deck to its tailnet — see mayTalkTo.
+        tailscaleOnly: !!cfg.tailscaleOnly,
         fp: identity?.fp ?? null,
         // The address and port a person on another subnet types into the other
         // deck's field. Null when this machine has no ordinary one, which the

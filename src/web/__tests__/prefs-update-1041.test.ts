@@ -264,6 +264,9 @@ describe("the fields the engine authors", () => {
       tailscale: false,
       tailscaleAsk: true,
       tailscaleAccept: true,
+      // Not the page's: the machine's word, read from the environment like
+      // the veto below, and off when it says nothing.
+      tailscaleOnly: false,
       aliases: { "aaa-bbb-111": "Laptop" },
     });
   });
@@ -272,6 +275,16 @@ describe("the fields the engine authors", () => {
     // AGENTS_DECK_NO_LAN=1 is how a launch script — and this repo's own suite —
     // keeps a deck off the network now that the default is on.
     expect(lanApplyFields(stored, { load: false, env: { AGENTS_DECK_NO_LAN: "1" } }).enabled).toBe(false);
+  });
+
+  it("lets the machine hold it to the tailnet, and nothing stored can", () => {
+    // AGENTS_DECK_LAN_TAILSCALE_ONLY=1 narrows the feature rather than vetoing
+    // it: still on, but off the local network itself (lanTailscaleOnly).
+    const held = lanApplyFields(stored, { load: false, env: { AGENTS_DECK_LAN_TAILSCALE_ONLY: "1" } });
+    expect(held.enabled).toBe(true);
+    expect(held.tailscaleOnly).toBe(true);
+    const claimed = { ...stored, lan: { ...stored.lan, tailscaleOnly: true } };
+    expect(lanApplyFields(claimed, { load: false, env: {} }).tailscaleOnly).toBe(false);
   });
 });
 

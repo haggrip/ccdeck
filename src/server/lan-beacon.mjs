@@ -157,6 +157,12 @@ export function createBeacon({
    * beacons have none.
    */
   routes = null,
+  /**
+   * Whether to broadcast at all. False sends the beacon only to `unicast` —
+   * what a deck held to its tailnet does, so the local network never hears
+   * it (lanTailscaleOnly in deck-prefs.mjs). Read per announce, like the rest.
+   */
+  broadcast = () => true,
 } = {}) {
   // Randomised per process. Two beacons from one fingerprint with different
   // instance ids mean the deck restarted between them, which is the signal to
@@ -247,12 +253,12 @@ export function createBeacon({
     // broadcast still works without an interface map; retry next announce.
     let faces;
     try { faces = ifaces(); } catch { faces = {}; }
-    const plan = broadcastPlan(faces);
+    const plan = broadcast() ? broadcastPlan(faces) : [];
     // Asked behind the send, and read from what was last answered: the first
     // beacon after a start goes as it always did, and the ones after it know.
     void routes?.want?.(plan.map(p => p.to));
     const kept = routes ? plan.filter(p => !leavesByTunnel(p, routes.via(p.to), looksLikeTunnel)) : plan;
-    tunneled = kept.length === 0;
+    tunneled = plan.length > 0 && kept.length === 0;
     const targets = kept.map(p => p.to);
     const from = out ?? sock;
     let left = targets.length;
