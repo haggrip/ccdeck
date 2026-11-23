@@ -123,6 +123,10 @@
   gap: 16px;
   /* 40 high on every page (V4's Page head): a 20px title, 4px, a 16px line. */
   min-height: 40px;
+  /* Never squeezed by a long section: the pane is a flex column, and with a
+     min-height set the head would shrink to 40px under a note that wraps,
+     drawing the note over the first group (Connectors at 320px). */
+  flex-shrink: 0;
 }
 .settings-pane-heading { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .settings-pane-title {
