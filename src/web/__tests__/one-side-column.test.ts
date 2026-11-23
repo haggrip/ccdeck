@@ -342,6 +342,8 @@ describe("App's wiring", () => {
   });
 
   it("settles on the open flags once the selection and the stage are known, on the Board only", () => {
-    expect(app).toMatch(/sides\.settle\(\{\s*left: leftColumnWanted > 0,\s*right: !phone && \(detailWanted \|\| usageAsked\.shown \|\| machineAsked\.shown\),\s*board: !inWorkspace,\s*\}\);/);
+    // CHANGED ON PURPOSE (the Status pane): an open Status pane is the right
+    // column open, like Usage and This machine.
+    expect(app).toMatch(/sides\.settle\(\{\s*left: leftColumnWanted > 0,\s*right: !phone && \(detailWanted \|\| usageAsked\.shown \|\| machineAsked\.shown \|\| statusPane\.open\),\s*board: !inWorkspace,\s*\}\);/);
   });
 });

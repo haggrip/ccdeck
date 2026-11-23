@@ -43,6 +43,7 @@ import {
 import type { ToolActivityView } from "./components/ToolAuditModal";
 import { t, type TFunction } from "./i18n";
 import { INSPECTOR_REGION_ID } from "./inspector-corner";
+import { STATUS_PANE_ID, StatusGlyph } from "./components/StatusPane";
 
 /** What the top bar's search field says before anything is typed (V4's Figma), and so its
  *  name: the words on screen are the name (WCAG 2.5.3). */
@@ -135,7 +136,12 @@ export function railItems({
   watchOn, watchUnseen, setBrowserWatchOpen, setTrafficRadarOpen, setRadioOpen, openToolActivity, openSettings, onFeedback, toggles,
   openCapacity, integrations = [], openExploreIntegrations, openQuickOpen, feedbackUnread = 0, openFeedbackConversations,
   inspectorOpen = false, toggleInspector = () => {},
+  statusPaneOpen = false, toggleStatusPane,
 }: {
+  /** Whether the Status pane is open (use-status-pane.ts). */
+  statusPaneOpen?: boolean;
+  /** The Status pane's door; absent, the deck draws none. */
+  toggleStatusPane?: () => void;
   /** Whether the Inspector shows, as a column, a sheet or the detail panel. */
   inspectorOpen?: boolean;
   /** The Inspector door's press: what D does in the place it is pressed. */
@@ -234,6 +240,13 @@ export function railItems({
     ariaLabel: t("board.inspector.show"), glyph: <InspectorGlyph />, kind: "panel",
     open: inspectorOpen, controls: INSPECTOR_REGION_ID, onPress: toggleInspector,
   };
+  // The Status pane's door, a run of its own under the Inspector's: what waits
+  // on you across the sessions and the connectors (components/StatusPane.tsx).
+  const status: RailItem[] = toggleStatusPane ? [{
+    id: "status", label: t("brief.rail"), short: t("brief.rail"), stripeWord: t("brief.rail"),
+    ariaLabel: t("brief.rail"), hint: t("brief.rail.hint"), glyph: <StatusGlyph />, kind: "panel",
+    open: statusPaneOpen, controls: STATUS_PANE_ID, onPress: toggleStatusPane,
+  }] : [];
   const usage: RailItem = {
     id: "usage", label: t("board.rail.usage"), short: t("board.rail.usage"), key: { cap: "U", aria: "U", single: true },
     ariaLabel: t("board.rail.usage"), glyph: <UsageGlyph />, kind: "panel",
@@ -351,6 +364,7 @@ export function railItems({
     // opens. Its press is App's (it does what D does in the place it is pressed).
     rightStripe: [
       [inspector],
+      status,
       named(t("board.rail.group.usage"), [usage, machine]),
       named(t("board.rail.group.activity"), [history, ...activity]),
       named(t("board.rail.group.watchers"), [browserWatch, ...radar]),
@@ -359,6 +373,7 @@ export function railItems({
     capacity: providers.claude ? capacity : [],
     right: [
       named(t("board.rail.group.usage"), [usage, machine]),
+      status,
       named(t("board.rail.group.activity"), [history, ...activity]),
       named(t("board.rail.group.watchers"), [browserWatch, ...radar]),
       radio,
