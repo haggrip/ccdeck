@@ -44,6 +44,7 @@ import RadarSettings from "./RadarSettings";
 import ClaudeCodeSettings from "./ClaudeCodeSettings";
 import ToolAuditSettings from "./ToolAuditSettings";
 import IntegrationsSection, { type SettingsLeaveGuard } from "./IntegrationsSection";
+import ConnectorsSection from "./ConnectorsSection";
 import { integrationsReach, offeredKinds, useIntegrations } from "../integrations/client";
 import ThemeSection from "./ThemeSection";
 import ReadingSection, { ReadingReset } from "./ReadingSection";
@@ -300,6 +301,8 @@ export default function SettingsModal({
         );
       case "integrations":
         return <IntegrationsSection onBeforeLeaveChange={registerLeaveGuard} />;
+      case "connectors":
+        return <ConnectorsSection />;
       case "data":
         return <ToolAuditSettings />;
       case "account":

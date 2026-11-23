@@ -306,7 +306,7 @@ function openSession({ spawn, file, args, opts = {}, cwd, env, onMessage }) {
     }), { processGroup });
   } catch (err) {
     end({ spawnError: err });
-    return { send() {}, request: async () => ({ error: "not running", exited: true }), close() {}, kill() {}, done };
+    return { send() {}, request: async () => ({ error: "not running", exited: true }), close() {}, kill() {}, finish() {}, done };
   }
   const write = (obj) => {
     if (ended || !child.stdin?.writable) return;
@@ -317,6 +317,15 @@ function openSession({ spawn, file, args, opts = {}, cwd, env, onMessage }) {
     killTree(child, "SIGTERM");
     clearTimeout(killTimer);
     killTimer = setTimeout(() => killTree(child, "SIGKILL"), KILL_GRACE_MS);
+    killTimer.unref?.();
+  };
+  // A run that has answered is let go the way Claude Code expects: its stdin
+  // ends and it exits by itself. Only one still there after the grace is killed.
+  const finish = () => {
+    if (ended) return;
+    try { child.stdin?.end(); } catch { /* gone */ }
+    clearTimeout(killTimer);
+    killTimer = setTimeout(kill, KILL_GRACE_MS);
     killTimer.unref?.();
   };
   child.stdin?.on("error", () => {});
@@ -364,6 +373,7 @@ function openSession({ spawn, file, args, opts = {}, cwd, env, onMessage }) {
     },
     close() { try { child.stdin?.end(); } catch { /* gone */ } },
     kill,
+    finish,
     done,
   };
 }
@@ -487,8 +497,7 @@ export function createClaudeAgent({
       }
       return { ok: true, connectors: connectorsFrom(servers) };
     } finally {
-      session.close();
-      session.kill();
+      session.finish();
     }
   }
 
@@ -545,15 +554,15 @@ export function createClaudeAgent({
     return agentDir().then(cwd => new Promise(resolve => {
       const file = bin();
       const spec = candidateSpec(file, agentArgs({ model, allow, deny, schema, maxBudgetUsd }));
-      let settled = false, toolCalls = 0;
+      let settled = false, toolCalls = 0, answered = false;
       let session = null;
       const settle = (out) => {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
         signal?.removeEventListener?.("abort", onAbort);
-        session?.close();
-        session?.kill();
+        if (answered) session?.finish();
+        else { session?.close(); session?.kill(); }
         resolve(out);
       };
       const onAbort = () => settle(fail("aborted", "the run was cancelled", { usage: usageFrom(null, { toolCalls, model }) }));
@@ -582,7 +591,7 @@ export function createClaudeAgent({
           }
           return;
         }
-        if (msg?.type === "result") settle(fromResult(msg, { toolCalls, model }));
+        if (msg?.type === "result") { answered = true; settle(fromResult(msg, { toolCalls, model })); }
       };
 
       session = openSession({ spawn, file: spec.file, args: spec.args, opts: spec.opts, cwd, env: agentEnv(env), onMessage });

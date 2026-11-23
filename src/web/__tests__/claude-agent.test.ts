@@ -57,11 +57,11 @@ process.stdin.on("data", (d) => {
       }
       const delay = scenario.delayMs ?? 0;
       setTimeout(() => {
+        log({ end: true });
         out({ type: "result", subtype: scenario.subtype ?? "success", is_error: scenario.isError ?? false,
           result: scenario.answer ?? "{\\"ok\\": true}", total_cost_usd: 0.0123, num_turns: 2, duration_ms: 900,
           usage: { input_tokens: 10, output_tokens: 20, cache_read_input_tokens: 30, cache_creation_input_tokens: 40 },
           modelUsage: { "claude-haiku-test": {} }, ...(scenario.structured ? { structured_output: scenario.structured } : {}) });
-        log({ end: true });
       }, delay);
     }
   }
@@ -345,5 +345,67 @@ describe.skipIf(isWin)("a run against a fake claude", () => {
     expect(JSON.stringify(list)).not.toContain("secret.example");
     const signedOut = setup({ account: { tokenSource: "none" } });
     expect(await signedOut.agent.connectorsState()).toMatchObject({ code: "not_signed_in", connectors: [] });
+  });
+});
+
+// @ts-expect-error — .mjs server module, no types
+const { handleConnectors, CONNECTORS_ROUTE } = await import("../../server/connectors-routes.mjs");
+// @ts-expect-error — .mjs server module, no types
+const { GUARDED_READS, OPEN_MUTATIONS } = await import("../../server/request-gates.mjs");
+const { Readable } = await import("node:stream");
+
+function call(method: string, { body, query = "", remoteAddress = "127.0.0.1", agent }: { body?: unknown; query?: string; remoteAddress?: string; agent: object }) {
+  const req = Object.assign(Readable.from(body === undefined ? [] : [Buffer.from(typeof body === "string" ? body : JSON.stringify(body))]), {
+    method, headers: {}, socket: { remoteAddress },
+  });
+  let status = 0, text = "";
+  const res = { headersSent: false, writeHead: (s: number) => { status = s; }, end: (s: string) => { text = s; } };
+  return handleConnectors(req, res, new URL(`http://127.0.0.1${CONNECTORS_ROUTE}${query}`), agent).then(() => ({ status, body: JSON.parse(text) }));
+}
+
+describe("GET and POST /api/connectors", () => {
+  const seen: unknown[] = [];
+  const agent = {
+    connectorsState: async (opts: unknown) => { seen.push(opts); return { vetoed: false, code: "", error: "", connectors: [], enabled: ["a"], runs: [] }; },
+    setEnabledTools: async (tools: unknown) => Array.isArray(tools) ? { ok: true, enabled: [], refused: tools } : { ok: false, code: "bad_request", error: "tools must be a list" },
+  };
+
+  it("is a guarded read and a gated write, wired into the server", () => {
+    expect(GUARDED_READS.has(CONNECTORS_ROUTE)).toBe(true);
+    expect(OPEN_MUTATIONS.has(CONNECTORS_ROUTE)).toBe(false);
+    const index = readFileSync(new URL("../../server/index.mjs", import.meta.url), "utf8");
+    expect(index).toContain('url.pathname === "/api/connectors") return guard(handleConnectors(req, res, url), res);');
+  });
+
+  it("answers this computer only", async () => {
+    for (const method of ["GET", "POST"]) {
+      expect((await call(method, { body: { tools: [] }, remoteAddress: "192.0.2.10", agent })).status).toBe(403);
+    }
+  });
+
+  it("lists, lists again on refresh=1, and saves with what was refused said back", async () => {
+    expect(await call("GET", { agent })).toMatchObject({ status: 200, body: { ok: true, enabled: ["a"] } });
+    await call("GET", { query: "?refresh=1", agent });
+    expect(seen.slice(-2)).toEqual([{ refresh: false }, { refresh: true }]);
+    expect(await call("POST", { body: { tools: ["mcp__x__y"] }, agent })).toMatchObject({ status: 200, body: { ok: true, refused: ["mcp__x__y"] } });
+    expect((await call("POST", { body: "not json", agent })).status).toBe(400);
+    expect((await call("PUT", { agent })).status).toBe(405);
+  });
+});
+
+describe("Settings › Connectors' own sums", async () => {
+  const { money, splitConnectors } = await import("../components/ConnectorsSection");
+  it("prints a cost in cents, or to four places under a cent", () => {
+    expect(money(0)).toBe("$0.00");
+    expect(money(0.0025)).toBe("$0.0025");
+    expect(money(0.42)).toBe("$0.42");
+    expect(money(Number.NaN)).toBe("$0.00");
+  });
+  it("draws a group for a connected connector with a read-only tool, and names the rest", () => {
+    const servers = [...SERVERS, { name: "claude.ai PostHog", status: "connected", source: "claudeai", tools: [{ name: "docs-search", annotations: { openWorld: true } }] }];
+    const { reachable, writeOnly, offline } = splitConnectors(connectorsFrom(servers));
+    expect(reachable.map(c => c.label)).toEqual(["Slack", "Linear"]);
+    expect(writeOnly).toEqual(["PostHog"]);
+    expect(offline).toEqual(["Wiz"]);
   });
 });
