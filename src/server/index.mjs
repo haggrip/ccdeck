@@ -34,6 +34,8 @@ export { MAX_BUFFER, MAX_BUFFER_CHARS, MAX_RING_ENTRIES, payloadChars } from "./
 import { eventsSince } from "./event-ring.mjs";
 // The same ring folded to one row per session, for `ccdeck sessions` (#2183).
 import { summarizeSessions } from "./session-summary.mjs";
+// The Status pane's brief, its settings and its people — see status-brief-routes.mjs.
+import { handleStatusBrief, STATUS_BRIEF_ROUTE } from "./status-brief-routes.mjs";
 // Exported from this file before they moved, and still.
 export { eventBufferStats, eventsSince } from "./event-ring.mjs";
 // The one door every event comes through, and what it does to each on the way
@@ -547,6 +549,8 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "GET" && url.pathname === "/api/sessions") {
       return send(res, 200, { ok: true, now: Date.now(), sessions: summarizeSessions(eventsSince(0)) });
     }
+    // The Status pane: GET the cached brief, POST refresh, settings and people.
+    if (url.pathname === STATUS_BRIEF_ROUTE || url.pathname.startsWith(`${STATUS_BRIEF_ROUTE}/`)) return guard(handleStatusBrief(req, res, url), res);
 
     // GET /api/clear — what a POST to this path would do, and to whose log.
     // See handleClearPreview.
