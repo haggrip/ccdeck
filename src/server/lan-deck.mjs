@@ -18,7 +18,7 @@
 import { readFile } from "node:fs/promises";
 import { networkInterfaces } from "node:os";
 import { PRODUCT } from "./brand.mjs";
-import { lanEnabled, withManualEntry, withShared } from "./deck-prefs.mjs";
+import { lanEnabled, lanTailscaleOnly, withManualEntry, withShared } from "./deck-prefs.mjs";
 import { heldPrefs } from "./prefs-state.mjs";
 import { createEngine, defaultName } from "./lan-engine.mjs";
 import { createTailnet } from "./tailscale.mjs";
@@ -355,6 +355,9 @@ export function lanApplyFields(prefs, { load = false, env = process.env } = {}) 
     // how a launch script — or this repo's own test suite — keeps a deck off
     // the network now that the default is on.
     enabled: lanEnabled(prefs, env),
+    // On the network, but only the tailnet part of it: the machine's word as
+    // well, read the same way — see lanTailscaleOnly.
+    tailscaleOnly: lanTailscaleOnly(env),
     name: lan.name || defaultName(),
     shared: Array.isArray(lan.shared) ? lan.shared : [],
     // Which of those an arrival ticked, so a deck the accept switch paired is

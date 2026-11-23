@@ -127,6 +127,10 @@ export const MAX_UNREAD_BYTES = 4 * MAX_FRAME_BYTES;
  */
 export function createSyncServer({
   fp, pub, name, secret, handlers, onError, host = "0.0.0.0", prefer = 0,
+  /** Whether to talk to a caller from this address at all, asked before
+   *  anything is read: a deck held to its tailnet answers nobody else (see
+   *  mayTalkTo in lan-engine.mjs). */
+  allowFrom = () => true,
   /** The peers somebody has accepted, read fresh on every connection so an
    *  accept takes effect on the next one rather than on the next restart. */
   trusted = () => [],
@@ -220,6 +224,9 @@ export function createSyncServer({
     // out, and treating those as one host would let a closing connection refuse
     // a real one.
     const here = from(sock);
+    // Not counted as an arrival either: what reached the listener is a packet
+    // this deck was told never to answer.
+    if (!allowFrom(here)) { sock.destroy(); return; }
     if (here) {
       let mine = 0;
       for (const s of live) if (from(s) === here) mine++;

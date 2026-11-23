@@ -466,6 +466,9 @@ export const SETTING_VARS = Object.freeze([
   // deck started at login would otherwise ignore and put the file back, and
   // the directory Copilot reads it from.
   "AGENTS_DECK_NO_COPILOT", "COPILOT_HOME",
+  // Local network held to the tailnet (deck-prefs.mjs lanTailscaleOnly). A deck
+  // started at login without it would broadcast on the local network again.
+  "AGENTS_DECK_LAN_TAILSCALE_ONLY",
   // The account's veto (account-flag.mjs), carried because a veto is always
   // safe to pass on — and the one name here the README's table does not list:
   // the account it vetoes is hidden, so documenting the veto would announce

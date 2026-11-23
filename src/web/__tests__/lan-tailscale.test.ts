@@ -17,6 +17,10 @@ import { createBeacon, DISCOVERY_PORT } from "../../server/lan-beacon.mjs";
 import { accountKey, fingerprint, hostId, identityFrom, notePeer, PRESENT_MS, PROTOCOL } from "../../server/lan-sync.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 import { createEngine } from "../../server/lan-engine.mjs";
+// @ts-expect-error — plain .mjs server module, no types
+import { lanTailscaleOnly } from "../../server/deck-prefs.mjs";
+// @ts-expect-error — plain .mjs server module, no types
+import { lanApplyFields } from "../../server/lan-deck.mjs";
 import { tailscaleDetail } from "../components/LanSetupModal";
 
 // ── the status document ─────────────────────────────────────────────────────
@@ -506,6 +510,112 @@ describe("with the Tailscale switch off", () => {
     // rather than a broken one.
     await b.e.apply(TS_ON);
     expect(reads).toBe(2);
+  }, 20_000);
+});
+
+// ── held to the tailnet (AGENTS_DECK_LAN_TAILSCALE_ONLY=1) ─────────────────
+//
+// Discovery over Tailscale was only ever an addition. With Local network on,
+// the beacon still went to every broadcast address the machine had and the
+// listener answered any caller, so a deck on the same Wi-Fi heard this one and
+// could ask it to pair whatever the switches said — with both accept switches
+// off it was still a row one press away. Held to the tailnet, a deck keeps off
+// the local network itself: no broadcast, and no address outside the tailnet
+// heard, answered or dialled. Each case below is held against a deck that is
+// not, so a pass says the switch did it rather than the setup.
+
+const HELD = { ...TS_ON, tailscaleOnly: true };
+/** A reader on a machine with Tailscale running and nobody on it but itself:
+ *  127.0.0.1 is then the local wire, as any address it does not list is. */
+const noTailnet = () => ({
+  snapshot: () => ({ state: "Running", running: true, self: { name: "me", ips: ["100.101.1.1"], tagged: false }, peers: [] }),
+  refresh: async () => {}, freshen: async () => {}, found: () => true,
+});
+
+describe("a deck held to the tailnet", () => {
+  it("is held only when the machine says so, never by the prefs file", () => {
+    expect(lanTailscaleOnly({ AGENTS_DECK_LAN_TAILSCALE_ONLY: "1" })).toBe(true);
+    for (const v of [undefined, "", "0", "true", "yes"]) {
+      expect(lanTailscaleOnly({ AGENTS_DECK_LAN_TAILSCALE_ONLY: v }), String(v)).toBe(false);
+    }
+    expect(lanApplyFields({ lan: { enabled: true } }, { env: { AGENTS_DECK_LAN_TAILSCALE_ONLY: "1" } }).tailscaleOnly).toBe(true);
+    // A page writes prefs, and the machine's word is not among what it writes.
+    expect(lanApplyFields({ lan: { enabled: true, tailscaleOnly: true } }, { env: {} }).tailscaleOnly).toBe(false);
+  });
+
+  it("sends its beacon to the owner's tailnet machines and to no broadcast address", async () => {
+    const ifaces = () => ({ en0: [{ address: "192.168.1.20", netmask: "255.255.255.0", family: "IPv4", internal: false }] });
+    const beacon = (broadcast: boolean) => {
+      const sock = fakeSocket();
+      const b = createBeacon({
+        port: 51_234, name: "Mac", fp: fingerprint(randomBytes(32)), createSocket: () => sock, ifaces,
+        unicast: () => ["100.101.1.2"], broadcast: () => broadcast,
+      });
+      return { b, sock };
+    };
+    const held = beacon(false);
+    await held.b.start();
+    expect(held.sock.sent.map(s => s.addr)).toEqual(["100.101.1.2"]);
+    held.b.stop();
+
+    const free = beacon(true);
+    await free.b.start();
+    expect(free.sock.sent.map(s => s.addr)).toEqual(["255.255.255.255", "192.168.1.255", "100.101.1.2"]);
+    free.b.stop();
+  });
+
+  it("does not hear a deck on the local network, however its switches are set", async () => {
+    const stranger = identityFrom("");
+    const held = await deck([], "Mac", [], loopbackTailnet(true), { ...HELD, autoAsk: true, autoAccept: true });
+    hear(held, stranger, "Wi-Fi", "192.168.1.9");
+    expect(held.e.status().strangers).toEqual([]);
+    expect(held.e.status().peers).toEqual([]);
+
+    const free = await deck([], "Laptop", [], loopbackTailnet(true), TS_ON);
+    hear(free, stranger, "Wi-Fi", "192.168.1.9");
+    expect(free.e.status().strangers).toMatchObject([{ fp: stranger.fp, via: "lan" }]);
+  });
+
+  it("lets a deck on the local network that calls in go before the handshake", async () => {
+    const caller = await deck([], "Wi-Fi", [], null, {});
+    const held = await deck([], "Mac", [], noTailnet(), { ...HELD, autoAccept: true });
+    caller.e.addPeer("127.0.0.1", held.e.status().port);
+    await caller.e.round();
+    expect(held.e.status().pending).toEqual([]);
+    expect(held.e.status().trusted).toEqual([]);
+
+    // The same call to a deck that is not held waits there for a press.
+    const free = await deck([], "Laptop", [], noTailnet(), TS_ON);
+    caller.e.addPeer("127.0.0.1", free.e.status().port);
+    await caller.e.round();
+    expect(free.e.status().pending).toMatchObject([{ fp: caller.id.fp, via: "lan" }]);
+  }, 20_000);
+
+  it("does not dial a deck on the local network, not even at a typed address", async () => {
+    const held = await deck([], "Mac", [], noTailnet(), HELD);
+    const there = await deck([], "Wi-Fi", [], null, {});
+    held.e.addPeer("127.0.0.1", there.e.status().port);
+    await held.e.round();
+    expect(there.e.status().pending).toEqual([]);
+
+    const free = await deck([], "Laptop", [], noTailnet(), TS_ON);
+    free.e.addPeer("127.0.0.1", there.e.status().port);
+    await free.e.round();
+    expect(there.e.status().pending).toMatchObject([{ fp: free.id.fp }]);
+  }, 20_000);
+
+  it("still pairs and heals with the owner's own machines over Tailscale", async () => {
+    const acct = K("alice@example.com", "org-1");
+    const a = await deck([{ num: 3, email: "alice@example.com", orgUuid: "org-1", alive: true }], "Home", [acct], loopbackTailnet(true), HELD);
+    const b = await deck([{ num: 1, email: "alice@example.com", orgUuid: "org-1", alive: false }], "Office", [acct], loopbackTailnet(true), HELD);
+    announce(b, a, "Home");
+    await b.e.round();
+    await b.e.round();
+    const healed = await b.e.round();
+    expect(a.e.status().trusted).toMatchObject([{ fp: b.id.fp }]);
+    expect(b.e.status().trusted).toMatchObject([{ fp: a.id.fp }]);
+    expect(healed).toMatchObject([{ key: acct, action: "heal", ok: true }]);
+    expect(b.e.status().tailscaleOnly).toBe(true);
   }, 20_000);
 });
 
