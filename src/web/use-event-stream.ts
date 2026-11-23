@@ -16,6 +16,7 @@
 import { useEffect, useRef, useState, type MutableRefObject } from "react";
 
 import { ACCOUNT_EVENT, STREAM_OPEN_EVENT } from "./account-events";
+import { STATUS_TODO_EVENT } from "./status-todo";
 import { createRenderCoalescer } from "./coalesce";
 import { linkDropped, linkOpened, NEVER_OPEN, type LinkMemory } from "./last-news";
 import type { PauseGate } from "./pause";
@@ -124,6 +125,11 @@ export function useEventStream({ stateRef, rerender, pauseGate, chimesRef, deskt
       setLiveSince(Date.now());
     });
     es.addEventListener("desktop-update", (e) => desktopUpdateRef.current((e as MessageEvent).data));
+    // The Status pane's live Todo list, relayed like the account's frames
+    // (use-status-todo.ts listens).
+    es.addEventListener("status-todo", (e) => {
+      window.dispatchEvent(new CustomEvent(STATUS_TODO_EVENT, { detail: (e as MessageEvent).data }));
+    });
     // The ccdeck account's frames, handed on as a window event for whoever
     // listens (use-account.ts, which loads only while the account is on). A
     // deck with the account off never sends one.

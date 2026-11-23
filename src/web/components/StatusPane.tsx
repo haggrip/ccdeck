@@ -21,6 +21,7 @@ import { useT, type TFunction } from "../i18n";
 import { KitIcon } from "./kit-icons";
 import { ExternalLinkGlyph, RefreshGlyph } from "./action-glyphs";
 import SheetHandle from "./SheetHandle";
+import { KIND_MSGS } from "./status-kinds";
 import SelectShell from "./SelectShell";
 import { selfPressAccepted, selfPressProps } from "../panel-press";
 import PanelFoldHead from "./PanelFoldHead";
@@ -30,6 +31,8 @@ import {
   type BriefItem, type BriefModel, type BriefPerson, type BriefSettings, type BriefView, type LocalBrief,
 } from "../status-brief";
 import { useStatusBrief, type StatusBriefHandle } from "../use-status-brief";
+import { useStatusTodo, type StatusTodoHandle } from "../use-status-todo";
+import StatusTodo from "./StatusTodo";
 import type { Row } from "./SessionList";
 
 export const STATUS_PANE_ID = "status-pane";
@@ -38,13 +41,8 @@ export const STATUS_PANE_ID = "status-pane";
 const SOURCE_NAMES = { github: "GitHub", slack: "Slack", jira: "Jira" } as const;
 const MODEL_NAMES: Record<BriefModel, string> = { haiku: "Haiku", sonnet: "Sonnet", opus: "Opus" };
 
-/** The words on an item's kind chip. */
-export const KIND_MSGS: Record<BriefItem["kind"], string> = {
-  approve: "brief.kind.approve", merge: "brief.kind.merge", review: "brief.kind.review", reply: "brief.kind.reply",
-  decide: "brief.kind.decide", todo: "brief.kind.todo", fix: "brief.kind.fix", "follow-up": "brief.kind.followUp",
-  feedback: "brief.kind.feedback", talk: "brief.kind.talk", answer: "brief.kind.answer", failed: "brief.kind.failed",
-  read: "brief.kind.read",
-};
+/** The words on an item's kind chip (status-kinds.ts). */
+export { KIND_MSGS };
 
 /** The one line a folded pane keeps: the live counts. */
 export function countsLine(counts: LocalBrief["counts"], t: TFunction): string {
@@ -213,15 +211,18 @@ function Settings({ view, handle, t }: { view: BriefView; handle: StatusBriefHan
 
 /** The pane as App mounts it: its line to the deck lives as long as it does,
  *  so a closed pane reads and runs nothing. */
-export default function StatusPane(props: Omit<StatusPaneProps, "brief">) {
+export default function StatusPane(props: Omit<StatusPaneProps, "brief" | "todo">) {
   const brief = useStatusBrief();
-  return <StatusPaneView {...props} brief={brief} />;
+  const todo = useStatusTodo();
+  return <StatusPaneView {...props} brief={brief} todo={todo} />;
 }
 
 export interface StatusPaneProps {
   rows: readonly Row[];
   now: number;
   brief: StatusBriefHandle;
+  /** The live Todo list's line to the deck (use-status-todo.ts). */
+  todo: StatusTodoHandle;
   pinned: boolean;
   onTogglePin: () => void;
   /** The Inspector is open beside it, in the Board's right column. */
@@ -233,7 +234,7 @@ export interface StatusPaneProps {
   onClose: () => void;
 }
 
-export function StatusPaneView({ rows, now, brief, pinned, onTogglePin, besideInspector, sideWidth = 0, onOpenSession, onClose }: StatusPaneProps) {
+export function StatusPaneView({ rows, now, brief, todo, pinned, onTogglePin, besideInspector, sideWidth = 0, onOpenSession, onClose }: StatusPaneProps) {
   const t = useT();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [unfolded, setUnfolded] = useState(false);
@@ -252,11 +253,9 @@ export function StatusPaneView({ rows, now, brief, pinned, onTogglePin, besideIn
 
   // The brief's own items, after the deck's: a session the brief names that
   // the deck already lists live is said once, by the live row.
-  const liveIds = new Set([...local.waiting, ...local.todo].map(i => i.sessionId));
-  const fromBrief = (items: BriefItem[] | undefined) => liveItems(items ?? [], sessions).filter(i => !(i.source === "session" && liveIds.has(i.sessionId)));
-  const waiting = [...local.waiting, ...fromBrief(b?.waiting)];
-  const todo = [...local.todo, ...fromBrief(b?.todo)];
-  const talkTo = fromBrief(b?.talkTo);
+  // Waiting on you and To do are the live Todo list now (StatusTodo.tsx), which
+  // the deck keeps from its sessions, the brief, your words and other sessions.
+  const talkTo = liveItems(b?.talkTo ?? [], sessions);
   const people = view ? peopleShown(b?.people ?? [], view.people) : [];
 
   let state: ReactNode = null;
@@ -299,8 +298,7 @@ export function StatusPaneView({ rows, now, brief, pinned, onTogglePin, besideIn
             {state}
             {failed && <p className="stp-flag">{t("brief.failed", { message: failed.message || failed.code })}</p>}
           </section>
-          <Section title={t("brief.section.waiting")} id="stp-waiting" items={waiting} empty={t("brief.section.empty")} onOpenSession={onOpenSession} t={t} />
-          <Section title={t("brief.section.todo")} id="stp-todo" items={todo} empty={t("brief.section.empty")} onOpenSession={onOpenSession} t={t} />
+          <StatusTodo todo={todo} now={now} sessions={sessions} onOpenSession={onOpenSession} t={t} />
           <Section title={t("brief.section.talk")} id="stp-talk" items={talkTo} empty={t("brief.section.empty")} onOpenSession={onOpenSession} t={t} />
           <People people={people} onPerson={brief.person} t={t} />
         </div>
