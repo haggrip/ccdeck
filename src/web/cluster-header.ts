@@ -24,8 +24,15 @@ import { sameWords, startedLine } from "./rail-row-copy";
  * which no other surface said. The id and the start time are in the tooltip.
  */
 export interface ClusterHeader {
-  /** Workspace basename. Always present, always drawn first. */
+  /** What the pill leads with: the group's goal title when it has one (a
+   *  person's, else the goal titler's), else the workspace basename. Always
+   *  present, always drawn first. */
   label: string;
+  /** The workspace basename, when a goal title has taken the label's place:
+   *  drawn after it as secondary text, so the folder never goes away. */
+  folder?: string;
+  /** Whose the goal title is, when there is one: a person's or the titler's. */
+  goalBy?: "person" | "auto";
   /** What the session is called — the user's name for it, else Claude Code's
    *  title — truncated to NAME_COLUMNS. Absent when there is neither, or when
    *  it only says the folder again. */
@@ -173,12 +180,22 @@ export function clusterHeader(
   name: string | undefined,
   sessionId: string,
   peers: readonly string[] = [],
-  { branch, plan, alarm = false, startedAt }: { branch?: string; plan?: string; alarm?: boolean; startedAt?: number } = {},
+  { branch, plan, alarm = false, startedAt, groupName, goalTitle }: {
+    branch?: string; plan?: string; alarm?: boolean; startedAt?: number;
+    /** The group's titles (types.ts): a person's always wins. */
+    groupName?: string; goalTitle?: string;
+  } = {},
 ): ClusterHeader {
+  const person = groupName?.trim() ?? "";
+  const auto = goalTitle?.trim() ?? "";
+  const goal = person || auto;
   const trimmed = name?.trim() ?? "";
-  const named = trimmed && !sameWords(trimmed, workspace) ? trimmed : "";
+  const named = trimmed && !sameWords(trimmed, workspace) && !(goal && sameWords(trimmed, goal)) ? trimmed : "";
   const idTail = distinctIdTail(sessionId, peers);
-  const fields = [workspace, named || undefined].filter(Boolean) as string[];
+  // A goal title leads, and the folder follows it: what the session is for,
+  // then where it runs. The tooltip reads them in the same order.
+  const where = goal ? `${goal}${SEP}${workspace}` : workspace;
+  const fields = [where, named || undefined].filter(Boolean) as string[];
   // The pill draws the plan and the subagents' summary between the workspace
   // and the name, and says "waiting on you: " first for a screen reader; the
   // tooltip reads the same run, with the plan's step whole.
@@ -195,11 +212,12 @@ export function clusterHeader(
     // measured here is far inside 32 columns, so this fires only where the
     // header was going to reach the cluster next door. The whole of it stays
     // in `fullLabel` and in the tooltip built on it.
-    label: truncateName(workspace),
+    label: truncateName(goal || workspace),
+    ...(goal ? { folder: truncateName(workspace), goalBy: person ? "person" as const : "auto" as const } : null),
     name: named ? truncateName(named) : undefined,
     fullLabel: fields.join(SEP),
-    title: clusterTooltip({ alarm, tipWorkspace: workspace, tipRest, planLine: plan, startedAt, idTail }),
-    tipWorkspace: workspace,
+    title: clusterTooltip({ alarm, tipWorkspace: where, tipRest, planLine: plan, startedAt, idTail }),
+    tipWorkspace: where,
     tipRest,
     ...(startedAt != null ? { startedAt } : null),
     idTail,

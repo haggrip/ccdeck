@@ -230,6 +230,14 @@ export function applySessionNamed(state: GraphState, p: HookPayload, sessionId: 
       if (drawn) root.sessionName = drawn; else delete root.sessionName;
     }
     if (titled) root.sessionTitle = titled;
+    // The group's titles (src/server/group-titles.mjs): set by a string,
+    // cleared by null, untouched when absent — every transcript pass.
+    for (const field of ["groupName", "goalTitle"] as const) {
+      if (!(field in p)) continue;
+      const v = p[field];
+      const said = typeof v === "string" ? v.trim() : "";
+      if (said) root[field] = said; else delete root[field];
+    }
     // The title CC overwrites with the provider's slug: compared with that
     // name, not the reader's, so clearing theirs brings the sentence back.
     const shown = root.deckName ? (root.providerSessionName ?? "") : (root.sessionName ?? "");

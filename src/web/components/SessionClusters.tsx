@@ -8,6 +8,10 @@ import { labelRoom, paneChrome, sameBoxes, type PaneBox } from "../cluster-label
 import { createFocusHold } from "../focus-hold";
 import { prefersReducedMotion } from "../viewport-motion";
 import { AlertMark } from "./StateMark";
+import SessionNameField, { RenameGlyph } from "./SessionNameField";
+import { goalTitleReasonKey, groupRenameFacts, requestGoalTitle, saveGroupName } from "../group-rename";
+import { isRenameKey } from "../session-rename";
+import { focusDropped } from "../panel-press";
 
 const selectClusters = (s: ReactFlowState): Cluster[] => clusterBounds(s.nodeInternals.values());
 const selectCardClusters = (s: ReactFlowState): Cluster[] => clusterBounds(s.nodeInternals.values(), { notes: false });
@@ -75,6 +79,16 @@ export default function SessionClusters({ onFocusSession, notes = true }: {
     clearTimeout: handle => window.clearTimeout(handle),
   }));
   useEffect(() => () => hold.cancel(), [hold]);
+  // The group being titled, if any: one field at a time on the board. Its
+  // pill takes focus back when the field closes with the keyboard in it.
+  const [titling, setTitling] = useState<string | null>(null);
+  const pillRefs = useRef(new Map<string, HTMLButtonElement>());
+  const doneTitling = (sessionId: string) => {
+    setTitling(null);
+    requestAnimationFrame(() => {
+      if (focusDropped(document.activeElement?.tagName ?? null)) pillRefs.current.get(sessionId)?.focus();
+    });
+  };
 
   if (clusters.length <= 1) return null; // no need to disambiguate one tree
 
@@ -154,6 +168,32 @@ export default function SessionClusters({ onFocusSession, notes = true }: {
         // and the next column stands closer: the pill reaches less far.
         const room = labelRoom(c, { x, y, zoom }, pane, chrome, notes ? undefined : PACKED_LABEL_GUTTER);
         const labelStyle = clusterLabelStyle(c, zoom, room.maxWidth);
+        // TITLING A GROUP IN PLACE (group-rename.ts). The field takes the
+        // pill's place, at the pill's spot and 1× size, and gives it back on
+        // Enter, Escape or a click away. A pencil beside the pill, drawn on
+        // hover, and F2 on the focused pill both open it.
+        const facts = groupRenameFacts(c);
+        if (facts && titling === c.sessionId) {
+          return (
+            <span key={c.sessionId} className="cluster-title-edit" style={{ ...labelStyle, maxWidth: undefined }}>
+              <SessionNameField
+                facts={facts}
+                place="group"
+                fieldLabel={t("board.group.field")}
+                resetLabel={t("board.group.reset")}
+                save={name => saveGroupName(facts, name)}
+                suggest={{
+                  label: t("board.group.suggest"),
+                  run: async () => {
+                    const res = await requestGoalTitle(facts);
+                    return res.ok ? { ok: true } : { ok: false, message: t(goalTitleReasonKey(res.reason)) };
+                  },
+                }}
+                onDone={() => doneTitling(c.sessionId)}
+              />
+            </span>
+          );
+        }
         // The folder, then its qualifiers, one label, each qualifier in a span
         // of its own. The separators stay the same glyph on purpose: two glyphs
         // would have added a second rhythm without saying which of its
@@ -177,17 +217,30 @@ export default function SessionClusters({ onFocusSession, notes = true }: {
             key={c.sessionId}
             type="button"
             className="cluster-label"
+            ref={el => { if (el) pillRefs.current.set(c.sessionId, el); else pillRefs.current.delete(c.sessionId); }}
             data-alarm={c.alarm ? "" : undefined}
             data-offpane={room.hidden ? "" : undefined}
+            data-goal={c.goalBy}
+            data-titled={facts ? "" : undefined}
             style={labelStyle}
             title={clusterTooltip(c, t)}
+            aria-keyshortcuts={facts ? "F2" : undefined}
             onClick={e => pressSession(e, c.sessionId)}
+            onKeyDown={e => {
+              if (!facts || !isRenameKey(e)) return;
+              e.preventDefault();
+              e.stopPropagation();
+              setTitling(c.sessionId);
+            }}
           >
             {/* Stopped until a human answers, said first and in words for a
                 screen reader, and as the triangle the faces use for the eye.
                 The pill is the only thing on a cluster that is 1× at every
                 zoom, so it is the one place a blocked session can always be
                 found from — the tile under it may be twenty pixels wide. */}
+            {/* The words, in one span that takes the ellipsis, so the pencil
+                after them is never the part cut off. */}
+            <span className="cluster-label-text">
             {c.alarm ? <><AlertMark /><span className="cluster-label-said">{t("board.cluster.waitingOnYou")}</span></> : null}
             {/* THE FOLDER, THEN ITS QUALIFIERS. The folder is written as it
                 is, in the label's --muted at 500 (V4 top-10 #1: no capitals,
@@ -208,6 +261,10 @@ export default function SessionClusters({ onFocusSession, notes = true }: {
                 separator lives inside the span so the two leave together.
                 The tooltip keeps every field whole. */}
             {c.label}
+            {/* The folder, when a goal title has taken the lead: where the
+                session runs, after what it is for, in a lighter step. It
+                never goes away, only behind the goal (group-titles.mjs). */}
+            {c.folder ? <span className="cluster-label-folder">{SEP + c.folder}</span> : null}
             {/* The plan's count (#2157), first after the address: what the
                 session is FOR, and the one surface that still reads it once
                 the root card has shrunk to a face. Hidden at `detail`, where
@@ -220,6 +277,21 @@ export default function SessionClusters({ onFocusSession, notes = true }: {
                 own cards and the root's face say it. */}
             {c.branch ? <span className="cluster-label-branch">{SEP + c.branch}</span> : null}
             {c.name ? <span className="cluster-label-name">{SEP + c.name}</span> : null}
+            </span>
+            {/* THE PENCIL, inside the label and after its words, drawn while
+                the label is under the pointer or holds focus (a tap, on a
+                touch screen). Inside, so it can never sit over the label of
+                the group next door, and a press on it is the label's own
+                hit area. Not a control of its own for a screen reader or the
+                Tab key: F2 on the label is the keyboard's way in, and the
+                label says so (aria-keyshortcuts). Its press names the group
+                and goes no further, so the camera stays where it is. */}
+            {facts ? (
+              <span className="cluster-label-edit" aria-hidden="true" title={t("board.group.rename")}
+                onClick={e => { e.preventDefault(); e.stopPropagation(); setTitling(c.sessionId); }}>
+                <RenameGlyph />
+              </span>
+            ) : null}
           </button>
         );
       })}

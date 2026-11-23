@@ -18,14 +18,26 @@ import { type RefObject, useEffect, useId, useRef, useState } from "react";
 import { useT } from "../i18n";
 import { focusDropped } from "../panel-press";
 import { KitIcon } from "./kit-icons";
-import { nameFieldKey, saveAsk, saveSessionName, SESSION_NAME_MAX, type RenameFacts } from "../session-rename";
+import { nameFieldKey, saveAsk, saveSessionName, SESSION_NAME_MAX, type RenameFacts, type SaveResult } from "../session-rename";
 
 export interface SessionNameFieldProps {
   facts: RenameFacts;
-  /** Where it is drawn, for its size: "header", "row" or "hero". */
-  place: "header" | "row" | "hero";
+  /** Where it is drawn, for its size: "header", "row", "hero", or on the
+   *  board: "card" (a session card's name) and "group" (a group's title). */
+  place: "header" | "row" | "hero" | "card" | "group";
   /** The field closed: `saved` when the deck kept a change. */
   onDone(saved: boolean): void;
+  /** Where a save goes: the session's name unless told otherwise (a group's
+   *  title, group-rename.ts). */
+  save?: (name: string | null) => Promise<SaveResult>;
+  /** The field's accessible name and the ↺'s, when they are not the
+   *  session name's. */
+  fieldLabel?: string;
+  resetLabel?: string;
+  /** A second button beside the ↺ that fills the name some other way (the
+   *  goal titler, for a group): its label, and the run, which answers whether
+   *  it worked and, when not, the line to say. The field closes on success. */
+  suggest?: { label: string; run: () => Promise<{ ok: true } | { ok: false; message: string }> };
 }
 
 /** The pencil the three places draw beside a name, on the kit's spec: 14px,
@@ -36,6 +48,17 @@ export function RenameGlyph() {
       strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M9.4 2.6l2 2L5 11l-2.6.6L3 9z" />
       <path d="M8.2 3.8l2 2" />
+    </svg>
+  );
+}
+
+/** The goal titler's mark: a four-point spark, on the kit's spec (14px, a 1.5
+ *  stroke, round joins), for the button that asks it for a title. */
+export function SuggestGlyph() {
+  return (
+    <svg className="sn-glyph" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor"
+      strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M7 1.8l1.3 3.9 3.9 1.3-3.9 1.3L7 12.2 5.7 8.3 1.8 7l3.9-1.3z" />
     </svg>
   );
 }
@@ -60,11 +83,12 @@ export function useRenaming(sessionId: string | null | undefined, back: RefObjec
   };
 }
 
-export default function SessionNameField({ facts: given, place, onDone }: SessionNameFieldProps) {
+export default function SessionNameField({ facts: given, place, onDone, save, fieldLabel, resetLabel, suggest }: SessionNameFieldProps) {
   const t = useT();
   const [facts] = useState(given);
   const [draft, setDraft] = useState(given.current);
   const [failed, setFailed] = useState(false);
+  const [failLine, setFailLine] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const wrapRef = useRef<HTMLSpanElement>(null);
@@ -87,10 +111,11 @@ export default function SessionNameField({ facts: given, place, onDone }: Sessio
     const ask = saveAsk(typed, facts);
     if (ask.kind === "none") { finish(false); return; }
     setSaving(true);
-    const res = await saveSessionName(facts, ask.name);
+    const res = save ? await save(ask.name) : await saveSessionName(facts, ask.name);
     if (!alive.current) return;
     setSaving(false);
     if (res.ok) { finish(true); return; }
+    setFailLine(null);
     setFailed(true);
     // Back to the field, unless the reader has moved on to another control:
     // a save that failed on the way out never pulls focus back from it.
@@ -120,7 +145,7 @@ export default function SessionNameField({ facts: given, place, onDone }: Sessio
         placeholder={facts.fallback}
         spellCheck={false}
         autoComplete="off"
-        aria-label={t("board.rename.field")}
+        aria-label={fieldLabel ?? t("board.rename.field")}
         aria-invalid={failed || undefined}
         aria-describedby={failed ? errorId : undefined}
         aria-busy={saving || undefined}
@@ -153,8 +178,8 @@ export default function SessionNameField({ facts: given, place, onDone }: Sessio
         <button
           type="button"
           className="glyph-btn sn-reset"
-          aria-label={t("board.rename.reset")}
-          title={facts.fallback ? `${t("board.rename.reset")}: ${facts.fallback}` : t("board.rename.reset")}
+          aria-label={resetLabel ?? t("board.rename.reset")}
+          title={facts.fallback ? `${resetLabel ?? t("board.rename.reset")}: ${facts.fallback}` : resetLabel ?? t("board.rename.reset")}
           // Never disabled while a save is out (#620): commit ignores a press then.
           // Pressing it must not take focus from the field first: the blur
           // would save what was typed before the reset lands.
@@ -164,7 +189,32 @@ export default function SessionNameField({ facts: given, place, onDone }: Sessio
           <KitIcon name="restart" />
         </button>
       )}
-      {failed && <span id={errorId} className="sn-error" role="alert">{t("board.rename.failed")}</span>}
+      {suggest && !facts.deckNamed && (
+        <button
+          type="button"
+          className="glyph-btn sn-suggest"
+          aria-label={suggest.label}
+          title={suggest.label}
+          aria-busy={saving || undefined}
+          // As the ↺: pressing it must not blur the field into a save first.
+          onMouseDown={e => e.preventDefault()}
+          onClick={async e => {
+            e.stopPropagation();
+            if (saving || closed.current) return;
+            setSaving(true);
+            const res = await suggest.run();
+            if (!alive.current) return;
+            setSaving(false);
+            if (res.ok) { finish(true); return; }
+            setFailLine(res.message);
+            setFailed(true);
+            inputRef.current?.focus();
+          }}
+        >
+          <SuggestGlyph />
+        </button>
+      )}
+      {failed && <span id={errorId} className="sn-error" role="alert">{failLine ?? t("board.rename.failed")}</span>}
     </span>
   );
 }

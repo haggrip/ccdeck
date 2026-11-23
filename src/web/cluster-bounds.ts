@@ -37,6 +37,13 @@ export interface Cluster extends ClusterHeader {
   /** The same plan as one whole line, `2/5 · Writing the migration`, for the
    *  pill's tooltip. */
   planLine?: string;
+  /** What renaming the group needs: whose session it is, and its two titles
+   *  as the root card carries them (group-rename.ts). */
+  provider?: AgentNodeData["provider"];
+  groupName?: string;
+  goalTitle?: string;
+  /** The workspace basename whole, for the rename field's placeholder. */
+  workspace?: string;
 }
 
 /** The part of a React Flow node the cluster geometry reads. */
@@ -205,7 +212,8 @@ export function clusterBounds(nodes: Iterable<ClusterNode>, { notes = true }: {
    *  session's box, drawn empty at every distance a fitted board is seen at. */
   notes?: boolean;
 } = {}): Cluster[] {
-  const bySession = new Map<string, { minX: number; minY: number; maxX: number; maxY: number; label: string; name?: string; alarm?: boolean; branch?: string; plan?: string; planLine?: string; startedAt?: number }>();
+  type Bounds = { minX: number; minY: number; maxX: number; maxY: number; label: string } & Partial<Omit<NonNullable<ReturnType<typeof rootFields>>, "label">>;
+  const bySession = new Map<string, Bounds>();
   for (const n of nodes) {
     // Only agent cards define a session's bounds. The invisible per-session
     // drag handle is a React Flow node like any other and its data carries the
@@ -245,6 +253,9 @@ export function clusterBounds(nodes: Iterable<ClusterNode>, { notes = true }: {
         plan: root?.plan,
         planLine: root?.planLine,
         startedAt: root?.startedAt,
+        provider: root?.provider,
+        groupName: root?.groupName,
+        goalTitle: root?.goalTitle,
       });
     } else {
       existing.minX = Math.min(existing.minX, x1);
@@ -259,6 +270,9 @@ export function clusterBounds(nodes: Iterable<ClusterNode>, { notes = true }: {
         existing.plan = root.plan;
         existing.planLine = root.planLine;
         existing.startedAt = root.startedAt;
+        existing.provider = root.provider;
+        existing.groupName = root.groupName;
+        existing.goalTitle = root.goalTitle;
       }
     }
   }
@@ -271,7 +285,7 @@ export function clusterBounds(nodes: Iterable<ClusterNode>, { notes = true }: {
   for (const [sessionId, b] of bySession) {
     out.push({
       sessionId,
-      ...clusterHeader(b.label, b.name, sessionId, peers, { branch: b.branch, plan: b.planLine, alarm: b.alarm, startedAt: b.startedAt }),
+      ...clusterHeader(b.label, b.name, sessionId, peers, { branch: b.branch, plan: b.planLine, alarm: b.alarm, startedAt: b.startedAt, groupName: b.groupName, goalTitle: b.goalTitle }),
       x: b.minX - PAD,
       y: b.minY - PAD - HEADER_H,
       w: b.maxX - b.minX + PAD * 2,
@@ -279,6 +293,10 @@ export function clusterBounds(nodes: Iterable<ClusterNode>, { notes = true }: {
       ...(b.alarm ? { alarm: true } : null),
       ...(b.branch ? { branch: b.branch } : null),
       ...(b.plan ? { plan: b.plan, planLine: b.planLine } : null),
+      ...(b.provider ? { provider: b.provider } : null),
+      ...(b.groupName ? { groupName: b.groupName } : null),
+      ...(b.goalTitle ? { goalTitle: b.goalTitle } : null),
+      workspace: b.label,
     });
   }
   return out;
@@ -295,7 +313,10 @@ export function clusterBounds(nodes: Iterable<ClusterNode>, { notes = true }: {
  * field off whichever node arrived first would leave the header waiting on
  * iteration order for a field the root has had all along.
  */
-function rootFields(d: AgentNodeData): { label?: string; name?: string; alarm: boolean; branch?: string; plan?: string; planLine?: string; startedAt: number } | null {
+function rootFields(d: AgentNodeData): {
+  label?: string; name?: string; alarm: boolean; branch?: string; plan?: string; planLine?: string; startedAt: number;
+  provider?: AgentNodeData["provider"]; groupName?: string; goalTitle?: string;
+} | null {
   if (d.kind !== "root") return null;
   const b = (d as AgentNodeData & { branch?: BranchSummary }).branch;
   const plan = planSummary(d.plan);
@@ -320,6 +341,11 @@ function rootFields(d: AgentNodeData): { label?: string; name?: string; alarm: b
     plan: plan ? `plan ${plan.done}/${plan.total}` : undefined,
     planLine: plan ? planLine(plan) : undefined,
     startedAt: d.startedAt,
+    // The group's titles and whose session it is, for the pill's goal and
+    // for renaming it (group-rename.ts).
+    provider: d.provider,
+    groupName: d.groupName,
+    goalTitle: d.goalTitle,
   };
 }
 
@@ -330,6 +356,11 @@ export function shallowEqualClusters(a: Cluster[], b: Cluster[]): boolean {
     if (
       x.sessionId !== y.sessionId ||
       x.label !== y.label ||
+      x.folder !== y.folder ||
+      x.goalBy !== y.goalBy ||
+      x.groupName !== y.groupName ||
+      x.goalTitle !== y.goalTitle ||
+      x.provider !== y.provider ||
       // Both halves of the name. Two different names can truncate to the same
       // shown text, and only fullLabel would notice — that is the string the
       // tooltip serves, so skipping it would hold a stale one behind a header

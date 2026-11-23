@@ -1052,6 +1052,18 @@ const catalog: Catalog = {
   "board.inspector.subagents.other": "サブエージェント{count}件",
   "board.chat.noTranscript": "ccdeck は {agent} の会話を読み取らないため、ここに表示するチャットはありません。プロンプトとツール呼び出しはボードに表示されます。",
   "board.stage.eventsOnly": "{agent} は専用のターミナルで動作しており、ccdeck はここでは開けません。プロンプト、ツール呼び出し、あなたへの質問はボードに表示されます。",
+  "board.group.field": "グループのタイトル",
+  "board.group.reset": "自動タイトルを使う",
+  "board.group.rename": "このグループにタイトルを付ける",
+  "board.group.suggest": "Haikuに目的のタイトルを頼む",
+  "board.group.why.off": "目的のタイトルは設定でオフになっています。",
+  "board.group.why.named": "このグループにはすでにタイトルを付けています。",
+  "board.group.why.empty": "まだタイトルを作る材料がありません。",
+  "board.group.why.budget": "目的のタイトルの1時間あたりの上限に達しました。後でもう一度お試しください。",
+  "board.group.why.unavailable": "ここでは目的のタイトルにClaude Codeを使えません。",
+  "board.group.why.failed": "タイトルが返ってきませんでした。もう一度お試しください。",
+  "board.group.why.bad_request": "このグループにはタイトルを付けられません。",
+  "board.group.why.network": "ccdeckが応答しませんでした。もう一度お試しください。",
 };
 
 export default catalog;

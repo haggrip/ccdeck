@@ -616,7 +616,7 @@ const catalog: Catalog = {
   "settings.key.textLarger": "放大终端文字",
   "settings.key.textSmaller": "缩小终端文字",
   "settings.key.textReset": "终端文字恢复为 100%",
-  "settings.key.rename": "重命名列表中焦点所在的会话——也可双击",
+  "settings.key.rename": "重命名列表中焦点所在的会话或看板上选中的卡片——也可双击名称",
   "settings.key.clickPanel": "卡片：在命令面板中打开其会话",
   "settings.section.account.label": "账号",
   "settings.section.account.note": "将这台电脑连接到您的 ccdeck 账号，并与您其他电脑上的设置保持同步。",

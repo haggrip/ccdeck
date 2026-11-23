@@ -34,6 +34,9 @@ import { recentToolKinds, TOOL_KIT_ICON } from "../card-tool-icons";
 import { AlertMark, StateMark } from "./StateMark";
 import { KitIcon, KitStateGlyph, type KitStateName } from "./kit-icons";
 import { CostChipTip } from "./CostTip";
+import SessionNameField, { useRenaming } from "./SessionNameField";
+import { renameFacts } from "../session-rename";
+import { onCardRename } from "../card-rename";
 // The words for a turn that stopped on an error. See stop-failure-copy.ts.
 import { stopRowLabel, stopTooltip } from "../stop-failure-copy";
 import type { StopFacts } from "../../server/stop-failure.mjs";
@@ -64,6 +67,20 @@ function AgentNode({ data }: NodeProps<CardData>) {
 export function AgentCard({ data, handles = false }: { data: CardData; handles?: boolean }) {
   const t = useT();
   const language = useLanguage();
+  // NAMING THE CARD IN PLACE, on the board (internal #101's field): a
+  // session's root, as everywhere a session is named. The card draws no
+  // control for it (V4: nothing between the name and the state), so the field
+  // opens from the gestures a name already answers elsewhere in the deck: a
+  // double-click on the name, and F2 on the selected card (card-rename.ts).
+  // Enter saves, Escape puts it back, and a cleared field gives back the
+  // provider's name. Not in the Inspector's tree, whose header has its own.
+  const renameable = handles && data.kind === "root" ? renameFacts(data) : null;
+  const renameBack = useRef<HTMLElement>(null);
+  const renaming = useRenaming(renameable?.sessionId, renameBack);
+  const renameId = renameable ? data.id : null;
+  const startRename = useRef(renaming.start);
+  startRename.current = renaming.start;
+  useEffect(() => (renameId ? onCardRename(renameId, () => startRename.current()) : undefined), [renameId]);
   // No `selected` here. React Flow's prop is never true on this canvas, so the
   // class it set matched nothing; the frame marks a selected card's wrapper
   // with `rf-selected` instead (canvas-flow.ts) and the ring is drawn from that.
@@ -208,7 +225,21 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
 
       <div className="head">
         <div className="title">
-          <span className="label" title={cardTooltip}>{headName}</span>
+          {renameable && renaming.on ? (
+            // `nodrag`: a press in the field selects text rather than moving
+            // the card, and a click in it stays out of the card's own click.
+            <span className="nodrag nopan nowheel" style={{ display: "contents" }} onClick={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}>
+              <SessionNameField facts={renameable} place="card" onDone={renaming.done} />
+            </span>
+          ) : (
+            <span className="label" title={cardTooltip}
+              // The second press of a double-click on the NAME names the
+              // card, and goes no further: the card's own double-click, the
+              // zoom to its session, is everywhere else on the card.
+              onDoubleClick={renameable ? e => { e.stopPropagation(); renaming.start(); } : undefined}>
+              {headName}
+            </span>
+          )}
           {/* WHICH CLI, FOR EVERY CLI BUT CLAUDE (V4 top-10 #2). With the
               model text gone this word is the board's one way to tell a Codex,
               OpenCode or GitHub Copilot card from a Claude one, in the place

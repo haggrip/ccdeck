@@ -176,7 +176,9 @@ export const KEY_HELP: readonly KeyHelpGroup[] = [
       { cap: "L", get action() { return t("settings.key.sessions"); }, binds: ["l", "L"] },
       // The list's own key (internal #101), on the row that has focus, in
       // both views: answered by the row (RailParts.tsx), not by the deck's
-      // handler, and a named key, so it stays with the single keys off.
+      // handler, and a named key, so it stays with the single keys off. On
+      // the board the deck's handler passes it to the selected card
+      // (card-rename.ts), which names itself in place.
       { cap: "F2", get action() { return t("settings.key.rename"); }, binds: ["F2"] },
       // V4 calls the detail panel the Inspector, on its door as here.
       { cap: "D", get action() { return t("settings.key.detail"); }, binds: ["d", "D"] },

@@ -207,7 +207,7 @@ const catalog: Catalog = {
   "settings.key.textLarger": "texto do terminal maior",
   "settings.key.textSmaller": "texto do terminal menor",
   "settings.key.textReset": "texto do terminal de volta a 100%",
-  "settings.key.rename": "renomear a sessão em foco na lista — ou clicar duas vezes nela",
+  "settings.key.rename": "renomear a sessão em foco na lista ou o cartão selecionado no quadro — ou clicar duas vezes no nome",
   "settings.key.clickPanel": "um cartão: abrir a sessão dele no Painel de Comando",
   "settings.key.clear": "limpar o ccdeck e o log de eventos — pergunta antes",
   "settings.key.fit": "ajustar todos os agentes à tela",

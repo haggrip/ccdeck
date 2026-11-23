@@ -617,7 +617,7 @@ const catalog: Catalog = {
   "settings.key.textLarger": "터미널 글자 크게",
   "settings.key.textSmaller": "터미널 글자 작게",
   "settings.key.textReset": "터미널 글자를 100%로 되돌리기",
-  "settings.key.rename": "목록에서 포커스된 세션 이름 바꾸기 — 더블클릭도 가능",
+  "settings.key.rename": "목록에서 포커스된 세션이나 보드에서 선택한 카드 이름 바꾸기 — 이름 더블클릭도 가능",
   "settings.key.clickPanel": "카드: 해당 세션을 명령 패널에서 열기",
   "settings.section.account.label": "계정",
   "settings.section.account.note": "이 ccdeck을 ccdeck 계정에 연결하고, 다른 컴퓨터와 설정을 동기화합니다.",

@@ -616,7 +616,7 @@ const catalog: Catalog = {
   "settings.key.textLarger": "texto de la terminal más grande",
   "settings.key.textSmaller": "texto de la terminal más pequeño",
   "settings.key.textReset": "texto de la terminal de vuelta al 100 %",
-  "settings.key.rename": "renombrar la sesión con el foco en la lista; o hacer doble clic en ella",
+  "settings.key.rename": "renombrar la sesión con el foco en la lista o la tarjeta seleccionada en el tablero; o hacer doble clic en su nombre",
   "settings.key.clickPanel": "una tarjeta: abrir su sesión en el Command Panel",
   "settings.section.account.label": "Cuenta",
   "settings.section.account.note": "Conecta este ccdeck a tu cuenta de ccdeck y mantén sus ajustes sincronizados con tus otros equipos.",

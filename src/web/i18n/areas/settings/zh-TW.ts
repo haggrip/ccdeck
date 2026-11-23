@@ -616,7 +616,7 @@ const catalog: Catalog = {
   "settings.key.textLarger": "放大終端機文字",
   "settings.key.textSmaller": "縮小終端機文字",
   "settings.key.textReset": "終端機文字恢復為 100%",
-  "settings.key.rename": "重新命名清單中焦點所在的工作階段——也可按兩下",
+  "settings.key.rename": "重新命名清單中焦點所在的工作階段或看板上選取的卡片——也可按兩下名稱",
   "settings.key.clickPanel": "卡片：在指令面板中開啟其工作階段",
   "settings.section.account.label": "帳號",
   "settings.section.account.note": "將這台電腦連接到您的 ccdeck 帳號，並與您其他電腦上的設定保持同步。",

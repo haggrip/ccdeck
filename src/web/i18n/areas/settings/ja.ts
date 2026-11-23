@@ -616,7 +616,7 @@ const catalog: Catalog = {
   "settings.key.textLarger": "ターミナルの文字を大きく",
   "settings.key.textSmaller": "ターミナルの文字を小さく",
   "settings.key.textReset": "ターミナルの文字を 100% に戻す",
-  "settings.key.rename": "一覧でフォーカス中のセッションの名前を変更 — ダブルクリックでも可",
+  "settings.key.rename": "一覧でフォーカス中のセッション、またはボードで選択中のカードの名前を変更 — 名前のダブルクリックでも可",
   "settings.key.clickPanel": "カード：そのセッションをコマンドパネルで開く",
   "settings.section.account.label": "アカウント",
   "settings.section.account.note": "このマシンを ccdeck アカウントに接続し、他のマシンと設定を同期します。",

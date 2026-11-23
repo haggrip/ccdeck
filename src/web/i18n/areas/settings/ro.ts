@@ -626,7 +626,7 @@ const catalog: Catalog = {
   "settings.key.textLarger": "text mai mare în terminal",
   "settings.key.textSmaller": "text mai mic în terminal",
   "settings.key.textReset": "textul din terminal înapoi la 100%",
-  "settings.key.rename": "redenumește sesiunea cu focus din listă — sau dă dublu clic pe ea",
+  "settings.key.rename": "redenumește sesiunea cu focus din listă sau cardul selectat de pe tablă — sau dă dublu clic pe numele lui",
   "settings.key.clickPanel": "un card: deschide-i sesiunea în Panoul de comenzi",
   "settings.section.account.label": "Cont",
   "settings.section.account.note": "Conectează acest ccdeck la contul tău ccdeck și păstrează setările sincronizate cu celelalte computere ale tale.",

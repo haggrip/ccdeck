@@ -1052,6 +1052,18 @@ const catalog: Catalog = {
   "board.inspector.subagents.other": "{count} 个子代理",
   "board.chat.noTranscript": "ccdeck 不读取 {agent} 的对话，因此这里没有可显示的聊天。它的提示词和工具调用显示在看板上。",
   "board.stage.eventsOnly": "{agent} 在自己的终端中运行，ccdeck 无法在这里打开它。它的提示词、工具调用和向你提出的问题都会显示在看板上。",
+  "board.group.field": "分组标题",
+  "board.group.reset": "使用自动标题",
+  "board.group.rename": "为此分组命名",
+  "board.group.suggest": "让 Haiku 生成目标标题",
+  "board.group.why.off": "目标标题已在设置中关闭。",
+  "board.group.why.named": "你已经为此分组命名。",
+  "board.group.why.empty": "暂时没有可用于生成标题的内容。",
+  "board.group.why.budget": "目标标题已达每小时上限。请稍后再试。",
+  "board.group.why.unavailable": "此处无法使用 Claude Code 生成目标标题。",
+  "board.group.why.failed": "没有返回标题。请重试。",
+  "board.group.why.bad_request": "无法为此分组命名。",
+  "board.group.why.network": "ccdeck 没有响应。请重试。",
 };
 
 export default catalog;

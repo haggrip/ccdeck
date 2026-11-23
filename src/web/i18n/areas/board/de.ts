@@ -1052,6 +1052,18 @@ const catalog: Catalog = {
   "board.inspector.subagents.other": "{count} Subagents",
   "board.chat.noTranscript": "ccdeck liest keine Unterhaltungen von {agent}, daher gibt es hier keinen Chat. Prompts und Tool-Aufrufe der Sitzung stehen auf dem Canvas.",
   "board.stage.eventsOnly": "{agent} läuft in einem eigenen Terminal, das ccdeck hier nicht öffnen kann. Prompts, Tool-Aufrufe und Fragen an dich erscheinen auf dem Canvas.",
+  "board.group.field": "Gruppentitel",
+  "board.group.reset": "Automatischen Titel verwenden",
+  "board.group.rename": "Diese Gruppe benennen",
+  "board.group.suggest": "Haiku um einen Zieltitel bitten",
+  "board.group.why.off": "Zieltitel sind in den Einstellungen ausgeschaltet.",
+  "board.group.why.named": "Du hast diese Gruppe schon benannt.",
+  "board.group.why.empty": "Noch nichts, woraus ein Titel entstehen kann.",
+  "board.group.why.budget": "Das Stundenlimit für Zieltitel ist erreicht. Später erneut versuchen.",
+  "board.group.why.unavailable": "Claude Code ist hier für Zieltitel nicht erreichbar.",
+  "board.group.why.failed": "Kein Titel zurückgekommen. Erneut versuchen.",
+  "board.group.why.bad_request": "Diese Gruppe kann nicht benannt werden.",
+  "board.group.why.network": "ccdeck hat nicht geantwortet. Erneut versuchen.",
 };
 
 export default catalog;

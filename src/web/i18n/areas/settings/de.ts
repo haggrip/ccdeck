@@ -616,7 +616,7 @@ const catalog: Catalog = {
   "settings.key.textLarger": "größerer Terminaltext",
   "settings.key.textSmaller": "kleinerer Terminaltext",
   "settings.key.textReset": "Terminaltext zurück auf 100 %",
-  "settings.key.rename": "die fokussierte Sitzung in der Liste umbenennen — oder doppelklicken",
+  "settings.key.rename": "die fokussierte Sitzung in der Liste oder die ausgewählte Karte auf dem Board umbenennen — oder ihren Namen doppelklicken",
   "settings.key.clickPanel": "eine Karte: ihre Sitzung im Command Panel öffnen",
   "settings.section.account.label": "Konto",
   "settings.section.account.note": "Verbinde dieses ccdeck mit deinem ccdeck-Konto und halte seine Einstellungen mit deinen anderen Rechnern im Gleichklang.",
