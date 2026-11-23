@@ -221,10 +221,12 @@ describe("an issue's HTML, rebuilt from an allowlist", () => {
 // ── where the reader finds it ───────────────────────────────────────────────
 
 describe("Settings › Integrations, and the rail control a connection adds", () => {
-  it("sits between Sounds and Data, and a search for Jira lands on it", () => {
+  it("sits between Sounds and Connectors, and a search for Jira lands on it", () => {
     const ids = SETTINGS_SECTIONS.map(s => s.id);
     expect(ids.indexOf("integrations")).toBe(ids.indexOf("sounds") + 1);
-    expect(ids.indexOf("data")).toBe(ids.indexOf("integrations") + 1);
+    // Connectors, the person's claude.ai connectors, stands beside it.
+    expect(ids.indexOf("connectors")).toBe(ids.indexOf("integrations") + 1);
+    expect(ids.indexOf("data")).toBe(ids.indexOf("connectors") + 1);
     const found = searchSettings("jira");
     expect(found.length).toBeGreaterThan(0);
     expect(found.every(e => e.section === "integrations")).toBe(true);

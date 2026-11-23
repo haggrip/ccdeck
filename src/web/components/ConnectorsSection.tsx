@@ -17,6 +17,7 @@
 import { useEffect, useRef, useState } from "react";
 import { SettingRow, SettingsGroup, SettingsInfo } from "./SettingsParts";
 import { useT } from "../i18n";
+import { selfPressAccepted, selfPressProps } from "../panel-press";
 
 interface Tool { name: string; title: string; readOnly: boolean }
 interface Connector { server: string; label: string; source: string; status: string; tools: Tool[] }
@@ -52,14 +53,16 @@ export default function ConnectorsSection() {
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
   const live = useRef(true);
   const saving = useRef(false);
+  const loadingRef = useRef(false);
 
   const load = (refresh = false) => {
+    loadingRef.current = true;
     setLoading(true);
     fetch(`/api/connectors${refresh ? "?refresh=1" : ""}`)
       .then(r => { if (!r.ok) throw new Error(); return r.json(); })
       .then((d: ConnectorsState) => { if (!live.current) return; if (!d?.ok) throw new Error(); setState(d); setFailed(false); })
       .catch(() => { if (live.current) setFailed(true); })
-      .finally(() => { if (live.current) setLoading(false); });
+      .finally(() => { loadingRef.current = false; if (live.current) setLoading(false); });
   };
   useEffect(() => { live.current = true; load(); return () => { live.current = false; }; }, []);
 
@@ -103,7 +106,7 @@ export default function ConnectorsSection() {
   return <>
     <SettingsGroup id="connectors-list-title" title={t("connectors.group.list")} note={t("connectors.group.listNote")} list={false}
       settingId="connectors-list"
-      aside={!state?.vetoed && <button type="button" className="btn" disabled={loading} onClick={() => load(true)}>{t("connectors.refresh")}</button>}>
+      aside={!state?.vetoed && <button type="button" className="btn" {...selfPressProps(loading)} onClick={() => { if (!selfPressAccepted(loadingRef.current)) return; load(true); }}>{t("connectors.refresh")}</button>}>
       {status && <SettingsInfo>{status}</SettingsInfo>}
       {saveFailed && <p role="alert">{t("connectors.saveFail")}</p>}
       {writeOnly.length > 0 && !state?.vetoed && <p className="settings-caption-note">{t("connectors.noReadOnly", { names: writeOnly.join(", ") })}</p>}

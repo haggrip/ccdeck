@@ -7,6 +7,7 @@
 import { describe, it, expect, afterAll, beforeEach } from "vitest";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
+import { spawn as nodeSpawn } from "node:child_process";
 import { join } from "node:path";
 import { rmTempDir } from "./rm-temp-dir";
 
@@ -100,13 +101,15 @@ function setup(scenario: Record<string, unknown> = {}, opts: Record<string, unkn
     CCDECK_HOME: dir, CLAUDECODE: "1", ...(opts.env as Record<string, string> ?? {}),
   };
   const dataDir = join(dir, "data");
-  const agent = createClaudeAgent({ env, bin: () => (opts.bin as string) ?? FAKE, dataDir: () => dataDir, pollMs: 20, mcpWaitMs: 2_000 });
+  // The fake is run through node itself rather than by its shebang, so the
+  // same cases run on Windows, which has no shebangs; any other `bin` (the
+  // missing one) is spawned as the bridge would spawn it.
+  const spawn = (file: string, args: string[], o: object) => file === FAKE ? nodeSpawn(process.execPath, [FAKE, ...args], o) : nodeSpawn(file, args, o);
+  const agent = createClaudeAgent({ env, bin: () => (opts.bin as string) ?? FAKE, dataDir: () => dataDir, pollMs: 20, mcpWaitMs: 2_000, spawn });
   const entries = () => existsSync(logFile)
     ? readFileSync(logFile, "utf8").split("\n").filter(Boolean).map(l => JSON.parse(l)) : [];
   return { agent, entries, dataDir, scenarioFile };
 }
-
-const isWin = process.platform === "win32";
 
 describe("the argument vector", () => {
   it("holds Claude Code to no built-in tools, refused permissions and no saved session, and never carries the prompt", () => {
@@ -195,7 +198,7 @@ describe("what the deck reads of Claude Code's servers", () => {
   });
 });
 
-describe.skipIf(isWin)("a run against a fake claude", () => {
+describe("a run against a fake claude", () => {
   beforeEach(() => { /* each case builds its own folder */ });
 
   it("answers with the one JSON object, the usage, and the prompt sent over stdin rather than argv", async () => {
@@ -349,7 +352,7 @@ describe.skipIf(isWin)("a run against a fake claude", () => {
 });
 
 // @ts-expect-error — .mjs server module, no types
-const { handleConnectors, CONNECTORS_ROUTE } = await import("../../server/connectors-routes.mjs");
+const { handleConnectorsRead, handleConnectorsWrite, CONNECTORS_ROUTE } = await import("../../server/connectors-routes.mjs");
 // @ts-expect-error — .mjs server module, no types
 const { GUARDED_READS, OPEN_MUTATIONS } = await import("../../server/request-gates.mjs");
 const { Readable } = await import("node:stream");
@@ -360,7 +363,9 @@ function call(method: string, { body, query = "", remoteAddress = "127.0.0.1", a
   });
   let status = 0, text = "";
   const res = { headersSent: false, writeHead: (s: number) => { status = s; }, end: (s: string) => { text = s; } };
-  return handleConnectors(req, res, new URL(`http://127.0.0.1${CONNECTORS_ROUTE}${query}`), agent).then(() => ({ status, body: JSON.parse(text) }));
+  const handled = method === "POST" ? handleConnectorsWrite(req, res, agent)
+    : handleConnectorsRead(req, res, new URL(`http://127.0.0.1${CONNECTORS_ROUTE}${query}`), agent);
+  return handled.then(() => ({ status, body: JSON.parse(text) }));
 }
 
 describe("GET and POST /api/connectors", () => {
@@ -374,7 +379,8 @@ describe("GET and POST /api/connectors", () => {
     expect(GUARDED_READS.has(CONNECTORS_ROUTE)).toBe(true);
     expect(OPEN_MUTATIONS.has(CONNECTORS_ROUTE)).toBe(false);
     const index = readFileSync(new URL("../../server/index.mjs", import.meta.url), "utf8");
-    expect(index).toContain('url.pathname === "/api/connectors") return guard(handleConnectors(req, res, url), res);');
+    expect(index).toContain('url.pathname === "/api/connectors") return guard(handleConnectorsRead(req, res, url), res);');
+    expect(index).toContain('url.pathname === "/api/connectors") return guard(handleConnectorsWrite(req, res), res);');
   });
 
   it("answers this computer only", async () => {
@@ -389,7 +395,6 @@ describe("GET and POST /api/connectors", () => {
     expect(seen.slice(-2)).toEqual([{ refresh: false }, { refresh: true }]);
     expect(await call("POST", { body: { tools: ["mcp__x__y"] }, agent })).toMatchObject({ status: 200, body: { ok: true, refused: ["mcp__x__y"] } });
     expect((await call("POST", { body: "not json", agent })).status).toBe(400);
-    expect((await call("PUT", { agent })).status).toBe(405);
   });
 });
 

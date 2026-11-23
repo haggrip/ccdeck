@@ -196,7 +196,7 @@ function buildIndex(): SettingsEntry[] {
       entryOf({ id: "integrations-connections", section: "integrations", label: L("settings.search.connections") }),
     ],
     connectors: [
-      entryOf({ id: "connectors-list", section: "connectors", label: L("connectors.group.list"), words: ["slack", "jira", "linear", "github", "mcp", "claude.ai"] }),
+      entryOf({ id: "connectors-list", section: "connectors", label: L("connectors.group.list"), words: ["connector", "slack", "linear", "confluence", "simplelocalize", "mcp", "claude.ai"] }),
       entryOf({ id: "connectors-runs", section: "connectors", label: L("connectors.group.runs"), words: ["cost", "usage", "agent"] }),
     ],
     data: [
