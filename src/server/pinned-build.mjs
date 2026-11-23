@@ -119,6 +119,9 @@ const PINNED_MODULES = [
   // claude-accounts.mjs; named here because every LAN round reaches it
   // through import().
   "cswap-install.mjs",
+  // The Claude agent, reached only through import() from Settings ›
+  // Connectors' routes (connectors-routes.mjs).
+  "claude-agent.mjs",
 ];
 
 /**
