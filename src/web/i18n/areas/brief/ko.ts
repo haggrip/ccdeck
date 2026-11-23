@@ -57,6 +57,7 @@ const catalog: Catalog = {
   "brief.settings.everyMin": "{n}분마다",
   "brief.settings.sources": "소스",
   "brief.settings.noConnector": "커넥터를 찾지 못함",
+  "brief.settings.toolsOff": "설정 › 커넥터에서 읽기 도구를 켜세요",
   "brief.readOnly": "읽기 전용: 브리핑은 Claude 커넥터로 읽기만 하며 게시, 전송, 변경을 절대 하지 않습니다.",
 };
 

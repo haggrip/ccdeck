@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { rmTempDir } from "./rm-temp-dir";
 import {
-  BRIEF_FILE, MIN_GAP_MS, buildPrompt, createStatusBrief, normaliseBrief, pickTools, safeUrl, sessionDigest, writeShaped,
+  BRIEF_FILE, MAX_TOOLS, MIN_GAP_MS, RUN_TAG, buildPrompt, createStatusBrief, normaliseBrief, pickTools, safeUrl, sessionDigest, writeShaped,
 } from "../../server/status-brief.mjs";
 
 const dirs: string[] = [];
@@ -66,6 +66,21 @@ describe("the tools a brief may use", () => {
     const { tools, reach } = pickTools(CONNECTORS.filter(c => c.server !== "atlassian"), { github: true, slack: false, jira: true });
     expect(tools).toEqual(["mcp__github__pull_request_read", "mcp__github__search_pull_requests"]);
     expect(reach).toEqual({ github: "on", slack: "off", jira: "none" });
+  });
+
+  it("picks only what Settings › Connectors has switched on, and says which source has none on", () => {
+    const { tools, reach } = pickTools(CONNECTORS, undefined, ["mcp__github__pull_request_read", "mcp__slack__slack_send_message", "mcp__github__merge_pull_request"]);
+    // A write switched on by name is still not picked: it is not read-only.
+    expect(tools).toEqual(["mcp__github__pull_request_read"]);
+    expect(reach).toEqual({ github: "on", slack: "disabled", jira: "disabled" });
+  });
+
+  it("never hands over more than runAgent takes, sharing the room between sources", () => {
+    const many = (server: string, n: number) => ({ server, label: server, tools: Array.from({ length: n }, (_, i) => ({ name: `mcp__${server}__search_${String(i).padStart(2, "0")}`, readOnly: true })) });
+    const { tools } = pickTools([many("github", 40), many("slack", 40), many("jira", 2)]);
+    expect(tools).toHaveLength(MAX_TOOLS);
+    expect(tools.filter(n => n.includes("__jira__"))).toHaveLength(2);
+    expect(tools.filter(n => n.includes("__slack__"))).toHaveLength(15);
   });
 
   it("hands nothing over from an answer that is not a list", () => {
@@ -246,6 +261,19 @@ describe("the brief's runner", () => {
     expect(view.error).toMatchObject({ code: "timeout", message: "took too long" });
     // One failure: the interval waits the longer of its 30 minutes and the backoff.
     expect(view.nextAutoAt).toBe(t + 30 * 60_000);
+  });
+
+  it("asks the contract which tools are switched on, and names its runs", async () => {
+    const dir = tempDir();
+    const fake = fakeAgent(() => ({ ok: true, json: GOOD }));
+    const agent = { ...fake.agent, connectorsState: async () => ({ connectors: CONNECTORS, enabled: ["mcp__slack__slack_read_thread", "mcp__atlassian__searchJiraIssuesUsingJql"] }) };
+    const b = createStatusBrief({ dir, agent: async () => agent, sessions: SESSIONS, now: () => 1 });
+    await b.refresh(); await b.settled();
+    expect(fake.listed()).toBe(0);
+    expect(fake.calls[0].tools).toEqual(["mcp__atlassian__searchJiraIssuesUsingJql", "mcp__slack__slack_read_thread"]);
+    expect((fake.calls[0] as { tag?: string }).tag).toBe(RUN_TAG);
+    expect((await b.view()).brief?.reach).toEqual({ github: "disabled", slack: "on", jira: "on" });
+    expect(fake.calls[0].prompt).not.toMatch(/GitHub: pull requests/);
   });
 
   it("answers with the agent off, never calling anything, when the contract is absent", async () => {

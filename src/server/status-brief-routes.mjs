@@ -17,21 +17,16 @@ import { deckDataDir } from "./deck-home.mjs";
 import { eventsSince } from "./event-ring.mjs";
 import { summarizeSessions } from "./session-summary.mjs";
 import { createStatusBrief } from "./status-brief.mjs";
+// The shared contract: the user's own Claude Code, headless, read-only.
+import { agentVetoed, connectorsState, listConnectors, runAgent } from "./claude-agent.mjs";
 
 export const STATUS_BRIEF_ROUTE = "/api/status-brief";
 
-/** The shared contract (claude-agent.mjs, the connectors work), loaded the
- *  first time it is wanted. Absent — the module not merged yet, or vetoed by
- *  AGENTS_DECK_NO_AGENT=1 — the pane still draws the deck's own sessions and
- *  says the brief is off. */
-let agentModule = null;
+/** The shared contract (claude-agent.mjs), or null where AGENTS_DECK_NO_AGENT=1
+ *  vetoes it: the pane then draws the deck's own sessions and says the brief
+ *  is off, and nothing is run. */
 export function loadAgent(env = process.env) {
-  if (env.AGENTS_DECK_NO_AGENT === "1") return Promise.resolve(null);
-  agentModule ??= import("./claude-agent.mjs")
-    .then(m => (typeof m.runAgent === "function" && typeof m.listConnectors === "function"
-      ? { runAgent: m.runAgent, listConnectors: m.listConnectors } : null))
-    .catch(() => null);
-  return agentModule;
+  return Promise.resolve(agentVetoed(env) ? null : { runAgent, listConnectors, connectorsState });
 }
 
 let brief = null;

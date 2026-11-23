@@ -193,6 +193,7 @@ function Settings({ view, handle, t }: { view: BriefView; handle: StatusBriefHan
             <input type="checkbox" checked={s.sources[src]} onChange={e => handle.setSettings({ sources: { [src]: e.target.checked } })} />
             <span>{SOURCE_NAMES[src]}</span>
             {s.sources[src] && reach?.[src] === "none" && <span className="stp-muted">{t("brief.settings.noConnector")}</span>}
+            {s.sources[src] && reach?.[src] === "disabled" && <span className="stp-muted">{t("brief.settings.toolsOff")}</span>}
           </label>
         ))}
       </fieldset>

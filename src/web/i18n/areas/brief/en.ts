@@ -58,6 +58,7 @@ const catalog: Catalog = {
   "brief.settings.everyMin": "Every {n} min",
   "brief.settings.sources": "Sources",
   "brief.settings.noConnector": "no connector found",
+  "brief.settings.toolsOff": "turn its read tools on in Settings › Connectors",
   "brief.readOnly": "Read-only: the brief reads through your Claude connectors and never posts, sends or changes anything.",
 };
 

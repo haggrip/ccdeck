@@ -17,7 +17,10 @@ export type WaitingKind = "approve" | "merge" | "review" | "reply" | "decide";
 export type TodoKind = "todo" | "fix" | "follow-up";
 export type TalkKind = "feedback" | "talk";
 export type BriefModel = "haiku" | "sonnet" | "opus";
-export type Reach = "on" | "off" | "none";
+/** Per source: read ("on"), switched off in the pane ("off"), no connector
+ *  for it ("none"), or a connector whose read-only tools are not switched on
+ *  in Settings › Connectors ("disabled"). */
+export type Reach = "on" | "off" | "none" | "disabled";
 
 export interface BriefItem {
   kind: WaitingKind | TodoKind | TalkKind | "answer" | "failed" | "read";

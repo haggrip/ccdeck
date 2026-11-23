@@ -57,6 +57,7 @@ const catalog: Catalog = {
   "brief.settings.everyMin": "Alle {n} Min.",
   "brief.settings.sources": "Quellen",
   "brief.settings.noConnector": "kein Connector gefunden",
+  "brief.settings.toolsOff": "seine Lese-Tools unter Einstellungen › Connectors einschalten",
   "brief.readOnly": "Nur lesend: Die Übersicht liest über deine Claude-Connectors und postet, sendet oder ändert nie etwas.",
 };
 

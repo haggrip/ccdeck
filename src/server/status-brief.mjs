@@ -46,6 +46,10 @@ export const MIN_GAP_MS = 60_000;
 export const BACKOFF_MS = Object.freeze([5 * 60_000, 15 * 60_000, 30 * 60_000, 60 * 60_000]);
 /** A brief with connector reads in it takes longer than the contract's default. */
 export const RUN_TIMEOUT_MS = 180_000;
+/** runAgent's own cap on the allowlist (claude-agent.mjs MAX_TOOLS). */
+export const MAX_TOOLS = 32;
+/** How the brief's runs are named in the agent's ledger. */
+export const RUN_TAG = "status-brief";
 
 /** The kinds each list may hold. A kind outside them drops the item. */
 export const WAITING_KINDS = Object.freeze(["approve", "merge", "review", "reply", "decide"]);
@@ -78,26 +82,41 @@ export function writeShaped(name) {
 
 /**
  * The tools a brief may use: the read-only tools of the connectors that serve
- * the sources switched on. `connectors` is listConnectors()'s answer. Returns
- * the allowlist and, per source, whether a connector was found for it.
+ * the sources switched on. `connectors` is listConnectors()'s answer;
+ * `enabled`, when given, is what Settings › Connectors has switched on, and
+ * runAgent refuses any other tool, so only those are picked. At most
+ * MAX_TOOLS, taken from the sources in turn so none crowds the others out.
+ *
+ * Returns the allowlist and, per source: "on" (tools picked), "off" (switched
+ * off in the pane), "none" (no connector for it) or "disabled" (a connector,
+ * none of whose read-only tools is switched on in Settings › Connectors).
  */
-export function pickTools(connectors, sources = DEFAULT_SETTINGS.sources) {
-  const tools = new Set();
+export function pickTools(connectors, sources = DEFAULT_SETTINGS.sources, enabled = null) {
+  const allowed = Array.isArray(enabled) ? new Set(enabled) : null;
+  const bySource = {};
   const reach = {};
-  for (const source of SOURCES) reach[source] = sources?.[source] === false ? "off" : "none";
+  for (const source of SOURCES) {
+    bySource[source] = new Set();
+    reach[source] = sources?.[source] === false ? "off" : "none";
+  }
   for (const c of Array.isArray(connectors) ? connectors : []) {
     const name = `${c?.server ?? ""} ${c?.label ?? ""}`;
     for (const source of SOURCES) {
       if (reach[source] === "off" || !SOURCE_MATCH[source].test(name)) continue;
-      let any = false;
+      if (reach[source] === "none") reach[source] = "disabled";
       for (const tool of Array.isArray(c?.tools) ? c.tools : []) {
         if (tool?.readOnly !== true || typeof tool.name !== "string" || !tool.name) continue;
         if (writeShaped(tool.name)) continue;
-        tools.add(tool.name);
-        any = true;
+        if (allowed && !allowed.has(tool.name)) continue;
+        bySource[source].add(tool.name);
+        reach[source] = "on";
       }
-      if (any) reach[source] = "on";
     }
+  }
+  const queues = SOURCES.map(s => [...bySource[s]].sort());
+  const tools = new Set();
+  while (tools.size < MAX_TOOLS && queues.some(q => q.length)) {
+    for (const q of queues) if (q.length && tools.size < MAX_TOOLS) tools.add(q.shift());
   }
   return { tools: [...tools].sort(), reach };
 }
@@ -233,7 +252,7 @@ export function normaliseStore(raw) {
 
 function normaliseReach(raw) {
   const out = {};
-  for (const s of SOURCES) out[s] = ["on", "off", "none"].includes(raw?.[s]) ? raw[s] : "none";
+  for (const s of SOURCES) out[s] = ["on", "off", "none", "disabled"].includes(raw?.[s]) ? raw[s] : "none";
   return out;
 }
 
@@ -397,9 +416,18 @@ export function createStatusBrief({ dir, agent, sessions, now = () => Date.now()
       await save();
       return;
     }
+    // The connectors, and which of their tools Settings › Connectors has
+    // switched on: runAgent refuses any other.
     let connectors = [];
-    try { connectors = await a.listConnectors(); } catch (err) { log(`status brief: listConnectors failed (${err?.message ?? err})`); }
-    const { tools, reach } = pickTools(connectors, s.settings.sources);
+    let enabled = null;
+    try {
+      if (typeof a.connectorsState === "function") {
+        const state = await a.connectorsState();
+        connectors = Array.isArray(state?.connectors) ? state.connectors : [];
+        enabled = Array.isArray(state?.enabled) ? state.enabled : [];
+      } else connectors = await a.listConnectors();
+    } catch (err) { log(`status brief: the connectors could not be listed (${err?.message ?? err})`); }
+    const { tools, reach } = pickTools(connectors, s.settings.sources, enabled);
     let digest = [];
     try {
       const { rows, envelopes } = await sessions();
@@ -414,7 +442,7 @@ export function createStatusBrief({ dir, agent, sessions, now = () => Date.now()
     });
     let result;
     try {
-      result = await a.runAgent({ prompt, model: s.settings.model, tools, timeoutMs: RUN_TIMEOUT_MS });
+      result = await a.runAgent({ prompt, model: s.settings.model, tools, timeoutMs: RUN_TIMEOUT_MS, tag: RUN_TAG });
     } catch (err) {
       result = { ok: false, code: "threw", error: String(err?.message ?? err) };
     }

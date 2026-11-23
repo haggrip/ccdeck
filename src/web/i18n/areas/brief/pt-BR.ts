@@ -57,6 +57,7 @@ const catalog: Catalog = {
   "brief.settings.everyMin": "A cada {n} min",
   "brief.settings.sources": "Fontes",
   "brief.settings.noConnector": "nenhum conector encontrado",
+  "brief.settings.toolsOff": "ative as ferramentas de leitura em Configurações › Conectores",
   "brief.readOnly": "Somente leitura: o resumo lê pelos seus conectores do Claude e nunca publica, envia ou altera nada.",
 };
 

@@ -57,6 +57,7 @@ const catalog: Catalog = {
   "brief.settings.everyMin": "{n} 分ごと",
   "brief.settings.sources": "ソース",
   "brief.settings.noConnector": "コネクタが見つかりません",
+  "brief.settings.toolsOff": "設定 › コネクタで読み取りツールをオンにしてください",
   "brief.readOnly": "読み取り専用：ブリーフは Claude のコネクタ経由で読み取るだけで、投稿・送信・変更は一切しません。",
 };
 

@@ -57,6 +57,7 @@ const catalog: Catalog = {
   "brief.settings.everyMin": "La fiecare {n} min",
   "brief.settings.sources": "Surse",
   "brief.settings.noConnector": "niciun conector găsit",
+  "brief.settings.toolsOff": "activează-i instrumentele de citire în Setări › Conectori",
   "brief.readOnly": "Doar citire: rezumatul citește prin conectorii tăi Claude și nu publică, nu trimite și nu schimbă nimic.",
 };
 

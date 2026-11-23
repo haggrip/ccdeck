@@ -57,6 +57,7 @@ const catalog: Catalog = {
   "brief.settings.everyMin": "每 {n} 分鐘",
   "brief.settings.sources": "來源",
   "brief.settings.noConnector": "找不到連接器",
+  "brief.settings.toolsOff": "請在 設定 › 連接器 中開啟它的讀取工具",
   "brief.readOnly": "唯讀：簡報透過你的 Claude 連接器讀取，從不發布、傳送或變更任何內容。",
 };
 

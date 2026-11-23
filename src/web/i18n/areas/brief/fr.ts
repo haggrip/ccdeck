@@ -57,6 +57,7 @@ const catalog: Catalog = {
   "brief.settings.everyMin": "Toutes les {n} min",
   "brief.settings.sources": "Sources",
   "brief.settings.noConnector": "aucun connecteur trouvé",
+  "brief.settings.toolsOff": "activez ses outils de lecture dans Réglages › Connecteurs",
   "brief.readOnly": "Lecture seule : le point lit via vos connecteurs Claude et ne publie, n’envoie ni ne modifie jamais rien.",
 };
 
