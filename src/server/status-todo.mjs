@@ -178,6 +178,9 @@ function normaliseItem(raw) {
   const originSession = sessionIdOf(raw.originSession);
   if (originSession) item.originSession = originSession;
   if (at(raw.due)) item.due = raw.due;
+  // The activity the item answers (a GitHub comment, a re-request): what an
+  // answer after it settles (ingestActivity).
+  if (at(raw.activityAt)) item.activityAt = raw.activityAt;
   if (at(raw.snoozedUntil)) item.snoozedUntil = raw.snoozedUntil;
   if (item.state === "closed") {
     item.closedAt = at(raw.closedAt) ?? item.updatedAt;
@@ -405,6 +408,8 @@ export function ingestBrief(store, brief, now) {
     const key = briefKey(raw);
     if (!key) continue;
     if (raw.sessionId && !raw.url && store.items.some(i => i.state === "open" && i.origin === "deck" && i.link?.sessionId === raw.sessionId)) continue;
+    // GitHub activity already put this ask about this PR on the list.
+    if (raw.url && store.items.some(i => i.state === "open" && i.key?.startsWith("gh:") && sameAsk(i.kind, raw.kind) && urlKey(i.link?.url ?? "") === urlKey(raw.url))) continue;
     const item = addItem(store, {
       key, origin: "brief", kind: KINDS.includes(raw.kind) ? raw.kind : "todo",
       title: raw.person ? `${raw.person} · ${raw.title}` : raw.title, detail: raw.detail,
@@ -413,6 +418,100 @@ export function ingestBrief(store, brief, now) {
     if (item) added.push(item);
   }
   return added;
+}
+
+// ── GitHub activity since the last brief ─────────────────────────────────────
+
+const ACTIVITY_KINDS = Object.freeze(["reply", "fix", "merge", "review", "approve"]);
+/** Two kinds that ask the same of a PR: a reply and a fix are one ask. */
+const sameAsk = (a, b) => a === b || (["reply", "fix"].includes(a) && ["reply", "fix"].includes(b));
+const activityKey = (url, kind) => `gh:${urlKey(url)}:${kind}`;
+
+/** Why a PR's own facts settle an open ask about it, or null. */
+function settledBy(item, f) {
+  if (f.state === "merged") return "Merged";
+  if (f.state === "closed") return "Closed on its side";
+  const since = item.activityAt ?? item.createdAt;
+  if (item.kind === "reply" || item.kind === "fix") {
+    if (f.myLastActAt > since) return "You replied";
+    if (f.lastPushAt > since) return "You pushed after it";
+  }
+  if ((item.kind === "review" || item.kind === "approve") && item.key?.startsWith("gh:") && f.myLastReviewAt > since) return "You reviewed it";
+  return null;
+}
+
+/**
+ * What GitHub activity since the last brief asks of me (status-gh.mjs
+ * todoActionsOf), onto the list, and what it settles off it. `activity` is the
+ * gh reader's `{ items, facts }`.
+ *
+ * - An ask is keyed by its PR and kind, so the same ask is one item. An open
+ *   one (or the model's own item for that PR and kind) is brought up to date;
+ *   a closed one opens again only for activity after it was closed.
+ * - A dismissed PR comes back only for activity after the dismissal.
+ * - An open ask about a PR closes when the PR is merged or closed, a reply or
+ *   fix when I commented, reviewed or pushed after it, a re-review when I
+ *   reviewed after it. An item the user added is left alone.
+ *
+ * Returns `{ added, changed, revived }`.
+ */
+export function ingestActivity(store, activity, now) {
+  const added = [];
+  const revived = [];
+  let changed = false;
+  for (const a of Array.isArray(activity?.items) ? activity.items : []) {
+    const url = safeUrl(a?.url);
+    if (!url) continue;
+    for (const t of Array.isArray(a.todo) ? a.todo : []) {
+      if (!ACTIVITY_KINDS.includes(t?.kind) || !Number.isFinite(t.at)) continue;
+      const key = activityKey(url, t.kind);
+      const dkey = dismissKeyOf({ url });
+      const d = (store.dismissed ?? []).find(x => x.key === dkey);
+      if (d) {
+        if (t.at <= d.at) continue;
+        restore(store, dkey, now); revived.push(dkey); changed = true;
+      }
+      const same = store.items.find(i => i.state === "open" && i.origin !== "hagai" && sameAsk(i.kind, t.kind) && i.link?.url && urlKey(i.link.url) === urlKey(url));
+      if (same) {
+        if ((same.activityAt ?? 0) < t.at) {
+          same.activityAt = t.at;
+          same.detail = text(t.detail, MAX_DETAIL) || same.detail;
+          same.updatedAt = now;
+          changed = true;
+        }
+        continue;
+      }
+      const old = byKey(store, key);
+      if (old) {
+        if (old.state === "closed" && t.at > (old.closedAt ?? 0)) {
+          reopenItem(old, now);
+          old.title = text(t.title, MAX_TITLE) || old.title;
+          old.detail = text(t.detail, MAX_DETAIL) || old.detail;
+          old.activityAt = t.at;
+          changed = true;
+        }
+        continue;
+      }
+      const item = addItem(store, {
+        key, origin: "brief", kind: t.kind, title: t.title, detail: t.detail, activityAt: t.at,
+        link: normaliseLink({ url }),
+      }, now);
+      if (item) { added.push(item); changed = true; }
+    }
+  }
+  const facts = new Map();
+  for (const f of Array.isArray(activity?.facts) ? activity.facts : []) {
+    const url = safeUrl(f?.url);
+    if (url) facts.set(urlKey(url), f);
+  }
+  for (const item of store.items) {
+    if (item.state !== "open" || item.origin === "hagai" || item.link?.kind !== "pr") continue;
+    if (!["reply", "fix", "merge", "review", "approve"].includes(item.kind)) continue;
+    const f = facts.get(urlKey(item.link.url));
+    const why = f && settledBy(item, f);
+    if (why) changed = closeItem(item, { by: "brief", reason: why, now }) || changed;
+  }
+  return { added, changed, revived };
 }
 
 /** The states of a linked page that settle each kind of ask. */
@@ -870,10 +969,14 @@ export function createStatusTodo({
       await load();
       const t = now();
       const revived = reviveOnActivity(store, brief, t);
-      const added = ingestBrief(store, brief, t);
+      // GitHub's own activity first, so the model's item for the same PR and
+      // ask is said once, by it.
+      const gh = ingestActivity(store, brief?.activity, t);
+      revived.push(...gh.revived);
+      const added = [...gh.added, ...ingestBrief(store, brief, t)];
       const closed = applyLinkStates(store, brief?.linkStates, t);
       if (added.length) { queue.briefs.push(added.map(i => ({ id: i.id, title: i.title, detail: i.detail }))); schedule(); }
-      if (added.length || closed || revived.length) await commit();
+      if (added.length || closed || revived.length || gh.changed) await commit();
       return { added: added.length, closed, revived };
     },
     /** The pane's own buttons: close, reopen, snooze, unsnooze. */
