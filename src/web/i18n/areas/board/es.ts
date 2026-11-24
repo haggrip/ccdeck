@@ -1071,6 +1071,15 @@ const catalog: Catalog = {
   "board.group.why.failed": "No llegó ningún título. Inténtalo de nuevo.",
   "board.group.why.bad_request": "Este grupo no puede tener título.",
   "board.group.why.network": "ccdeck no respondió. Inténtalo de nuevo.",
+  "board.twins.badge": "Abierta en {count} terminales",
+  "board.twins.tip": "Esta conversación se está ejecutando en {count} terminales del deck a la vez: dos procesos de Claude escribiendo una misma conversación.",
+  "board.twins.close": "Cerrar el terminal más antiguo",
+  "board.twins.title": "¿Cerrar el terminal más antiguo?",
+  "board.twins.body": "El terminal más reciente sigue abierto. Se cierra cada terminal más antiguo con esta conversación, y el Claude que se ejecuta en él se detiene, incluso a mitad de turno. La conversación se conserva.",
+  "board.twins.cancel": "Cancelar",
+  "board.twins.confirm": "Cerrarlo",
+  "board.twins.closing": "Cerrando…",
+  "board.twins.failed": "No se pudo cerrar el terminal más antiguo. Vuelve a intentarlo en un momento.",
 };
 
 export default catalog;

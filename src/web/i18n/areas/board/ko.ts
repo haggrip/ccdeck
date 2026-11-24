@@ -1071,6 +1071,15 @@ const catalog: Catalog = {
   "board.group.why.failed": "제목이 돌아오지 않았습니다. 다시 시도하세요.",
   "board.group.why.bad_request": "이 그룹에는 제목을 붙일 수 없습니다.",
   "board.group.why.network": "ccdeck가 응답하지 않았습니다. 다시 시도하세요.",
+  "board.twins.badge": "터미널 {count}개에서 열림",
+  "board.twins.tip": "이 대화가 덱의 터미널 {count}개에서 동시에 실행 중입니다. Claude 프로세스 두 개가 하나의 대화에 쓰고 있습니다.",
+  "board.twins.close": "오래된 터미널 닫기",
+  "board.twins.title": "오래된 터미널을 닫을까요?",
+  "board.twins.body": "가장 최근 터미널은 열린 채로 둡니다. 이 대화를 가진 더 오래된 터미널은 모두 닫히고, 그 안의 Claude는 턴 중간이라도 멈춥니다. 대화 자체는 보존됩니다.",
+  "board.twins.cancel": "취소",
+  "board.twins.confirm": "닫기",
+  "board.twins.closing": "닫는 중…",
+  "board.twins.failed": "오래된 터미널을 닫지 못했습니다. 잠시 후 다시 시도하세요.",
 };
 
 export default catalog;

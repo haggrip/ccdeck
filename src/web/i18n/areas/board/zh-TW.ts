@@ -1071,6 +1071,15 @@ const catalog: Catalog = {
   "board.group.why.failed": "沒有傳回標題。請再試一次。",
   "board.group.why.bad_request": "無法為此群組命名。",
   "board.group.why.network": "ccdeck 沒有回應。請再試一次。",
+  "board.twins.badge": "在 {count} 個終端機中開啟",
+  "board.twins.tip": "此對話正同時在 deck 的 {count} 個終端機中執行：兩個 Claude 程序在寫同一個對話。",
+  "board.twins.close": "關閉較舊的終端機",
+  "board.twins.title": "關閉較舊的終端機？",
+  "board.twins.body": "最新的終端機保持開啟。所有持有此對話的較舊終端機都會被關閉，其中執行的 Claude 會停止，即使正在一輪當中。對話本身會保留。",
+  "board.twins.cancel": "取消",
+  "board.twins.confirm": "關閉",
+  "board.twins.closing": "正在關閉…",
+  "board.twins.failed": "無法關閉較舊的終端機。請稍後再試。",
 };
 
 export default catalog;
