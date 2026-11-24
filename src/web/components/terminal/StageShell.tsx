@@ -692,6 +692,7 @@ export function StageDock(p: StageDockProps) {
           onStart={stage.launch}
           onClose={stage.closePopover}
           windows={stage.windows}
+          agents={stage.codex ? undefined : ["claude"]}
         />
       )}
     </div>

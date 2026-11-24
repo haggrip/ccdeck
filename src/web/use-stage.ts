@@ -144,6 +144,9 @@ export interface StageDeps {
    *  Workspace split closes the panes whose session it does not know. Left
    *  out, the split waits RESTORE_WAIT_MS for them instead. */
   ready?: boolean;
+  /** Whether the deck watches Codex (use-deck-scope.ts): without it, New
+   *  session offers Claude alone. */
+  codex?: boolean;
   /** use-selection.ts's: the stage moving to a session selects it, without
    *  inspecting it — see `follow` below. */
   selectAgent: (id: string, additive: boolean, inspect?: boolean) => void;
@@ -184,7 +187,7 @@ function railRow(id: string): HTMLElement | null {
   }
 }
 
-export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDetailOpen, primarySelectedIdRef, selectAgent, view = "board", phone = false, clearSelection, ready = false }: StageDeps) {
+export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDetailOpen, primarySelectedIdRef, selectAgent, view = "board", phone = false, clearSelection, ready = false, codex = true }: StageDeps) {
   // The switch, from the one read of the deck's prefs (use-prefs-read.ts),
   // and whether the deck's platform has the panel at all, which the switch in
   // Settings says — null until the deck has answered. `windows`: its sessions
@@ -1285,7 +1288,7 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   }, [enabled, shellRef]);
 
   return {
-    enabled, supported, windows, toggleTerminal, loadTerminalPrefs, shell, geometry, cell, expanded, firstRun, said, navRef, keysRef,
+    enabled, supported, windows, codex, toggleTerminal, loadTerminalPrefs, shell, geometry, cell, expanded, firstRun, said, navRef, keysRef,
     workspace, workspaceOffered: onOffer, chunkFailed, openInPane, emptyPane, leaveWorkspace,
     onNodeClick, followSession, switchTo, openFromButton, newSessionFromBoard, openTile, launch, onLaunched,
     focusPane, release, takeTypeAhead, holdsTypeAhead, close, closed, failed, giveRightBack, reveal, revealed, announce,

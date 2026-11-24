@@ -497,6 +497,8 @@ export function createEngine({
    *  them. A Codex store that cannot be read offers nothing this time; it is
    *  never a reason for a round, or the Claude logins in it, to fail. */
   const localCodex = codex ? async () => {
+    // null, as for a deck built without a store: nothing offered, nothing planned.
+    if (codex.enabled && !codex.enabled()) return null;
     try {
       const rows = await codex.readAccounts();
       return Array.isArray(rows) ? rows.filter(r => isCodexKey(r?.key)) : [];

@@ -27,7 +27,7 @@
 import { describe, it, expect, afterAll, vi } from "vitest";
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { rmTempDir } from "./rm-temp-dir";
-import { get, type Server } from "node:http";
+import { get, request, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -286,6 +286,26 @@ describe("what /api/health tells the browser about which CLIs are watched", () =
     expect(claudeOnly.providers).toEqual({ claude: true, codex: false });
   });
 
+  it("closes every Codex route on a deck that does not watch Codex", async () => {
+    const server: Server = await startServer({ port: 0, host: "127.0.0.1", persist: null, claude: true, codex: false });
+    openServers.push(server);
+    const port = (server.address() as AddressInfo).port;
+    const status = (path: string, method = "GET") => new Promise<number>((done, fail) => {
+      const req = request({ host: "127.0.0.1", port, path, method, headers: { "Sec-Fetch-Site": "same-origin", Origin: `http://127.0.0.1:${port}`, "Content-Type": "application/json" } }, res => {
+        res.resume();
+        res.on("end", () => done(res.statusCode ?? 0));
+      });
+      req.on("error", fail);
+      req.end(method === "POST" ? "{}" : undefined);
+    });
+    for (const path of ["/api/codex-quota", "/api/codex-profiles", "/api/codex-profile-launch", "/api/codex-auto"]) {
+      expect(await status(path), path).toBe(404);
+    }
+    for (const path of ["/api/codex-accounts-share", "/api/codex-profile-select"]) {
+      expect(await status(path, "POST"), path).toBe(404);
+    }
+  });
+
   it("defaults both to true for a caller that passes neither", async () => {
     // Which is what every deck before this field effectively reported by saying
     // nothing, and what the browser assumes when the field is missing — so an
@@ -396,6 +416,11 @@ describe("what a Codex-only boot does on the user's behalf", () => {
       expect(job, `${what} is started before anything checks for Claude Code`).toMatch(/wantClaude/);
     });
   }
+
+  it("reads AGENTS_DECK_NO_CODEX=1 as --no-codex, the form a login item keeps", () => {
+    expect(deckSrc).toMatch(/const noCodex = flags\.noCodex === true \|\| process\.env\.AGENTS_DECK_NO_CODEX === "1";/);
+    expect(deckSrc).toMatch(/const wantCodex = !noCodex && /);
+  });
 
   it("hands the decision to the server so the browser can read it back", () => {
     expect(deckSrc).toMatch(/startServer\(\{[^}]*claude: wantClaude/s);

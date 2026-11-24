@@ -138,6 +138,7 @@ export function createServe({
         // from the manifest we sent: the list can change between the two, and
         // the answer that matters is the one at the moment of sending.
         const accounts = codexWant ? await localCodex() : await localAccounts();
+        if (!accounts) return ctx.send({ t: "no", why: "not mine to give" });
         if (!maySend()) return ctx.send({ t: "no", why: "not shared" });
         // The slot manifestFor told the peer about, by the same rule: with two
         // slots for one identity, an expired one listed first must not hide a

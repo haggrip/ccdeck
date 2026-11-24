@@ -459,6 +459,9 @@ export const SETTING_VARS = Object.freeze([
   "AGENTS_DECK_NO_RADAR",
   // Keep native Codex account control disabled after a login-service restart.
   "AGENTS_DECK_NO_CODEX_LIVE",
+  // --no-codex as an env var (bin/deck.js). A deck started at login without it
+  // would watch Codex again.
+  "AGENTS_DECK_NO_CODEX",
   // The opencode plugin's off switch (opencode-plugin.mjs). A deck started at
   // login without it would write the plugin back.
   "AGENTS_DECK_NO_OPENCODE",

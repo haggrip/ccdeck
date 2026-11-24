@@ -231,6 +231,16 @@ describe("the New session form", () => {
     expect(launchOptions(null, null, false), "Default passes nothing").toBeUndefined();
   });
 
+  it("offers Claude alone on a deck without Codex, even when Codex was asked for", async () => {
+    const p = props({ agents: ["claude"], initialAgent: "codex" });
+    const m = mount(NewSessionForm, p);
+    expect(one(m.tree, el => el.props.className === "uh-range ns-agents"), "no agent choice to make").toBeNull();
+    expect(textOf(startButton(m.tree))).toBe("Start Claude in paycore");
+    click(startButton(m.tree));
+    await flush();
+    expect(p.onStart).toHaveBeenCalledWith("claude", "/home/u/code/paycore");
+  });
+
   it("switches the agent and the project, and the button follows", async () => {
     const p = props();
     const m = mount(NewSessionForm, p);

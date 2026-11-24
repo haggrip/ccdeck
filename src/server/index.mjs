@@ -450,6 +450,10 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "GET" && url.pathname === "/api/quota/history") return guard(handleQuotaHistory(req, res), res);
     if (req.method === "GET" && url.pathname === "/api/quota/closes") return guard(handleQuotaCloses(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/quota")       return guard(handleQuota(req, res), res);
+    // A deck that does not watch Codex (--no-codex, AGENTS_DECK_NO_CODEX=1, or
+    // no Codex on the machine) answers none of its routes: no account reads,
+    // no profile launches, no login sharing. The same 404 as any unknown path.
+    if (!deckProviders().codex && url.pathname.startsWith("/api/codex-")) return send(res, 404, { error: "not found" });
     if (req.method === "GET"  && url.pathname === "/api/codex-usage")  return guard(handleCodexUsage(req, res), res);
     // Machine state, not session state: sampled on the server's own timer and
     // deliberately kept out of the event stream. See src/server/system-metrics.mjs.
@@ -796,7 +800,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       // Codex's Auto-switch, on the deck's own loop. A settings read a minute
       // unless somebody turned it on (codex-auto.mjs). Each tick tells the
       // account notifications what it did, for the swap notice.
-      import("./codex-auto.mjs").then(m => m.startCodexAutoLoop({ onTick: noteCodexAutoTick })).catch(() => {});
+      if (codex) import("./codex-auto.mjs").then(m => m.startCodexAutoLoop({ onTick: noteCodexAutoTick })).catch(() => {});
       // The account notifications' own quota reads, for the providers this deck
       // watches. Idle — a check of two switches every couple of minutes — unless
       // the threshold or the reset notification is on.

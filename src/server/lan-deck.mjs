@@ -32,6 +32,7 @@ import { DISCOVERY_PORT } from "./lan-beacon.mjs";
 import { aboutThisDeck } from "./lan-about.mjs";
 import { createUsageShare } from "./usage-share.mjs";
 import { createCodexLan } from "./lan-codex-store.mjs";
+import { deckProviders } from "./deck-scope.mjs";
 import { MAC_FW, PROBE_PS, UFW_CONF, UFW_DEFAULTS, isActive, localAliases, reachability, readMacProbe, readProbe, readUfw, silentInbound } from "./lan-reach.mjs";
 import { run } from "./exec.mjs";
 // A LAN round checks the imports it lands the way the paste box does.
@@ -161,7 +162,9 @@ export const lanEngine = createEngine({
   // This deck's Codex logins, offered and taken by the same pairing in a list
   // of their own — see lan-codex.mjs for the rules and lan-codex-store.mjs for
   // what is read and written.
-  codex: createCodexLan(),
+  // Off on a deck that does not watch Codex: asked per round, because this
+  // engine is built at import, before startServer has set the deck's scope.
+  codex: { ...createCodexLan(), enabled: () => deckProviders().codex },
   // The logins a round just imported, checked once after it — see checkImports.
   checkArrivals: async steps => {
     const { checkImports } = await import("./cswap-admin.mjs");
