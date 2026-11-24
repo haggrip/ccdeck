@@ -761,7 +761,7 @@ function Inner() {
   // so a folded right column changes nothing between them.
   const stage = useStage({
     stateRef, canvasRef, detailOpen, detailShown: detailWanted, setDetailOpen, primarySelectedIdRef, selectAgent,
-    view: viewState.stored, phone, clearSelection, ready: historyReplayed,
+    view: viewState.stored, phone, clearSelection, ready: historyReplayed, codex: providers.codex,
   });
   const inWorkspace = stage.workspace;
   // Workspace in use, and two or more sessions side by side in it: features

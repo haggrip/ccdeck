@@ -239,7 +239,10 @@ const workspace = canonicalWorkspace(rawWorkspace);
 // and no directory is created either way — Codex hooks are not used any more,
 // so `--codex` only means "watch even though ~/.codex/ is not there yet",
 // which is the right answer for a machine where Codex arrives later.
-const wantCodex = !flags.noCodex && (flags.codex || await hasCodexInstalled());
+// AGENTS_DECK_NO_CODEX=1 is --no-codex as an env var, the form a login item
+// carries (login-service.mjs SETTING_VARS keeps env vars, never CLI flags).
+const noCodex = flags.noCodex === true || process.env.AGENTS_DECK_NO_CODEX === "1";
+const wantCodex = !noCodex && (flags.codex || await hasCodexInstalled());
 
 // The same question for the other CLI, and the one nobody was asking. README
 // offers "Claude Code CLI or OpenAI Codex CLI (or both)"; a Codex-only machine
@@ -640,7 +643,7 @@ if (SUPERVISED) {
   watchForClis({
     clis: [
       { name: "Claude Code", want: wantClaude, off: flags.noClaude, installed: hasClaudeInstalled },
-      { name: "Codex", want: wantCodex, off: flags.noCodex, installed: hasCodexInstalled },
+      { name: "Codex", want: wantCodex, off: noCodex, installed: hasCodexInstalled },
     ],
     onArrive: (name) => {
       write(`\n  ${P.ok}${G.ok}${P.reset}  ${P.muted}${name} found ${G.dash} restarting to serve it${P.reset}\n`);

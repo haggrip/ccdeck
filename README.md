@@ -880,6 +880,7 @@ Environment:
 |---|---|
 | `AGENT_DAG_PORT` | Default port, same as `-p` |
 | `CODEX_HOME` | Override `~/.codex` |
+| `AGENTS_DECK_NO_CODEX` | Set to `1` for the same as `--no-codex`, in a form the login item keeps: no Codex sessions on the board, no Codex panels, its `/api/codex-*` routes answer 404, and paired decks neither get nor give Codex logins |
 | `AGENTS_DECK_NO_CODEX_LIVE` | Set to `1` to disable switching an existing native shared Codex app-server |
 | `CCDECK_CODEX_HOMES` | JSON array of additional absolute Codex home directories to monitor and list in Accounts; restart ccdeck after changing it |
 | `AGENTS_DECK_NO_INSTALL=1` | Never install or update claude-swap / ccusage or the terminal's `ccdeck`, never download the terminal engine, never ask npm about releases, never read the status pages, and never send reports or feedback. The Claude Code hooks, opencode's plugin and Copilot's hooks file still go in: they are how sessions reach the board, and each has its own switch |

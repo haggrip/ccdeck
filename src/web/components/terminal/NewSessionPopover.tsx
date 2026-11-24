@@ -123,6 +123,9 @@ export interface NewSessionFormProps {
   initialAgent?: TerminalProvider;
   /** The deck's sessions run in the Windows session host, not tmux. */
   windows?: boolean;
+  /** The agents on offer, both when not given. A deck without Codex passes
+   *  ["claude"], and the agent choice is not drawn at all. */
+  agents?: readonly TerminalProvider[];
   onStart(agent: TerminalProvider, cwd: string, options?: LaunchOptions): void;
   onCancel(): void;
   deps?: Partial<NewSessionDeps>;
@@ -179,8 +182,10 @@ const pathExample = (windows: boolean) => (windows ? "C:\\path\\to\\project" : "
 
 interface Chosen { cwd: string; name: string }
 
-export function NewSessionForm({ projects, initialAgent = "claude", windows = false, onStart, onCancel, deps: given, searchRef }: NewSessionFormProps) {
+export function NewSessionForm({ projects, initialAgent: askedAgent = "claude", windows = false, agents: offered, onStart, onCancel, deps: given, searchRef }: NewSessionFormProps) {
   const t = useT();
+  const agents = offered ? AGENTS.filter(a => offered.includes(a.agent)) : AGENTS;
+  const initialAgent = agents.some(a => a.agent === askedAgent) ? askedAgent : (agents[0]?.agent ?? "claude");
   const [deps] = useState<NewSessionDeps>(() => ({ ...productDeps(), ...given }));
   const [kept, setKept] = useState<KeptProjects>(() => readKept(deps.store));
   const [discovered, setDiscovered] = useState<ProjectChoice[]>([]);
@@ -496,9 +501,10 @@ export function NewSessionForm({ projects, initialAgent = "claude", windows = fa
         </p>
       ) : null}
       <p className="ns-said" role="status">{busy === "checking" ? t("board.newSession.checking") : note ?? ""}</p>
+      {agents.length > 1 && (<>
       <span className="ns-label ns-label-gap" id="ns-agent-label">{t("board.newSession.agent")}</span>
       <div className="uh-range ns-agents" role="group" aria-labelledby="ns-agent-label">
-        {AGENTS.map(a => (
+        {agents.map(a => (
           <Button
             key={a.agent}
             type="button"
@@ -510,6 +516,7 @@ export function NewSessionForm({ projects, initialAgent = "claude", windows = fa
           </Button>
         ))}
       </div>
+      </>)}
       {agent === "claude" && (
         <details className="ns-options">
           <summary className="ns-options-summary">
@@ -566,6 +573,7 @@ export interface NewSessionPopoverProps {
   projects: ProjectChoice[];
   initialAgent?: TerminalProvider;
   windows?: boolean;
+  agents?: readonly TerminalProvider[];
   onStart(agent: TerminalProvider, cwd: string, options?: LaunchOptions): void;
   onClose(): void;
 }
@@ -597,6 +605,7 @@ export default function NewSessionPopover(p: NewSessionPopoverProps) {
         projects={p.projects}
         initialAgent={p.initialAgent}
         windows={p.windows}
+        agents={p.agents}
         onStart={(agent, cwd, options) => { p.onStart(agent, cwd, options); p.onClose(); }}
         onCancel={p.onClose}
       />
