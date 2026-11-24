@@ -244,7 +244,10 @@ export function railItems({
   // on you across the sessions and the connectors (components/StatusPane.tsx).
   const status: RailItem[] = toggleStatusPane ? [{
     id: "status", label: t("brief.rail"), short: t("brief.rail"), stripeWord: t("brief.rail"),
-    ariaLabel: t("brief.rail"), hint: t("brief.rail.hint"), glyph: <StatusGlyph />, kind: "panel",
+    // The sentence is the hint's detail, which wraps, not its name: a side
+    // hint keeps its name on one line, and this one ran out of its box and
+    // over the door it names.
+    ariaLabel: t("brief.rail"), detail: t("brief.rail.hint"), glyph: <StatusGlyph />, kind: "panel",
     open: statusPaneOpen, controls: STATUS_PANE_ID, onPress: toggleStatusPane,
   }] : [];
   const usage: RailItem = {

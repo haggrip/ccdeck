@@ -16,6 +16,7 @@ import type { StatusBriefHandle } from "../use-status-brief";
 import type { StatusTodoHandle } from "../use-status-todo";
 import type { TodoView } from "../status-todo";
 import { railItems } from "../rail-items";
+import { railHint } from "../components/EdgeRails";
 import { resetLanguageForTest, t } from "../i18n";
 import { createStatusBrief } from "../../server/status-brief.mjs";
 import { handleStatusBrief, useStatusBriefForTest } from "../../server/status-brief-routes.mjs";
@@ -203,6 +204,14 @@ describe("the pane's door", () => {
     expect(withPane.right[1].map(i => i.id)).toEqual(["status"]);
     const without = railItems(base);
     expect(without.rightStripe.flat().some(i => i.id === "status")).toBe(false);
+  });
+
+  it("is named Status in its hint, with the sentence as the detail, so the hint stays off the door", () => {
+    const door = railItems({ ...base, toggleStatusPane() {} }).rightStripe[1][0];
+    // A side hint keeps its name on one line: a sentence there ran out of its
+    // 280px box and over the door (2026-11-24).
+    expect(door.hint).toBeUndefined();
+    expect(railHint(door, true, false)).toMatchObject({ label: "Status", detail: t("brief.rail.hint") });
   });
 });
 
