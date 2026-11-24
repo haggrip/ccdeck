@@ -37,7 +37,7 @@ import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { writeFileAtomic } from "./atomic-write.mjs";
 import { LINK_STATES, dismissKeyOf } from "./status-todo.mjs";
-import { PR_URL, githubPromptLines } from "./status-gh.mjs";
+import { FIRST_SINCE_MS, MAX_SINCE_MS, PR_URL, activityPromptLines, githubPromptLines, normaliseActivity } from "./status-gh.mjs";
 
 export const BRIEF_FILE = "status-brief.json";
 export const MODELS = Object.freeze(["haiku", "sonnet", "opus"]);
@@ -317,6 +317,7 @@ export function normaliseStore(raw) {
     brief: b ? {
       ...normaliseBrief(b), at: b.at, model: MODELS.includes(b.model) ? b.model : null, reach: normaliseReach(b.reach),
       ...(typeof b.ghAccount === "string" && /^[A-Za-z0-9-]{1,39}$/.test(b.ghAccount) ? { ghAccount: b.ghAccount } : {}),
+      ...(normaliseActivity(b.activity) ? { activity: normaliseActivity(b.activity) } : {}),
     } : null,
     lastRunAt: Number.isFinite(r.lastRunAt) ? r.lastRunAt : null,
     failures: Number.isInteger(r.failures) && r.failures > 0 ? Math.min(r.failures, 99) : 0,
@@ -392,6 +393,7 @@ export function buildPrompt({ sessions, reach, tools = [], since, now = Date.now
       + (s.prompt ? ` · last prompt: ${JSON.stringify(s.prompt)}` : ""))
     : ["- (no sessions on this deck right now)"];
   const want = [];
+  if (reach.github === "on" && github?.status === "on" && github.activity) want.push("GitHub activity, from SINCE THE LAST BRIEF below: open the summary with what moved on my PRs and the ones I review (approvals, changes requested, comments, merges, CI). The deck puts the replies, merges and re-reviews it asks for on the to-do list itself.");
   if (reach.github === "on" && github?.status === "on") want.push("GitHub, from the GITHUB section below: a \"review\" item for each pull request where my review is requested; for my own, \"merge\" when it is approved with no failed or pending checks and not behind, \"fix\" when checks failed, it conflicts or it is behind its base, and \"reply\" when changes were requested. Use each one's updated time as \"activityAt\".");
   if (reach.slack === "on") want.push(`Slack: direct messages and mentions of me since ${clock(since)} that still need an answer or a decision.` + use("slack"));
   if (reach.jira === "on") want.push("Jira: my issues in the current sprint that are not done." + use("jira"));
@@ -421,7 +423,7 @@ export function buildPrompt({ sessions, reach, tools = [], since, now = Date.now
       ? ["TOOLS (the only ones you have, all read-only):", ...given.map(n => `- ${n}`)]
       : ["TOOLS: none. Do not call any tool."]),
     "",
-    ...(github?.status === "on" && reach.github === "on" ? [...githubPromptLines(github), ""] : []),
+    ...(github?.status === "on" && reach.github === "on" ? [...githubPromptLines(github), ...activityPromptLines(github.activity), ""] : []),
     want.length ? "ALSO LOOK AT:" : "No connector tools are available: brief from the sessions alone.",
     ...want.map(w => `- ${w}`),
     ...(watch.length && want.length ? [
@@ -433,7 +435,9 @@ export function buildPrompt({ sessions, reach, tools = [], since, now = Date.now
     "",
     "JSON SHAPE:",
     "{",
-    '  "summary": "two or three plain sentences on what is going on across the sessions and sources",',
+    github?.status === "on" && reach.github === "on" && github.activity
+      ? '  "summary": "two or three plain sentences: the first says what moved on GitHub since the last brief (from SINCE THE LAST BRIEF, or that nothing did), the rest what is going on across the sessions and sources",'
+      : '  "summary": "two or three plain sentences on what is going on across the sessions and sources",',
     '  "waiting": [{ "kind": "approve|merge|review|reply|decide", "title": "...", "detail": "...", "source": "github|slack|jira|session", "url": "https://...", "sessionId": "...", "person": "...", "activityAt": "ISO time of the newest activity you saw on its source" }],',
     '  "todo": [{ "kind": "todo|fix|follow-up", "title": "...", "detail": "...", "source": "...", "url": "...", "sessionId": "...", "activityAt": "..." }],',
     '  "talkTo": [{ "kind": "feedback|talk", "person": "name", "title": "what about", "source": "...", "url": "...", "activityAt": "..." }],',
@@ -547,7 +551,12 @@ export function createStatusBrief({ dir, agent, sessions, todo = null, github = 
     const isPr = w => typeof w?.url === "string" && PR_URL.test(w.url);
     let gh = null;
     if (s.settings.sources.github !== false && github) {
-      try { gh = await github.read({ watch: watched.filter(isPr).map(w => w.url) }); }
+      // What moved since the last brief written (from when its read began, so
+      // nothing slips between two), a day back for the first, never more than
+      // a week.
+      const last = s.brief?.activity?.until ?? s.brief?.at;
+      const since = Math.max(Number.isFinite(last) ? Math.min(last, startedAt) : startedAt - FIRST_SINCE_MS, startedAt - MAX_SINCE_MS);
+      try { gh = await github.read({ watch: watched.filter(isPr).map(w => w.url), since }); }
       catch (err) { gh = { status: "error", message: text(String(err?.message ?? err), 200) }; }
       reach.github = gh?.status === "on" ? "on" : ["missing", "logged-out"].includes(gh?.status) ? gh.status : "error";
       if (gh?.status !== "on") log(`status brief: GitHub not read (${gh?.message ?? gh?.status})`);
@@ -587,12 +596,18 @@ export function createStatusBrief({ dir, agent, sessions, todo = null, github = 
         const byGh = new Set(gh.linkStates.map(l => l.url));
         brief.linkStates = [...brief.linkStates.filter(l => !byGh.has(l.url)), ...gh.linkStates].slice(0, 60);
       }
-      s.brief = { ...brief, at: now(), model: s.settings.model, reach, ...(gh?.status === "on" && gh.account ? { ghAccount: gh.account } : {}) };
+      const activity = gh?.status === "on" ? normaliseActivity(gh.activity) : null;
+      s.brief = {
+        ...brief, at: now(), model: s.settings.model, reach,
+        ...(gh?.status === "on" && gh.account ? { ghAccount: gh.account } : {}),
+        ...(activity ? { activity } : {}),
+      };
       s.error = null;
       s.failures = 0;
       // The live Todo list takes what waits on the user from it, and closes
       // what its link states settle (status-todo.mjs).
-      try { await todo?.brief?.(s.brief); } catch (err) { log(`status brief: the todo list did not take the brief (${err?.message ?? err})`); }
+      // The list gets gh's whole reading: the asks and the facts that settle them.
+      try { await todo?.brief?.(gh?.status === "on" && gh.activity ? { ...s.brief, activity: gh.activity } : s.brief); } catch (err) { log(`status brief: the todo list did not take the brief (${err?.message ?? err})`); }
     } else {
       s.failures += 1;
       s.error = { at: now(), code: text(result?.code, 40) || "failed", message: text(result?.error, 300) || "The brief could not be written." };

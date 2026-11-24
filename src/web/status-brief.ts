@@ -48,6 +48,40 @@ export interface BriefPerson {
   source?: Exclude<BriefSource, "session">;
 }
 
+/** One event on a PR since the last brief (status-gh.mjs activityOf). */
+export interface ActivityEvent {
+  kind: "approved" | "changes-requested" | "reviewed" | "comments" | "mention" | "review-requested" | "re-request"
+    | "pushed" | "merged" | "closed" | "ci-failed" | "ci-green";
+  at: number;
+  who: string[];
+  count: number;
+  /** Someone else's words, cut short: data, drawn as text. */
+  excerpt: string;
+  /** The deck's plain words for it. */
+  what: string;
+}
+
+export interface ActivityItem {
+  url: string;
+  repo: string;
+  number: number | null;
+  title: string;
+  author: string | null;
+  mine: boolean;
+  state: "open" | "merged" | "closed";
+  at: number;
+  events: ActivityEvent[];
+}
+
+/** What moved on my PRs and the ones I review since the last brief. */
+export interface BriefActivity {
+  since: number;
+  until?: number;
+  items: ActivityItem[];
+  /** More moved than the deck read. */
+  partial?: true;
+}
+
 export interface Brief {
   at: number;
   model: BriefModel | null;
@@ -59,6 +93,8 @@ export interface Brief {
   reach: Record<"github" | "slack" | "jira", Reach>;
   /** The gh account GitHub was read as. */
   ghAccount?: string;
+  /** Read with gh: what moved since the brief before. */
+  activity?: BriefActivity;
 }
 
 export interface BriefSettings {

@@ -35,7 +35,7 @@ import PanelFoldHead from "./PanelFoldHead";
 import { agoWords } from "../shell-ago";
 import {
   BRIEF_EVERY, BRIEF_MODELS, liveItems, localBrief, peopleShown, safeHref,
-  type BriefItem, type BriefModel, type BriefPerson, type BriefSettings, type BriefView, type LocalBrief,
+  type BriefActivity, type BriefItem, type BriefModel, type BriefPerson, type BriefSettings, type BriefView, type LocalBrief,
 } from "../status-brief";
 import { useStatusBrief, type StatusBriefHandle } from "../use-status-brief";
 import { useStatusTodo, type StatusTodoHandle } from "../use-status-todo";
@@ -115,6 +115,44 @@ function Section({ title, id, items, empty, onOpenSession, onDismiss, t }: {
       {items.length ? (
         <ul className="stp-list">{items.map((it, i) => <ItemRow key={`${it.kind}:${it.sessionId ?? it.url ?? ""}:${i}`} item={it} onOpenSession={onOpenSession} onDismiss={onDismiss} t={t} />)}</ul>
       ) : <p className="stp-empty">{empty}</p>}
+    </section>
+  );
+}
+
+/** Since the last brief: what moved on my PRs and the ones I review, newest
+ *  first, each opening its PR. Read by the deck with gh; the excerpt is
+ *  someone else's words, drawn as text. */
+function Since({ activity, t }: { activity: BriefActivity; t: TFunction }) {
+  const items = activity.items;
+  return (
+    <section className="stp-section" aria-labelledby="stp-since">
+      <h3 className="stp-h" id="stp-since">{t("brief.section.since")}{items.length > 0 && <span className="stp-n">{items.length}</span>}</h3>
+      {items.length ? (
+        <ul className="stp-list">
+          {items.map(i => {
+            const href = safeHref(i.url);
+            const said = i.events.find(e => e.excerpt && e.kind !== "ci-failed");
+            const label = (
+              <>
+                <span className="stp-title">{i.repo}{i.number != null ? `#${i.number}` : ""}{i.title ? ` · ${i.title}` : ""}</span>
+                <span className="stp-detail">{i.events.map(e => e.what).join(" · ")}</span>
+                {said && <q className="stp-detail">{said.excerpt}</q>}
+              </>
+            );
+            return (
+              <li key={i.url} className="stp-item" data-kind={i.mine ? "mine" : "theirs"}>
+                <span className="stp-kind">{t(i.mine ? "brief.activity.mine" : "brief.activity.theirs")}</span>
+                {href && (
+                  <a className="stp-link" href={href} target="_blank" rel="noreferrer noopener" title={t("brief.open.link", { source: SOURCE_NAMES.github })}>
+                    {label}<span className="stp-src">{SOURCE_NAMES.github}<ExternalLinkGlyph /></span>
+                  </a>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      ) : <p className="stp-empty">{t("brief.activity.empty")}</p>}
+      {activity.partial && <p className="stp-empty">{t("brief.activity.partial")}</p>}
     </section>
   );
 }
@@ -357,6 +395,7 @@ export function StatusPaneView({ rows, now, brief, todo, pinned, onTogglePin, be
             {state}
             {failed && <p className="stp-flag">{t("brief.failed", { message: failed.message || failed.code })}</p>}
           </section>
+          {b?.activity && b.reach?.github === "on" && <Since activity={b.activity} t={t} />}
           <StatusTodo todo={todo} now={now} sessions={sessions} onOpenSession={onOpenSession} t={t} />
           <Section title={t("brief.section.talk")} id="stp-talk" items={talkTo} empty={t("brief.section.empty")} onOpenSession={onOpenSession} onDismiss={dismissItem} t={t} />
           <Dismissed list={dismissed} onRestore={restore} t={t} />
