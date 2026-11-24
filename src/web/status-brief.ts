@@ -20,7 +20,8 @@ export type BriefModel = "haiku" | "sonnet" | "opus";
 /** Per source: read ("on"), switched off in the pane ("off"), no connector
  *  for it ("none"), or a connector whose read-only tools are not switched on
  *  in Settings › Connectors ("disabled"). */
-export type Reach = "on" | "off" | "none" | "disabled";
+/** "missing", "logged-out" and "error" are GitHub's, read with gh. */
+export type Reach = "on" | "off" | "none" | "disabled" | "missing" | "logged-out" | "error";
 
 export interface BriefItem {
   kind: WaitingKind | TodoKind | TalkKind | "answer" | "failed" | "read";
@@ -56,6 +57,8 @@ export interface Brief {
   talkTo: BriefItem[];
   people: BriefPerson[];
   reach: Record<"github" | "slack" | "jira", Reach>;
+  /** The gh account GitHub was read as. */
+  ghAccount?: string;
 }
 
 export interface BriefSettings {

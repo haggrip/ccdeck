@@ -1,7 +1,8 @@
 // The Status pane's brief: what is going on across the sessions, what waits on
 // the user, who to talk to and the people worth keeping an eye on, written by
-// the user's own Claude Code from the deck's sessions and, where this machine's
-// Claude Code reaches them, GitHub, Slack and Jira.
+// the user's own Claude Code from the deck's sessions, from GitHub as the
+// user's own `gh` reads it (status-gh.mjs), and, where this machine's Claude
+// Code reaches them, Slack and Jira.
 //
 // READ-ONLY, END TO END, AND THIS FILE IS WHAT KEEPS IT SO. The brief is asked
 // for through runAgent (claude-agent.mjs, the shared contract), which offers a
@@ -36,6 +37,7 @@ import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { writeFileAtomic } from "./atomic-write.mjs";
 import { LINK_STATES, dismissKeyOf } from "./status-todo.mjs";
+import { PR_URL, githubPromptLines } from "./status-gh.mjs";
 
 export const BRIEF_FILE = "status-brief.json";
 export const MODELS = Object.freeze(["haiku", "sonnet", "opus"]);
@@ -66,10 +68,23 @@ export const MAX_TOOLS = 32;
  * search_pull_requests anyway and runAgent ended the run (tool_violation).
  */
 export const PROMPT_TOOLS = Object.freeze({
-  github: Object.freeze(["search_pull_requests", "pull_request_read", "search_issues", "get_me"]),
+  // GitHub is read by the deck with gh (status-gh.mjs), never by a connector.
+  github: Object.freeze([]),
   slack: Object.freeze(["slack_search_public_and_private", "slack_read_thread", "slack_read_channel"]),
-  jira: Object.freeze(["searchJiraIssuesUsingJql", "getJiraIssue", "atlassianUserInfo", "getAccessibleAtlassianResources"]),
+  // v2 (`atlassian`) and v1 (claude.ai) share the Jira names; Confluence's
+  // search is searchConfluence on v2 and searchConfluenceUsingCql on v1.
+  jira: Object.freeze(["searchJiraIssuesUsingJql", "getJiraIssue", "atlassianUserInfo", "getAccessibleAtlassianResources", "searchConfluence", "searchConfluenceUsingCql"]),
 });
+/** The sources a connector serves. GitHub is not one of them any more. */
+export const CONNECTOR_SOURCES = Object.freeze(["slack", "jira"]);
+/**
+ * The connector a source prefers when it has more than one: Jira and
+ * Confluence through Atlassian's own v2 server (`atlassian`, which the deck
+ * hands every run by its URL, claude-agent.mjs EXTRA_MCP_SERVERS) over the
+ * claude.ai v1 connector, which Atlassian is retiring. The other is used only
+ * when the preferred one has no tool to give.
+ */
+export const PREFERRED_SERVER = Object.freeze({ jira: "atlassian" });
 const toolTail = name => String(name ?? "").split("__").pop() ?? "";
 /** How the brief's runs are named in the agent's ledger. */
 export const RUN_TAG = "status-brief";
@@ -90,7 +105,6 @@ const MAX_HIDDEN = 200;
 
 /** Which connectors feed which source, by their server name or label. */
 const SOURCE_MATCH = Object.freeze({
-  github: /github/i,
   slack: /slack/i,
   jira: /jira|atlassian/i,
 });
@@ -129,20 +143,30 @@ export function pickTools(connectors, sources = DEFAULT_SETTINGS.sources, enable
     bySource[source] = new Set();
     reach[source] = sources?.[source] === false ? "off" : "none";
   }
+  // Each source's usable tools, per connector, so a preferred one can win.
+  const perServer = {};
+  for (const source of SOURCES) perServer[source] = new Map();
   for (const c of Array.isArray(connectors) ? connectors : []) {
     if (c?.server === "builtin" || c?.source === "builtin") continue;
     const name = `${c?.server ?? ""} ${c?.label ?? ""}`;
-    for (const source of SOURCES) {
+    for (const source of CONNECTOR_SOURCES) {
       if (reach[source] === "off" || !SOURCE_MATCH[source].test(name)) continue;
       if (reach[source] === "none") reach[source] = "disabled";
       for (const tool of Array.isArray(c?.tools) ? c.tools : []) {
         if (tool?.readOnly !== true || typeof tool.name !== "string" || !CONNECTOR_TOOL.test(tool.name)) continue;
         if (writeShaped(tool.name)) continue;
         if ((allowed && !allowed.has(tool.name)) || switchedOff.has(tool.name)) continue;
-        bySource[source].add(tool.name);
+        const own = perServer[source].get(c.server) ?? [];
+        own.push(tool.name);
+        perServer[source].set(c.server, own);
         reach[source] = "on";
       }
     }
+  }
+  for (const source of CONNECTOR_SOURCES) {
+    const preferred = PREFERRED_SERVER[source] && perServer[source].get(PREFERRED_SERVER[source]);
+    const from = preferred?.length ? [preferred] : [...perServer[source].values()];
+    for (const list of from) for (const n of list) bySource[source].add(n);
   }
   const tools = new Set();
   const takeInTurn = (queues) => {
@@ -244,7 +268,7 @@ export function normaliseBrief(json) {
   for (const raw of Array.isArray(j.linkStates) ? j.linkStates : []) {
     const url = safeUrl(raw?.url);
     if (url && LINK_STATES.includes(raw.state)) linkStates.push({ url, state: raw.state });
-    if (linkStates.length >= 30) break;
+    if (linkStates.length >= 60) break;
   }
   return {
     summary: text(j.summary, MAX_SUMMARY),
@@ -290,7 +314,10 @@ export function normaliseStore(raw) {
   const b = r.brief && typeof r.brief === "object" && Number.isFinite(r.brief.at) ? r.brief : null;
   return {
     v: 1,
-    brief: b ? { ...normaliseBrief(b), at: b.at, model: MODELS.includes(b.model) ? b.model : null, reach: normaliseReach(b.reach) } : null,
+    brief: b ? {
+      ...normaliseBrief(b), at: b.at, model: MODELS.includes(b.model) ? b.model : null, reach: normaliseReach(b.reach),
+      ...(typeof b.ghAccount === "string" && /^[A-Za-z0-9-]{1,39}$/.test(b.ghAccount) ? { ghAccount: b.ghAccount } : {}),
+    } : null,
     lastRunAt: Number.isFinite(r.lastRunAt) ? r.lastRunAt : null,
     failures: Number.isInteger(r.failures) && r.failures > 0 ? Math.min(r.failures, 99) : 0,
     error: r.error && typeof r.error === "object" && Number.isFinite(r.error.at)
@@ -302,7 +329,7 @@ export function normaliseStore(raw) {
 
 function normaliseReach(raw) {
   const out = {};
-  for (const s of SOURCES) out[s] = ["on", "off", "none", "disabled"].includes(raw?.[s]) ? raw[s] : "none";
+  for (const s of SOURCES) out[s] = ["on", "off", "none", "disabled", "missing", "logged-out", "error"].includes(raw?.[s]) ? raw[s] : "none";
   return out;
 }
 
@@ -351,7 +378,7 @@ export function sessionDigest(rows, envelopes, { now = Date.now(), maxRows = 30,
 const clock = at => (Number.isFinite(at) ? new Date(at).toISOString() : "never");
 
 /** What the model is asked. Pure, so the suite can read it. */
-export function buildPrompt({ sessions, reach, tools = [], since, now = Date.now(), hidden = [], watch = [], dismissed = [] }) {
+export function buildPrompt({ sessions, reach, tools = [], since, now = Date.now(), hidden = [], watch = [], dismissed = [], github = null }) {
   // Named in full, so the model never reaches for one it was not given: a
   // call outside the run's list ends the run (claude-agent.mjs).
   const given = [...new Set((Array.isArray(tools) ? tools : []).filter(t => typeof t === "string"))].sort();
@@ -365,9 +392,10 @@ export function buildPrompt({ sessions, reach, tools = [], since, now = Date.now
       + (s.prompt ? ` · last prompt: ${JSON.stringify(s.prompt)}` : ""))
     : ["- (no sessions on this deck right now)"];
   const want = [];
-  if (reach.github === "on") want.push("GitHub: pull requests where my review is requested; my PRs that are approved but not merged, have failing checks, are behind their base, or have unanswered review comments." + use("github"));
+  if (reach.github === "on" && github?.status === "on") want.push("GitHub, from the GITHUB section below: a \"review\" item for each pull request where my review is requested; for my own, \"merge\" when it is approved with no failed or pending checks and not behind, \"fix\" when checks failed, it conflicts or it is behind its base, and \"reply\" when changes were requested. Use each one's updated time as \"activityAt\".");
   if (reach.slack === "on") want.push(`Slack: direct messages and mentions of me since ${clock(since)} that still need an answer or a decision.` + use("slack"));
   if (reach.jira === "on") want.push("Jira: my issues in the current sprint that are not done." + use("jira"));
+  if (reach.jira === "on" && given.some(n => ["searchConfluence", "searchConfluenceUsingCql"].includes(toolTail(n)))) want.push(`Confluence: comments on my pages or mentions of me since ${clock(since)} that still need an answer.` + use("jira"));
   return [
     "You write a short status brief for one developer who runs many Claude Code sessions.",
     "Answer with exactly one JSON object and nothing else.",
@@ -393,7 +421,8 @@ export function buildPrompt({ sessions, reach, tools = [], since, now = Date.now
       ? ["TOOLS (the only ones you have, all read-only):", ...given.map(n => `- ${n}`)]
       : ["TOOLS: none. Do not call any tool."]),
     "",
-    want.length ? "ALSO LOOK AT, with those tools:" : "No connector tools are available: brief from the sessions alone.",
+    ...(github?.status === "on" && reach.github === "on" ? [...githubPromptLines(github), ""] : []),
+    want.length ? "ALSO LOOK AT:" : "No connector tools are available: brief from the sessions alone.",
     ...want.map(w => `- ${w}`),
     ...(watch.length && want.length ? [
       "",
@@ -424,7 +453,7 @@ export function buildPrompt({ sessions, reach, tools = [], since, now = Date.now
  *                   contract module is absent or vetoed
  *   sessions()      resolves to { rows, envelopes } for sessionDigest
  */
-export function createStatusBrief({ dir, agent, sessions, todo = null, now = () => Date.now(), log = () => {} }) {
+export function createStatusBrief({ dir, agent, sessions, todo = null, github = null, now = () => Date.now(), log = () => {} }) {
   const path = join(dir, BRIEF_FILE);
   let store = null;
   let loading = null;
@@ -510,13 +539,25 @@ export function createStatusBrief({ dir, agent, sessions, todo = null, now = () 
       digest = sessionDigest(rows, envelopes, { now: startedAt });
     } catch (err) { log(`status brief: sessions unreadable (${err?.message ?? err})`); }
     // The open Todo items' PRs and tickets, for the brief to read the state of.
-    let watch = [];
-    try { watch = (await todo?.watched?.()) ?? []; } catch (err) { log(`status brief: the todo list could not be read (${err?.message ?? err})`); }
+    let watched = [];
+    try { watched = (await todo?.watched?.()) ?? []; } catch (err) { log(`status brief: the todo list could not be read (${err?.message ?? err})`); }
+    // GitHub through the user's own gh, read here rather than by the model:
+    // what waits on the user, and the state of the PRs the Todo list tracks.
+    // The model is asked only about the other links.
+    const isPr = w => typeof w?.url === "string" && PR_URL.test(w.url);
+    let gh = null;
+    if (s.settings.sources.github !== false && github) {
+      try { gh = await github.read({ watch: watched.filter(isPr).map(w => w.url) }); }
+      catch (err) { gh = { status: "error", message: text(String(err?.message ?? err), 200) }; }
+      reach.github = gh?.status === "on" ? "on" : ["missing", "logged-out"].includes(gh?.status) ? gh.status : "error";
+      if (gh?.status !== "on") log(`status brief: GitHub not read (${gh?.message ?? gh?.status})`);
+    }
+    const watch = gh?.status === "on" ? watched.filter(w => !isPr(w)) : watched;
     // What the user dismissed, so the model spends nothing on it.
     let dismissed = [];
     try { dismissed = (await todo?.dismissed?.()) ?? []; } catch (err) { log(`status brief: the dismissed list could not be read (${err?.message ?? err})`); }
     const prompt = buildPrompt({
-      sessions: digest, reach, tools, now: startedAt, watch,
+      sessions: digest, reach, tools, now: startedAt, watch, github: gh,
       // Since the last brief, and never less than a day back: a DM that was
       // waiting at the last brief is still waiting until it is answered.
       since: Math.min(s.brief?.at ?? startedAt, startedAt - 24 * 3600_000),
@@ -541,7 +582,12 @@ export function createStatusBrief({ dir, agent, sessions, todo = null, now = () 
           }
         }
       }
-      s.brief = { ...brief, at: now(), model: s.settings.model, reach };
+      // gh's own reading of the tracked PRs stands over the model's.
+      if (gh?.status === "on") {
+        const byGh = new Set(gh.linkStates.map(l => l.url));
+        brief.linkStates = [...brief.linkStates.filter(l => !byGh.has(l.url)), ...gh.linkStates].slice(0, 60);
+      }
+      s.brief = { ...brief, at: now(), model: s.settings.model, reach, ...(gh?.status === "on" && gh.account ? { ghAccount: gh.account } : {}) };
       s.error = null;
       s.failures = 0;
       // The live Todo list takes what waits on the user from it, and closes

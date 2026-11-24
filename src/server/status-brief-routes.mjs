@@ -12,6 +12,7 @@
 // holder of the deck's token reads it. The three POSTs pass the mutation gates
 // every POST does. None of them writes anywhere but the deck's own
 // status-brief.json: the brief itself is read-only (status-brief.mjs).
+import { createGitHubReader } from "./status-gh.mjs";
 import { send, readBody } from "./http-io.mjs";
 import { deckDataDir } from "./deck-home.mjs";
 import { eventsSince } from "./event-ring.mjs";
@@ -40,6 +41,8 @@ function statusBrief() {
       return { rows: summarizeSessions(envelopes), envelopes };
     },
     todo: statusTodo(),
+    // GitHub through the user's own gh, read-only (status-gh.mjs).
+    github: createGitHubReader(),
     log: msg => console.warn(`[status-brief] ${msg}`),
   });
   return brief;

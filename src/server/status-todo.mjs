@@ -438,18 +438,21 @@ export const LINK_STATES = Object.freeze(Object.keys(STATE_WORDS).concat(["open"
  * the user added is left alone. Returns whether the list changed.
  */
 export function applyLinkStates(store, states, now) {
+  // A page can be in more than one state at once: a PR approved AND green.
   const by = new Map();
   for (const s of Array.isArray(states) ? states : []) {
     const url = safeUrl(s?.url);
-    if (url && LINK_STATES.includes(s.state)) by.set(urlKey(url), s.state);
+    if (!url || !LINK_STATES.includes(s.state)) continue;
+    const k = urlKey(url);
+    if (!by.has(k)) by.set(k, []);
+    by.get(k).push(s.state);
   }
   let changed = false;
   for (const item of store.items) {
     if (item.state !== "open" || item.origin === "hagai" || !item.link?.url) continue;
-    const state = by.get(urlKey(item.link.url));
-    if (state && (SETTLES[item.kind] ?? SETTLES.todo).includes(state)) {
-      changed = closeItem(item, { by: "brief", reason: STATE_WORDS[state], now }) || changed;
-    }
+    const settles = SETTLES[item.kind] ?? SETTLES.todo;
+    const state = (by.get(urlKey(item.link.url)) ?? []).find(x => settles.includes(x));
+    if (state) changed = closeItem(item, { by: "brief", reason: STATE_WORDS[state], now }) || changed;
   }
   return changed;
 }

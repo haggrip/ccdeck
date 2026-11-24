@@ -74,6 +74,8 @@ import { candidateSpec } from "./exec-spec.mjs";
 import { killTree, watchChild } from "./exec-children.mjs";
 import { deckDataDir } from "./deck-home.mjs";
 import { writeFileAtomic } from "./atomic-write.mjs";
+import { claudeConfigDir } from "./claude-dir.mjs";
+import { homedir } from "node:os";
 
 /** The machine's veto: set to 1, the deck never starts a `claude` for this. */
 export const AGENT_VETO_ENV = "AGENTS_DECK_NO_AGENT";
@@ -83,6 +85,50 @@ export const SETTINGS_FILE = "connectors.json";
 export const ALL_TOOLS = "all";
 /** The runs' working directory, inside the deck's data folder. */
 export const AGENT_DIR = "agent";
+
+/**
+ * MCP servers a run is handed by URL that it would not otherwise see. Today one:
+ * Atlassian's own v2 server. People add it to one project (`claude mcp add` in
+ * that folder), and a run starts in the deck's own folder, where project
+ * servers are not loaded. Handed back by name and URL only (`--mcp-config`),
+ * Claude Code finds its own stored sign-in for it: nothing secret is read or
+ * copied, and only a server the person already added is ever handed over.
+ */
+export const HANDED_SERVER_URLS = Object.freeze(["https://mcp.atlassian.com/v2/mcp"]);
+const SERVER_NAME = /^[A-Za-z0-9_-]{1,64}$/;
+
+/** Claude Code's own state file, where `claude mcp add` keeps servers. */
+function claudeStateFile(env, home) {
+  return env.CLAUDE_CONFIG_DIR?.trim() ? join(claudeConfigDir(env, home), ".claude.json") : join(home, ".claude.json");
+}
+
+/**
+ * The servers to hand a run: each HANDED_SERVER_URLS server the person added
+ * to a project, under the name they gave it, as `{ name, url }`. One added for
+ * every folder already reaches every run, and one that carries headers is left
+ * alone (its secret is in them). Unreadable state is none.
+ */
+export async function handedServers({ env = process.env, home = homedir(), read = p => readFile(p, "utf8") } = {}) {
+  let raw;
+  try { raw = JSON.parse(await read(claudeStateFile(env, home))); } catch { return []; }
+  const everywhere = raw?.mcpServers && typeof raw.mcpServers === "object" ? raw.mcpServers : {};
+  const out = new Map();
+  const consider = (name, cfg) => {
+    if (!SERVER_NAME.test(name) || out.has(name) || Object.hasOwn(everywhere, name)) return;
+    if (!cfg || typeof cfg !== "object" || cfg.headers || !["http", "streamable-http"].includes(cfg.type ?? "http")) return;
+    if (HANDED_SERVER_URLS.includes(cfg.url)) out.set(name, { name, url: cfg.url });
+  };
+  for (const project of Object.values(raw?.projects && typeof raw.projects === "object" ? raw.projects : {})) {
+    for (const [name, cfg] of Object.entries(project?.mcpServers ?? {})) consider(name, cfg);
+  }
+  return [...out.values()].slice(0, 4);
+}
+
+/** `--mcp-config`'s value for the handed servers, or null for none. */
+export function handedConfig(servers) {
+  if (!Array.isArray(servers) || !servers.length) return null;
+  return JSON.stringify({ mcpServers: Object.fromEntries(servers.map(s => [s.name, { type: "http", url: s.url }])) });
+}
 
 export const DEFAULT_MODEL = "haiku";
 export const DEFAULT_TIMEOUT_MS = 120_000;
@@ -308,20 +354,23 @@ export function agentEnv(env = process.env) {
  */
 export function agentArgs({
   model = DEFAULT_MODEL, builtins = [], allow = [], deny = [], mcp = allow.some(a => a.startsWith("mcp__")),
-  blockServers = [], schema = null, maxBudgetUsd = DEFAULT_BUDGET_USD, listing = false,
+  blockServers = [], schema = null, maxBudgetUsd = DEFAULT_BUDGET_USD, listing = false, mcpConfig = null,
 } = {}) {
   const args = [
     "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose",
     "--no-session-persistence", "--permission-mode", "dontAsk", "--permission-prompts", "none",
   ];
-  if (listing) return [...args, "--tools", "", "--disable-slash-commands"];
+  // The handed servers (handedServers), beside the person's own: listed, and
+  // connected by a run that may use MCP at all.
+  if (listing) return [...args, "--tools", "", "--disable-slash-commands", ...(mcpConfig ? ["--mcp-config", mcpConfig] : [])];
   args.push("--tools", builtins.join(","));
   if (!builtins.includes("Skill")) args.push("--disable-slash-commands");
   args.push("--model", model, builtins.length ? "--append-system-prompt" : "--system-prompt", SYSTEM_PROMPT,
     "--max-budget-usd", String(maxBudgetUsd));
   if (allow.length) args.push("--allowedTools", allow.join(","));
   if (!mcp) args.push("--strict-mcp-config");
-  else if (blockServers.length) {
+  else if (mcpConfig) args.push("--mcp-config", mcpConfig);
+  if (mcp && blockServers.length) {
     args.push("--settings", JSON.stringify({ deniedMcpServers: blockServers.map(serverName => ({ serverName })) }));
   }
   if (deny.length) args.push("--disallowedTools", deny.join(","));
@@ -501,8 +550,10 @@ export function createClaudeAgent({
   listTtlMs = LIST_TTL_MS,
   listTimeoutMs = LIST_TIMEOUT_MS,
   pollMs = POLL_MS,
+  handed = () => handedServers({ env }),
 } = {}) {
   let chain = Promise.resolve();
+  const mcpConfig = () => Promise.resolve().then(handed).then(handedConfig, () => null);
   let waiting = 0;
   let listing = null;            // { at, code, error, connectors }
   let lastForced = 0;
@@ -579,7 +630,7 @@ export function createClaudeAgent({
    *  have settled. Sent no prompt, so it costs nothing of the plan. */
   async function listOnce(timeoutMs) {
     const file = bin();
-    const spec = candidateSpec(file, agentArgs({ listing: true }));
+    const spec = candidateSpec(file, agentArgs({ listing: true, mcpConfig: await mcpConfig() }));
     const cwd = await agentDir();
     const session = openSession({ spawn, file: spec.file, args: spec.args, opts: spec.opts, cwd, env: agentEnv(env) });
     const deadline = now() + timeoutMs;
@@ -691,9 +742,9 @@ export function createClaudeAgent({
    * the prompt goes.
    */
   function runOnce({ prompt, model, builtins, allow, deny, mcp, blockServers = [], known = null, need, waitAll, permits, schema, maxBudgetUsd, deadline, signal }) {
-    return agentDir().then(cwd => new Promise(resolve => {
+    return Promise.all([agentDir(), mcp ? mcpConfig() : null]).then(([cwd, handedNow]) => new Promise(resolve => {
       const file = bin();
-      const spec = candidateSpec(file, agentArgs({ model, builtins, allow, deny, mcp, blockServers, schema, maxBudgetUsd }));
+      const spec = candidateSpec(file, agentArgs({ model, builtins, allow, deny, mcp, blockServers, schema, maxBudgetUsd, mcpConfig: handedNow }));
       let settled = false, toolCalls = 0, answered = false;
       const called = [], refused = [];
       // Calls to a tool the run was not given, by tool_use id, until Claude

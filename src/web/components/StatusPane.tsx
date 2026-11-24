@@ -242,6 +242,10 @@ function Settings({ view, handle, t }: { view: BriefView; handle: StatusBriefHan
             <span>{SOURCE_NAMES[src]}</span>
             {s.sources[src] && reach?.[src] === "none" && <span className="stp-muted">{t("brief.settings.noConnector")}</span>}
             {s.sources[src] && reach?.[src] === "disabled" && <span className="stp-muted">{t("brief.settings.toolsOff")}</span>}
+            {src === "github" && s.sources.github && reach?.github === "on" && view.brief?.ghAccount && <span className="stp-muted">{t("brief.settings.ghAs", { login: view.brief.ghAccount })}</span>}
+            {src === "github" && s.sources.github && reach?.github === "missing" && <span className="stp-muted">{t("brief.settings.ghMissing")}</span>}
+            {src === "github" && s.sources.github && reach?.github === "logged-out" && <span className="stp-muted">{t("brief.settings.ghLoggedOut")}</span>}
+            {src === "github" && s.sources.github && reach?.github === "error" && <span className="stp-muted">{t("brief.settings.ghError")}</span>}
           </label>
         ))}
       </fieldset>
