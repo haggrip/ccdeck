@@ -350,9 +350,14 @@ export const lanEngine = createEngine({
     // switched on: off, there is no panel to type through).
     engine: async () => (terminalOn(heldPrefs.current())
       ? (await import("./command-panel-engine.mjs")).commandPanel : null),
+    // A new session: the folder checked as the panel's picker checks one, and
+    // the launch noted in the panel's own record, as its New session is.
+    checkFolder: async path => (await import("./terminal-folder.mjs")).checkFolder(path),
+    provenance: async () => (await import("./panel-provenance.mjs")).panelProvenance,
   }),
   onControl: entry => {
-    console.log(`${PRODUCT}: command from paired deck ${entry.from || entry.fp} (${entry.addr}): ${entry.action} on ${entry.sid.slice(0, 8)} — ${entry.ok ? "done" : `refused: ${entry.why}`}`);
+    const what = entry.action === "start" ? `start in ${entry.cwd ?? "?"}${entry.sid ? ` → ${entry.sid.slice(0, 8)}` : ""}` : `${entry.action} on ${entry.sid.slice(0, 8)}`;
+    console.log(`${PRODUCT}: command from paired deck ${entry.from || entry.fp} (${entry.addr}): ${what} — ${entry.ok ? "done" : `refused: ${entry.why}`}`);
     broadcastControl(entry);
   },
   onError: (what, err) => {

@@ -12,22 +12,24 @@ import { selfPressAccepted, selfPressProps } from "../panel-press";
 import { useT } from "../i18n";
 import type { RemoteSession } from "../remote-sessions";
 
-export type ControlAction = "prompt" | "allow" | "deny" | "answer" | "interrupt" | "stop";
+export type ControlAction = "prompt" | "allow" | "deny" | "answer" | "interrupt" | "stop" | "start";
 export const CONTROL_ROUTE = "/api/lan/control";
 /** The options a question's dialog numbers, as buttons. */
 export const ANSWER_CHOICES = [1, 2, 3, 4] as const;
 /** The commands that are sent only on a second press. */
 export const CONFIRMED: readonly ControlAction[] = ["allow", "stop"];
 
-export async function sendControl(fp: string, sid: string, action: ControlAction, extra: { text?: string; choice?: number } = {}, send: typeof fetch = fetch): Promise<{ ok: boolean; why?: string }> {
+export async function sendControl(fp: string, sid: string, action: ControlAction, extra: { text?: string; choice?: number; cwd?: string; key?: string } = {}, send: typeof fetch = fetch): Promise<{ ok: boolean; why?: string; sid?: string }> {
   try {
     const res = await send(CONTROL_ROUTE, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fp, sid, action, ...extra }),
+      // A `start` names no session: it makes one.
+      body: JSON.stringify({ fp, ...(sid ? { sid } : {}), action, ...extra }),
     });
-    const body = await res.json().catch(() => null) as { ok?: unknown; why?: unknown } | null;
-    return body?.ok === true ? { ok: true } : { ok: false, why: typeof body?.why === "string" ? body.why : "refused" };
+    const body = await res.json().catch(() => null) as { ok?: unknown; why?: unknown; sid?: unknown } | null;
+    if (body?.ok === true) return { ok: true, ...(typeof body.sid === "string" && body.sid ? { sid: body.sid } : {}) };
+    return { ok: false, why: typeof body?.why === "string" ? body.why : "refused" };
   } catch {
     return { ok: false, why: "unreachable" };
   }

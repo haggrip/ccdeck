@@ -58,7 +58,7 @@ import { createHearing } from "./lan-hearing.mjs";
 import { anotherMachine, createInbound } from "./lan-inbound.mjs";
 import { createServe } from "./lan-serve.mjs";
 import { createRemoteSessions } from "./lan-sessions.mjs";
-import { checkCommand, createControlLog, createRateLimit } from "./lan-control.mjs";
+import { checkCommand, createControlLog, createRateLimit, START_RATE } from "./lan-control.mjs";
 import { createDials, MAX_AUTO_PEERS } from "./lan-dials.mjs";
 import { createManifests } from "./lan-manifest.mjs";
 import { asksOn, createRequests, saysYesOn } from "./lan-requests.mjs";
@@ -510,6 +510,7 @@ export function createEngine({
   /** Commands from paired decks: the per-peer rate and the log of every one,
    *  where the session runs — see lan-control.mjs. */
   const controlLimit = createRateLimit({ now });
+  const startLimit = createRateLimit({ now, rate: START_RATE });
   const controlLog = createControlLog({ now, onEntry: onControl });
   const { manifestFrame, keepManifest, heardOf } = createManifests({
     about, now, myFp: () => identity.fp, settings: () => cfg, usage,
@@ -594,6 +595,7 @@ export function createEngine({
     localControl: typeof control === "function" ? control : null,
     controlFrom: typeof controlFrom === "function" ? controlFrom : (addr => routeTo(addr)?.own === true),
     controlLimit,
+    startLimit,
     controlLog,
   });
 
@@ -1708,7 +1710,10 @@ export function createEngine({
         if (conn.peerFp !== fp || !trustedPeer(cfg.trusted, fp)) return { ok: false, why: "not paired" };
         const reply = await askOver(conn, { t: "control", command: checked.command });
         if (reply?.t !== "control") return { ok: false, why: reply?.why ? String(reply.why).slice(0, 80) : "no answer" };
-        return reply.ok ? { ok: true } : { ok: false, why: String(reply.why ?? "refused").slice(0, 80) };
+        if (!reply.ok) return { ok: false, why: String(reply.why ?? "refused").slice(0, 80) };
+        // A `start` answers the new session's id, when the engine named one.
+        const sid = typeof reply.sid === "string" && /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(reply.sid) ? reply.sid : null;
+        return { ok: true, ...(sid ? { sid } : {}) };
       } catch (err) {
         return { ok: false, why: err?.code === "TAILSCALE_ONLY" ? "tailnet only" : "unreachable" };
       } finally {

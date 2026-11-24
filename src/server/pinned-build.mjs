@@ -122,6 +122,9 @@ const PINNED_MODULES = [
   // The Claude agent, reached only through import() from Settings ›
   // Connectors' routes (connectors-routes.mjs).
   "claude-agent.mjs", "remote-control-sessions.mjs", "command-panel-engine.mjs",
+  // A paired deck's new session (lan-deck.mjs' local control): the folder
+  // check and the panel's launch record, reached through import().
+  "terminal-folder.mjs", "panel-provenance.mjs",
 ];
 
 /**
