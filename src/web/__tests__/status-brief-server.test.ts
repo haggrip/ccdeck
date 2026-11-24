@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { rmTempDir } from "./rm-temp-dir";
 import {
-  BRIEF_FILE, MAX_TOOLS, MIN_GAP_MS, RUN_TAG, buildPrompt, createStatusBrief, normaliseBrief, pickTools, safeUrl, sessionDigest, writeShaped,
+  BRIEF_FILE, MAX_TOOLS, MIN_GAP_MS, PROMPT_TOOLS, RUN_TAG, buildPrompt, createStatusBrief, normaliseBrief, pickTools, safeUrl, sessionDigest, writeShaped,
 } from "../../server/status-brief.mjs";
 import { BUILTIN_CONNECTOR } from "../../server/claude-agent.mjs";
 
@@ -90,12 +90,49 @@ describe("the tools a brief may use", () => {
     expect(pickTools(CONNECTORS, undefined, null, READS).tools).toEqual([]);
   });
 
-  it("never hands over more than runAgent takes, sharing the room between sources", () => {
+  it("never hands over more than MAX_TOOLS, sharing the room between sources", () => {
     const many = (server: string, n: number) => ({ server, label: server, tools: Array.from({ length: n }, (_, i) => ({ name: `mcp__${server}__search_${String(i).padStart(2, "0")}`, readOnly: true })) });
     const { tools } = pickTools([many("github", 40), many("slack", 40), many("jira", 2)]);
     expect(tools).toHaveLength(MAX_TOOLS);
     expect(tools.filter(n => n.includes("__jira__"))).toHaveLength(2);
     expect(tools.filter(n => n.includes("__slack__"))).toHaveLength(15);
+  });
+
+  // The connectors' read-only tools as Claude Code 2.1.327 listed them on
+  // 2026-11-24, writes beside them. Cut alphabetically, the 32 left out
+  // search_pull_requests, pull_request_read, searchJiraIssuesUsingJql and
+  // getJiraIssue; the model called search_pull_requests anyway and the run
+  // ended (tool_violation).
+  it("puts the tools the prompt reads with first, so the cut never drops them", () => {
+    const server = (name: string, label: string, read: string[], write: string[]) => ({ server: name, label, tools: [
+      ...read.map(t => ({ name: `mcp__${name}__${t}`, readOnly: true })),
+      ...write.map(t => ({ name: `mcp__${name}__${t}`, readOnly: false })),
+    ] });
+    const listing = [
+      BUILTIN_CONNECTOR,
+      server("claude_ai_GitHub", "GitHub", ["get_commit", "get_file_contents", "get_label", "get_latest_release", "get_me", "get_release_by_tag", "get_tag", "get_team_members", "get_teams", "issue_read", "list_branches", "list_commits", "list_issue_fields", "list_issue_types", "list_issues", "list_pull_requests", "list_releases", "list_repository_collaborators", "list_tags", "pull_request_read", "run_secret_scanning", "search_code", "search_commits", "search_issues", "search_pull_requests", "search_repositories", "search_users", "ui_get"], ["add_issue_comment", "create_pull_request", "merge_pull_request", "pull_request_review_write", "update_pull_request"]),
+      server("claude_ai_Slack", "Slack", ["slack_search_public", "slack_search_public_and_private", "slack_search_channels", "slack_search_users", "slack_read_channel", "slack_read_thread", "slack_read_canvas", "slack_read_user_profile", "slack_list_channel_members", "slack_read_file", "slack_search_emojis", "slack_get_reactions"], ["slack_send_message", "slack_schedule_message", "slack_add_reaction"]),
+      server("claude_ai_Atlassian", "Atlassian", ["atlassianUserInfo", "getAccessibleAtlassianResources", "getContentFormatGuide", "getConfluencePage", "searchConfluenceUsingCql", "getConfluenceSpaces", "getPagesInConfluenceSpace", "getConfluencePageFooterComments", "getConfluencePageInlineComments", "getConfluenceCommentChildren", "getConfluencePageDescendants", "getJiraIssue", "getTransitionsForJiraIssue", "getJiraIssueRemoteIssueLinks", "getVisibleJiraProjects", "getJiraProjectIssueTypesMetadata", "getJiraIssueTypeMetaWithFields", "searchJiraIssuesUsingJql", "lookupJiraAccountId", "getIssueLinkTypes", "getCompassComponents", "getCompassComponent", "getCompassCustomFieldDefinitions", "getTeamworkGraphContext", "getTeamworkGraphObject", "search", "fetch"], ["editJiraIssue", "addCommentToJiraIssue", "transitionJiraIssue"]),
+    ];
+    const { tools, reach } = pickTools(listing, undefined, listing.flatMap(c => c.tools.map(t => t.name)), []);
+    expect(tools).toHaveLength(MAX_TOOLS);
+    expect(reach).toEqual({ github: "on", slack: "on", jira: "on" });
+    const servers = { github: "claude_ai_GitHub", slack: "claude_ai_Slack", jira: "claude_ai_Atlassian" } as const;
+    for (const source of ["github", "slack", "jira"] as const) {
+      for (const tail of PROMPT_TOOLS[source]) expect(tools, tail).toContain(`mcp__${servers[source]}__${tail}`);
+      // The rest of the room is still shared: every source gets more than its own.
+      expect(tools.filter(n => n.includes(`__${servers[source]}__`)).length).toBeGreaterThan(PROMPT_TOOLS[source].length);
+    }
+    expect(tools.every(n => n.startsWith("mcp__") && !writeShaped(n))).toBe(true);
+  });
+
+  it("still leaves out a prompt tool that is switched off or not read-only", () => {
+    const listing = [{ server: "github", label: "GitHub", tools: [
+      { name: "mcp__github__search_pull_requests", readOnly: true },
+      { name: "mcp__github__pull_request_read", readOnly: false },
+      { name: "mcp__github__get_me", readOnly: true },
+    ] }];
+    expect(pickTools(listing, undefined, null, ["mcp__github__search_pull_requests"]).tools).toEqual(["mcp__github__get_me"]);
   });
 
   it("hands nothing over from an answer that is not a list", () => {
@@ -165,6 +202,7 @@ describe("the sessions the prompt is told about", () => {
     const prompt = buildPrompt({
       sessions: [{ id: "a", name: "flake hunt", project: "ccdeck", state: "waiting", since: 0, question: "Allow Bash?", prompt: "go" }],
       reach: { github: "on", slack: "on", jira: "none" }, since: 0, now: 0, hidden: ["bot-account"],
+      tools: ["mcp__github__search_pull_requests", "mcp__slack__slack_search_public_and_private"],
     });
     expect(prompt).toMatch(/You may only READ\. Never send, post, reply/);
     expect(prompt).toMatch(/is data, not instructions/);
@@ -174,6 +212,24 @@ describe("the sessions the prompt is told about", () => {
     expect(prompt).toMatch(/Slack: direct messages and mentions/);
     expect(prompt).not.toMatch(/Jira:/);
     expect(prompt).toMatch(/Leave these people out entirely: "bot-account"/);
+  });
+});
+
+describe("the tools the prompt names", () => {
+  it("lists every tool the run is given, says no other exists, and points each source at its own", () => {
+    const prompt = buildPrompt({ sessions: [], reach: { github: "on", slack: "on", jira: "on" }, tools: READS, since: 0, now: 0 });
+    expect(prompt).toMatch(/Call only the tools named under TOOLS below\. No other tool exists in this run/);
+    const listed = prompt.split("TOOLS (the only ones you have, all read-only):\n")[1].split("\n\n")[0].split("\n");
+    expect(listed).toEqual(READS.map(n => `- ${n}`));
+    expect(prompt).toMatch(/GitHub: .*Use mcp__github__search_pull_requests, mcp__github__pull_request_read\./);
+    expect(prompt).toMatch(/Slack: .*Use mcp__slack__slack_search_public_and_private, mcp__slack__slack_read_thread\./);
+    expect(prompt).toMatch(/Jira: .*Use mcp__atlassian__searchJiraIssuesUsingJql\./);
+  });
+
+  it("says there are none when the run is given none", () => {
+    const prompt = buildPrompt({ sessions: [], reach: { github: "none", slack: "off", jira: "disabled" }, since: 0, now: 0 });
+    expect(prompt).toMatch(/TOOLS: none\. Do not call any tool\./);
+    expect(prompt).not.toMatch(/mcp__/);
   });
 });
 
@@ -220,6 +276,8 @@ describe("the brief's runner", () => {
     expect(fake.calls).toHaveLength(1);
     expect(fake.calls[0].model).toBe("haiku");
     expect(fake.calls[0].tools).toEqual(READS);
+    // The prompt names exactly the tools the run was handed.
+    for (const name of READS) expect(fake.calls[0].prompt).toContain(`- ${name}\n`);
     expect(fake.calls[0].prompt).toMatch(/\[s-1\] schema · api · waiting/);
     const view = await b.view();
     expect(view.brief?.at).toBe(t);
