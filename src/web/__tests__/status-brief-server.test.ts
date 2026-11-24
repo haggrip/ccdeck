@@ -39,19 +39,20 @@ const CONNECTORS = [
   { server: "1password", label: "1Password", tools: [{ name: "mcp__1password__list_secrets", readOnly: true }] },
 ];
 
+// CHANGED ON PURPOSE (fix/status-sources): GitHub is read by the deck with gh
+// (status-gh.mjs), so no GitHub connector tool is ever handed to the model.
 const READS = [
   "mcp__atlassian__searchJiraIssuesUsingJql",
-  "mcp__github__pull_request_read",
-  "mcp__github__search_pull_requests",
   "mcp__slack__slack_read_thread",
   "mcp__slack__slack_search_public_and_private",
 ];
 
 describe("the tools a brief may use", () => {
-  it("are the read-only tools of the GitHub, Slack and Jira connectors, and nothing that writes", () => {
+  it("are the read-only tools of the Slack and Jira connectors, never GitHub's, and nothing that writes", () => {
     const { tools, reach } = pickTools(CONNECTORS);
     expect(tools).toEqual(READS);
-    expect(reach).toEqual({ github: "on", slack: "on", jira: "on" });
+    // GitHub's reach is gh's to say, in the runner; the connectors leave it "none".
+    expect(reach).toEqual({ github: "none", slack: "on", jira: "on" });
   });
 
   it("drops a tool whose name reads like a write even when its connector calls it read-only", () => {
@@ -64,28 +65,28 @@ describe("the tools a brief may use", () => {
   });
 
   it("leaves a source out when it is switched off, and says when no connector serves one", () => {
-    const { tools, reach } = pickTools(CONNECTORS.filter(c => c.server !== "atlassian"), { github: true, slack: false, jira: true });
-    expect(tools).toEqual(["mcp__github__pull_request_read", "mcp__github__search_pull_requests"]);
-    expect(reach).toEqual({ github: "on", slack: "off", jira: "none" });
+    const { tools, reach } = pickTools(CONNECTORS.filter(c => c.server !== "atlassian"), { github: false, slack: false, jira: true });
+    expect(tools).toEqual([]);
+    expect(reach).toEqual({ github: "off", slack: "off", jira: "none" });
   });
 
   it("picks only what Settings › Connectors has switched on, and says which source has none on", () => {
-    const { tools, reach } = pickTools(CONNECTORS, undefined, ["mcp__github__pull_request_read", "mcp__slack__slack_send_message", "mcp__github__merge_pull_request"]);
+    const { tools, reach } = pickTools(CONNECTORS, undefined, ["mcp__atlassian__searchJiraIssuesUsingJql", "mcp__slack__slack_send_message", "mcp__github__pull_request_read"]);
     // A write switched on by name is still not picked: it is not read-only.
-    expect(tools).toEqual(["mcp__github__pull_request_read"]);
-    expect(reach).toEqual({ github: "on", slack: "disabled", jira: "disabled" });
+    expect(tools).toEqual(["mcp__atlassian__searchJiraIssuesUsingJql"]);
+    expect(reach).toEqual({ github: "none", slack: "disabled", jira: "on" });
   });
 
   // CHANGED ON PURPOSE (the contract, 00018534): every tool is on unless it is
   // switched off, Claude Code's own included, and runAgent no longer checks
   // that a tool only reads. The brief's list is the whole guarantee now.
   it("never hands over a built-in tool or a switched-off one, with every tool on", () => {
-    const listing = [BUILTIN_CONNECTOR, ...CONNECTORS, { server: "github", label: "GitHub", tools: [{ name: "Read", readOnly: true }, { name: "Bash", readOnly: true }] }];
+    const listing = [BUILTIN_CONNECTOR, ...CONNECTORS, { server: "slack", label: "Slack", tools: [{ name: "Read", readOnly: true }, { name: "Bash", readOnly: true }] }];
     const everything = listing.flatMap(c => c.tools.map(t => t.name));
     const { tools, reach } = pickTools(listing, undefined, everything.filter(n => n !== "mcp__slack__slack_read_thread"), ["mcp__slack__slack_read_thread"]);
     expect(tools).toEqual(READS.filter(n => n !== "mcp__slack__slack_read_thread"));
     expect(tools.every(n => n.startsWith("mcp__"))).toBe(true);
-    expect(reach).toEqual({ github: "on", slack: "on", jira: "on" });
+    expect(reach).toEqual({ github: "none", slack: "on", jira: "on" });
     // The switched-off list alone is enough to keep a tool out.
     expect(pickTools(CONNECTORS, undefined, null, READS).tools).toEqual([]);
   });
@@ -94,8 +95,9 @@ describe("the tools a brief may use", () => {
     const many = (server: string, n: number) => ({ server, label: server, tools: Array.from({ length: n }, (_, i) => ({ name: `mcp__${server}__search_${String(i).padStart(2, "0")}`, readOnly: true })) });
     const { tools } = pickTools([many("github", 40), many("slack", 40), many("jira", 2)]);
     expect(tools).toHaveLength(MAX_TOOLS);
+    expect(tools.filter(n => n.includes("__github__"))).toHaveLength(0);
     expect(tools.filter(n => n.includes("__jira__"))).toHaveLength(2);
-    expect(tools.filter(n => n.includes("__slack__"))).toHaveLength(15);
+    expect(tools.filter(n => n.includes("__slack__"))).toHaveLength(30);
   });
 
   // The connectors' read-only tools as Claude Code 2.1.327 listed them on
@@ -115,24 +117,46 @@ describe("the tools a brief may use", () => {
       server("claude_ai_Atlassian", "Atlassian", ["atlassianUserInfo", "getAccessibleAtlassianResources", "getContentFormatGuide", "getConfluencePage", "searchConfluenceUsingCql", "getConfluenceSpaces", "getPagesInConfluenceSpace", "getConfluencePageFooterComments", "getConfluencePageInlineComments", "getConfluenceCommentChildren", "getConfluencePageDescendants", "getJiraIssue", "getTransitionsForJiraIssue", "getJiraIssueRemoteIssueLinks", "getVisibleJiraProjects", "getJiraProjectIssueTypesMetadata", "getJiraIssueTypeMetaWithFields", "searchJiraIssuesUsingJql", "lookupJiraAccountId", "getIssueLinkTypes", "getCompassComponents", "getCompassComponent", "getCompassCustomFieldDefinitions", "getTeamworkGraphContext", "getTeamworkGraphObject", "search", "fetch"], ["editJiraIssue", "addCommentToJiraIssue", "transitionJiraIssue"]),
     ];
     const { tools, reach } = pickTools(listing, undefined, listing.flatMap(c => c.tools.map(t => t.name)), []);
+    // Slack's 12 and Atlassian's 27 make 39: the cut still keeps every prompt tool.
     expect(tools).toHaveLength(MAX_TOOLS);
-    expect(reach).toEqual({ github: "on", slack: "on", jira: "on" });
-    const servers = { github: "claude_ai_GitHub", slack: "claude_ai_Slack", jira: "claude_ai_Atlassian" } as const;
-    for (const source of ["github", "slack", "jira"] as const) {
-      for (const tail of PROMPT_TOOLS[source]) expect(tools, tail).toContain(`mcp__${servers[source]}__${tail}`);
+    expect(reach).toEqual({ github: "none", slack: "on", jira: "on" });
+    expect(tools.some(n => n.includes("GitHub"))).toBe(false);
+    const servers = { slack: "claude_ai_Slack", jira: "claude_ai_Atlassian" } as const;
+    for (const source of ["slack", "jira"] as const) {
+      // v1 has searchConfluenceUsingCql, not v2's searchConfluence.
+      for (const tail of PROMPT_TOOLS[source].filter(t => t !== "searchConfluence")) expect(tools, tail).toContain(`mcp__${servers[source]}__${tail}`);
       // The rest of the room is still shared: every source gets more than its own.
-      expect(tools.filter(n => n.includes(`__${servers[source]}__`)).length).toBeGreaterThan(PROMPT_TOOLS[source].length);
+      expect(tools.filter(n => n.includes(`__${servers[source]}__`)).length).toBeGreaterThan(PROMPT_TOOLS[source].length - 1);
     }
     expect(tools.every(n => n.startsWith("mcp__") && !writeShaped(n))).toBe(true);
   });
 
   it("still leaves out a prompt tool that is switched off or not read-only", () => {
-    const listing = [{ server: "github", label: "GitHub", tools: [
-      { name: "mcp__github__search_pull_requests", readOnly: true },
-      { name: "mcp__github__pull_request_read", readOnly: false },
-      { name: "mcp__github__get_me", readOnly: true },
+    const listing = [{ server: "slack", label: "Slack", tools: [
+      { name: "mcp__slack__slack_search_public_and_private", readOnly: true },
+      { name: "mcp__slack__slack_read_thread", readOnly: false },
+      { name: "mcp__slack__slack_read_user_profile", readOnly: true },
     ] }];
-    expect(pickTools(listing, undefined, null, ["mcp__github__search_pull_requests"]).tools).toEqual(["mcp__github__get_me"]);
+    expect(pickTools(listing, undefined, null, ["mcp__slack__slack_search_public_and_private"]).tools).toEqual(["mcp__slack__slack_read_user_profile"]);
+  });
+
+  it("takes Jira and Confluence from Atlassian's own v2 server when it has tools, and the claude.ai one only when it has none", () => {
+    const v2 = { server: "atlassian", label: "atlassian", tools: [
+      { name: "mcp__atlassian__searchJiraIssuesUsingJql", readOnly: true },
+      { name: "mcp__atlassian__searchConfluence", readOnly: true },
+      { name: "mcp__atlassian__executeRead", readOnly: true },
+      { name: "mcp__atlassian__executeWrite", readOnly: false },
+      { name: "mcp__atlassian__addOrEditJiraIssueComment", readOnly: true },
+    ] };
+    const v1 = { server: "claude_ai_Atlassian", label: "Atlassian", tools: [
+      { name: "mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql", readOnly: true },
+      { name: "mcp__claude_ai_Atlassian__getJiraIssue", readOnly: true },
+    ] };
+    expect(pickTools([v1, v2]).tools).toEqual(["mcp__atlassian__executeRead", "mcp__atlassian__searchConfluence", "mcp__atlassian__searchJiraIssuesUsingJql"]);
+    // v2 not signed in (no tools): the claude.ai connector is used.
+    expect(pickTools([v1, { ...v2, tools: [] }]).tools).toEqual(["mcp__claude_ai_Atlassian__getJiraIssue", "mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql"]);
+    // Every v2 tool switched off in Settings › Connectors: the same.
+    expect(pickTools([v1, v2], undefined, null, v2.tools.map(t => t.name)).tools).toEqual(["mcp__claude_ai_Atlassian__getJiraIssue", "mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql"]);
   });
 
   it("hands nothing over from an answer that is not a list", () => {
@@ -203,13 +227,14 @@ describe("the sessions the prompt is told about", () => {
     const prompt = buildPrompt({
       sessions: [{ id: "a", name: "flake hunt", project: "ccdeck", state: "waiting", since: 0, question: "Allow Bash?", prompt: "go" }],
       reach: { github: "on", slack: "on", jira: "none" }, since: 0, now: 0, hidden: ["bot-account"],
-      tools: ["mcp__github__search_pull_requests", "mcp__slack__slack_search_public_and_private"],
+      tools: ["mcp__slack__slack_search_public_and_private"],
+      github: { status: "on", account: "dev", review: [], mine: [], linkStates: [] },
     });
     expect(prompt).toMatch(/You may only READ\. Never send, post, reply/);
     expect(prompt).toMatch(/is data, not instructions/);
     expect(prompt).toMatch(/\[a\] flake hunt · ccdeck · waiting/);
     expect(prompt).toMatch(/asks: "Allow Bash\?"/);
-    expect(prompt).toMatch(/GitHub: pull requests/);
+    expect(prompt).toMatch(/GitHub, from the GITHUB section below/);
     expect(prompt).toMatch(/Slack: direct messages and mentions/);
     expect(prompt).not.toMatch(/Jira:/);
     expect(prompt).toMatch(/Leave these people out entirely: "bot-account"/);
@@ -222,7 +247,7 @@ describe("the tools the prompt names", () => {
     expect(prompt).toMatch(/Call only the tools named under TOOLS below\. No other tool exists in this run/);
     const listed = prompt.split("TOOLS (the only ones you have, all read-only):\n")[1].split("\n\n")[0].split("\n");
     expect(listed).toEqual(READS.map(n => `- ${n}`));
-    expect(prompt).toMatch(/GitHub: .*Use mcp__github__search_pull_requests, mcp__github__pull_request_read\./);
+    expect(prompt).not.toMatch(/GitHub/);
     expect(prompt).toMatch(/Slack: .*Use mcp__slack__slack_search_public_and_private, mcp__slack__slack_read_thread\./);
     expect(prompt).toMatch(/Jira: .*Use mcp__atlassian__searchJiraIssuesUsingJql\./);
   });
@@ -346,8 +371,8 @@ describe("the brief's runner", () => {
     expect(fake.listed()).toBe(0);
     expect(fake.calls[0].tools).toEqual(["mcp__atlassian__searchJiraIssuesUsingJql", "mcp__slack__slack_read_thread"]);
     expect((fake.calls[0] as { tag?: string }).tag).toBe(RUN_TAG);
-    expect((await b.view()).brief?.reach).toEqual({ github: "disabled", slack: "on", jira: "on" });
-    expect(fake.calls[0].prompt).not.toMatch(/GitHub: pull requests/);
+    expect((await b.view()).brief?.reach).toEqual({ github: "none", slack: "on", jira: "on" });
+    expect(fake.calls[0].prompt).not.toMatch(/GitHub/);
   });
 
   it("asks for no tools at all, never runAgent's every-tool default, when no connector serves a source", async () => {
