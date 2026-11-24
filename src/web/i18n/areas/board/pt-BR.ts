@@ -1043,6 +1043,7 @@ const catalog: Catalog = {
   "board.keys.keptApp": "O navegador fica com Ctrl+W, Ctrl+T e Ctrl+N em uma aba — o app desktop os entrega à sessão.",
   "board.view.group": "Visão",
   "board.view.board": "Quadro",
+  "board.view.mission": "Missão",
   "board.view.workspace": "Workspace",
   "board.stage.shellUnavailable": "Não foi possível carregar o Painel de Comando. Recarregue a página para usá-lo.",
   "board.stage.skipToPane": "Ir para o painel",

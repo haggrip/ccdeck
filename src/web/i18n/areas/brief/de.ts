@@ -48,6 +48,8 @@ const catalog: Catalog = {
   "brief.kind.failed": "Fehler",
   "brief.kind.read": "Lesen",
   "brief.source.session": "Sitzung",
+  "brief.source.desktop": "Claude-App",
+  "brief.open.desktop": "Diese Sitzung in der Claude-App öffnen",
   "brief.open.link": "In {source} öffnen",
   "brief.open.session": "Die Karte dieser Sitzung zeigen",
   "brief.people.pin": "{name} anheften",

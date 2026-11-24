@@ -1043,6 +1043,7 @@ const catalog: Catalog = {
   "board.keys.keptApp": "El navegador se queda con Ctrl+W, Ctrl+T y Ctrl+N en una pestaña: la aplicación de escritorio se las da a la sesión.",
   "board.view.group": "Vista",
   "board.view.board": "Tablero",
+  "board.view.mission": "Misión",
   "board.view.workspace": "Workspace",
   "board.stage.shellUnavailable": "No se pudo cargar el Command Panel. Recarga la página para usarlo.",
   "board.stage.skipToPane": "Ir al panel",

@@ -1077,6 +1077,7 @@ const catalog: Catalog = {
   "board.keys.keptApp": "Browserul păstrează Ctrl+W, Ctrl+T și Ctrl+N într-un tab — aplicația desktop le dă sesiunii.",
   "board.view.group": "Vizualizare",
   "board.view.board": "Tablă",
+  "board.view.mission": "Misiune",
   "board.view.workspace": "Workspace",
   "board.stage.shellUnavailable": "Panoul de comenzi nu a putut fi încărcat. Reîncarcă pagina ca să-l folosești.",
   "board.stage.skipToPane": "Sari la zonă",

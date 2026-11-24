@@ -100,7 +100,11 @@ describe("a row opens the session's pane when the deck has a terminal for it, el
   });
 
   it("no Workspace switch is drawn on a phone, and no Chat | Term switch is in the pane header", () => {
-    expect(app).toContain("{!phone && stage.workspaceOffered && <ViewSwitch");
+    // CHANGED ON PURPOSE (Mission, use-mission.ts): the switch is drawn off a
+    // phone whether or not Workspace is on offer, since Mission | Board is a
+    // switch of its own; its Workspace button is the gated part.
+    expect(app).toContain("{!phone && <ViewSwitch");
+    expect(app).toContain("workspace={stage.workspaceOffered}");
     expect(read("components/terminal/TerminalStage.tsx")).not.toMatch(/view=\{\s*\{/);
   });
 });

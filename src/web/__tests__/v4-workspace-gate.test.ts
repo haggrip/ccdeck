@@ -18,7 +18,10 @@ const app = withoutComments(sourceOf("App.tsx"));
 
 describe("with the Command Panel off", () => {
   it("the view switch is drawn only where Workspace is on offer, and never on a phone", () => {
-    expect(app).toContain("{!phone && stage.workspaceOffered && <ViewSwitch");
+    // CHANGED ON PURPOSE (Mission, use-mission.ts): Mission | Board stays
+    // without the Command Panel; only the Workspace button is gated.
+    expect(app).toContain("{!phone && <ViewSwitch");
+    expect(app).toContain("workspace={stage.workspaceOffered}");
   });
 
   it("the root carries data-view only in Workspace: the Board's root is the root it was", () => {
@@ -53,7 +56,9 @@ describe("with the Command Panel off", () => {
   it("the switch is two buttons that say which view is on, and tell how they were pressed", () => {
     const calls: Array<[string, string]> = [];
     const tree = ViewSwitch({ view: "board", onChange: (v, how) => calls.push([v, how]) }) as { props: { children: Array<{ props: Record<string, unknown> }> } };
-    const [board, workspace] = tree.props.children;
+    // CHANGED ON PURPOSE (Mission, use-mission.ts): Mission is the first button.
+    const [mission, board, workspace] = tree.props.children;
+    expect(mission.props["aria-pressed"]).toBe(false);
     expect(board.props["aria-pressed"]).toBe(true);
     expect(workspace.props["aria-pressed"]).toBe(false);
     (workspace.props.onClick as (e: { detail: number }) => void)({ detail: 1 });

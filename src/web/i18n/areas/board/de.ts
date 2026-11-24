@@ -1043,6 +1043,7 @@ const catalog: Catalog = {
   "board.keys.keptApp": "Der Browser behält Strg+W, Strg+T und Strg+N in einem Tab — die Desktop-App gibt sie an die Sitzung.",
   "board.view.group": "Ansicht",
   "board.view.board": "Canvas",
+  "board.view.mission": "Mission",
   "board.view.workspace": "Workspace",
   "board.stage.shellUnavailable": "Das Command Panel konnte nicht geladen werden. Lade die Seite neu, um es zu nutzen.",
   "board.stage.skipToPane": "Zum Bereich springen",

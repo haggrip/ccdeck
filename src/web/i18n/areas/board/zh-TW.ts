@@ -1043,6 +1043,7 @@ const catalog: Catalog = {
   "board.keys.keptApp": "瀏覽器會在分頁中保留 Ctrl+W、Ctrl+T 和 Ctrl+N——桌面應用程式會把它們交給工作階段。",
   "board.view.group": "檢視",
   "board.view.board": "畫布",
+  "board.view.mission": "任務中心",
   "board.view.workspace": "工作區",
   "board.stage.shellUnavailable": "無法載入指令面板。請重新載入頁面後使用。",
   "board.stage.skipToPane": "跳到窗格",

@@ -1043,6 +1043,7 @@ const catalog: Catalog = {
   "board.keys.keptApp": "ブラウザーはタブ内で Ctrl+W、Ctrl+T、Ctrl+N を取っておきます — デスクトップアプリならセッションに渡せます。",
   "board.view.group": "表示",
   "board.view.board": "ボード",
+  "board.view.mission": "ミッション",
   "board.view.workspace": "ワークスペース",
   "board.stage.shellUnavailable": "コマンドパネルを読み込めませんでした。ページを再読み込みしてください。",
   "board.stage.skipToPane": "ペインへ移動",

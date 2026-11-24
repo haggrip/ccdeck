@@ -16,9 +16,11 @@ import type { MouseEvent } from "react";
 import type { View } from "../use-view";
 import { useT } from "../i18n";
 import { KitIcon } from "./kit-icons";
+import { StatusGlyph } from "./StatusPane";
 
 // Keys, read with `t` where they are drawn.
 export const VIEW_SWITCH_LABEL_MSG = "board.view.group";
+export const MISSION_LABEL_MSG = "board.view.mission";
 export const BOARD_LABEL_MSG = "board.view.board";
 export const WORKSPACE_LABEL_MSG = "board.view.workspace";
 
@@ -28,25 +30,40 @@ const BoardGlyph = () => <KitIcon name="board" className="glyph" />;
 /** The Workspace: the list, the pane and the Inspector side by side. */
 const WorkspaceGlyph = () => <KitIcon name="workspace" className="glyph" />;
 
+/** Mission, the Todo list and the brief (use-mission.ts): the Status door's
+ *  own glyph, a short list with ticks. */
+const MissionGlyph = StatusGlyph;
+
+/** What the switch shows: one of the two views of the sessions, or Mission. */
+export type SwitchView = View | "mission";
+
 export interface ViewSwitchProps {
-  view: View;
+  view: SwitchView;
+  /** Workspace is on offer (use-view.ts workspaceOffered); else the switch is
+   *  Mission | Board. */
+  workspace?: boolean;
   /** `pointer` for a click, `key` for Enter or Space on the button. */
-  onChange(view: View, how: "pointer" | "key"): void;
+  onChange(view: SwitchView, how: "pointer" | "key"): void;
 }
 
-export default function ViewSwitch({ view, onChange }: ViewSwitchProps) {
+export default function ViewSwitch({ view, workspace = true, onChange }: ViewSwitchProps) {
   const t = useT();
-  const press = (next: View) => (e: MouseEvent) => {
+  const press = (next: SwitchView) => (e: MouseEvent) => {
     if (next !== view) onChange(next, e.detail === 0 ? "key" : "pointer");
   };
   return (
     <div className="view-switch" role="group" aria-label={t(VIEW_SWITCH_LABEL_MSG)}>
+      <button type="button" className="view-opt" aria-pressed={view === "mission"} onClick={press("mission")}>
+        <MissionGlyph />{t(MISSION_LABEL_MSG)}
+      </button>
       <button type="button" className="view-opt" aria-pressed={view === "board"} onClick={press("board")}>
         <BoardGlyph />{t(BOARD_LABEL_MSG)}
       </button>
-      <button type="button" className="view-opt" aria-pressed={view === "workspace"} onClick={press("workspace")}>
-        <WorkspaceGlyph />{t(WORKSPACE_LABEL_MSG)}
-      </button>
+      {workspace && (
+        <button type="button" className="view-opt" aria-pressed={view === "workspace"} onClick={press("workspace")}>
+          <WorkspaceGlyph />{t(WORKSPACE_LABEL_MSG)}
+        </button>
+      )}
     </div>
   );
 }

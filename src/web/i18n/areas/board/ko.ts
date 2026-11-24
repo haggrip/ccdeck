@@ -1043,6 +1043,7 @@ const catalog: Catalog = {
   "board.keys.keptApp": "브라우저는 Ctrl+W, Ctrl+T, Ctrl+N을 탭에서 처리합니다. 데스크톱 앱에서는 세션으로 전달됩니다.",
   "board.view.group": "보기",
   "board.view.board": "보드",
+  "board.view.mission": "미션",
   "board.view.workspace": "작업 공간",
   "board.stage.shellUnavailable": "명령 패널을 불러올 수 없습니다. 페이지를 새로 고쳐 사용하세요.",
   "board.stage.skipToPane": "창으로 건너뛰기",

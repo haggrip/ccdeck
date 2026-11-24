@@ -2,6 +2,7 @@
 // them (src/server/status-todo.mjs), which heading an item stands under, and
 // how its due time reads. Pure, so a bare-node suite can call all of it.
 import { safeHref } from "./status-brief";
+import { desktopHref, type DesktopLinks } from "./desktop-links";
 
 export const STATUS_TODO_EVENT = "ccdeck:status-todo";
 
@@ -71,12 +72,15 @@ export function splitOpen(items: readonly TodoItem[]): { waiting: TodoItem[]; to
 export const isSnoozed = (i: TodoItem, now: number) => !!i.snoozedUntil && i.snoozedUntil > now;
 export const isOverdue = (i: TodoItem, now: number) => !!i.due && i.due < now;
 
-/** Where an item opens: its session's card, its page, or nothing but its
- *  project's name. A session the board no longer has keeps its project. */
-export function openerOf(i: TodoItem, sessions: ReadonlySet<string>): { session?: string; href?: string; project?: string } {
+/** Where an item opens: its session in the Claude desktop app when the app
+ *  runs it, else its session's card, its page, or nothing but its project's
+ *  name. A session the board no longer has keeps its project, and its card
+ *  stays on offer beside the app's link while the board has it. */
+export function openerOf(i: TodoItem, sessions: ReadonlySet<string>, desktop?: DesktopLinks | null): { session?: string; href?: string; desktop?: string; project?: string } {
   const href = safeHref(i.link?.url ?? null) ?? undefined;
   const session = i.link?.sessionId && sessions.has(i.link.sessionId) ? i.link.sessionId : undefined;
-  return { ...(session ? { session } : {}), ...(href ? { href } : {}), ...(i.link?.project ? { project: i.link.project } : {}) };
+  const app = desktopHref(i.link?.sessionId, desktop) ?? undefined;
+  return { ...(session ? { session } : {}), ...(href ? { href } : {}), ...(app ? { desktop: app } : {}), ...(i.link?.project ? { project: i.link.project } : {}) };
 }
 
 /** A due or snooze time, short: the time today, the weekday this week, else

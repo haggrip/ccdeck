@@ -48,6 +48,8 @@ const catalog: Catalog = {
   "brief.kind.failed": "Eșuat",
   "brief.kind.read": "Citește",
   "brief.source.session": "Sesiune",
+  "brief.source.desktop": "Aplicația Claude",
+  "brief.open.desktop": "Deschide această sesiune în aplicația Claude",
   "brief.open.link": "Deschide în {source}",
   "brief.open.session": "Arată cardul acestei sesiuni",
   "brief.people.pin": "Fixează pe {name}",

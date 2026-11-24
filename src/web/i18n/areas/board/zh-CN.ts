@@ -1043,6 +1043,7 @@ const catalog: Catalog = {
   "board.keys.keptApp": "浏览器会在标签页中保留 Ctrl+W、Ctrl+T 和 Ctrl+N——桌面应用会把它们交给会话。",
   "board.view.group": "视图",
   "board.view.board": "看板",
+  "board.view.mission": "任务中心",
   "board.view.workspace": "工作区",
   "board.stage.shellUnavailable": "无法加载命令面板。请重新加载页面后使用。",
   "board.stage.skipToPane": "跳到窗格",

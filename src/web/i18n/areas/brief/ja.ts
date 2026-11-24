@@ -48,6 +48,8 @@ const catalog: Catalog = {
   "brief.kind.failed": "失敗",
   "brief.kind.read": "確認",
   "brief.source.session": "セッション",
+  "brief.source.desktop": "Claude アプリ",
+  "brief.open.desktop": "このセッションを Claude アプリで開く",
   "brief.open.link": "{source} で開く",
   "brief.open.session": "このセッションのカードを表示",
   "brief.people.pin": "{name} をピン留め",
