@@ -9,7 +9,7 @@
 // are asked in is written down.
 import { cleanAlias, isAliasKey, lanEnabled, withAlias, withManualEntry } from "./deck-prefs.mjs";
 import { heldPrefs } from "./prefs-state.mjs";
-import { lanEngine, lastReach, refreshReach, tailnet } from "./lan-deck.mjs";
+import { lanEngine, lastReach, refreshReach, remoteSessionsView, tailnet } from "./lan-deck.mjs";
 import { servedReach } from "./lan-reach.mjs";
 import { IDLE_MS as TAILNET_IDLE_MS } from "./tailscale.mjs";
 import { readBody, send } from "./http-io.mjs";
@@ -25,6 +25,40 @@ export function handleLanStatus(req, res) {
   // Read against what has got in since it was taken — see servedReach.
   const status = lanEngine.status();
   return send(res, 200, { ok: true, ...status, reach: servedReach(lastReach(), status.inboundAt) });
+}
+
+/** The sessions paired decks share with this one, read-only: one entry per
+ *  deck, each row cut to lan-sessions.mjs's whitelist. A guarded read
+ *  (request-gates.mjs): it says what the owner's other machines are doing. */
+export function handleLanRemoteSessions(req, res) {
+  return send(res, 200, { ok: true, ...remoteSessionsView() });
+}
+
+const loopbackOnly = req => ["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(req.socket?.remoteAddress);
+
+/**
+ * POST /api/lan/control — one command for a session of a paired deck
+ * (lan-control.mjs): `{ fp, sid, action, text?, choice? }`. This computer only,
+ * behind the mutation gate every POST is; the command is checked here, by the
+ * engine before it is sent, and again by the deck that runs it. Answers that
+ * deck's word, or why it was never asked.
+ */
+export async function handleLanControl(req, res) {
+  if (!loopbackOnly(req)) return send(res, 403, { ok: false, why: "this computer only" });
+  const raw = await readBody(req, res).catch(() => null);
+  let body = null;
+  try { body = raw ? JSON.parse(raw) : null; } catch { body = null; }
+  if (!body || typeof body !== "object" || typeof body.fp !== "string" || !body.fp) return send(res, 400, { ok: false, why: "bad request" });
+  const { fp, ...command } = body;
+  const out = await lanEngine.controlPeer(fp, command);
+  return send(res, out.ok ? 200 : 409, out);
+}
+
+/** GET /api/lan/control-log — every command paired decks sent to this deck's
+ *  sessions, run or refused, newest last. A guarded read, this computer only. */
+export function handleLanControlLog(req, res) {
+  if (!loopbackOnly(req)) return send(res, 403, { ok: false, why: "this computer only" });
+  return send(res, 200, { ok: true, entries: lanEngine.controlLog() });
 }
 
 /**

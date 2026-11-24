@@ -8,6 +8,8 @@
 import { credentialAad, IN_USE, mayGiveInUse, seal, sharedWith, slotFor, transferChallenge, trustedPeer } from "./lan-sync.mjs";
 import { liveLoginIs } from "./account-health.mjs";
 import { isCodexKey } from "./lan-codex.mjs";
+import { shareRows } from "./lan-sessions.mjs";
+import { checkCommand } from "./lan-control.mjs";
 
 /**
  * `settings`, `serverNow` and `myFp` answer the engine's settings in force,
@@ -18,11 +20,15 @@ import { isCodexKey } from "./lan-codex.mjs";
  * `localAccounts` reads the store in the rules' shape, and `liveLogin`,
  * `exportAccount` and `onError` are the engine's own. `localCodex` and
  * `exportCodex` are the same two for Codex logins, or null on a deck without
- * them — see lan-codex.mjs.
+ * them — see lan-codex.mjs. `localSessions` answers this deck's sessions as
+ * summarizeSessions rows, or is null on a deck that never shares them — see
+ * lan-sessions.mjs — and `mayTalkTo` is the engine's tailnet rule, asked of the
+ * caller's address before a session is named.
  */
 export function createServe({
   settings, serverNow, myFp, inbound, learnCaller, keepManifest, manifestFrame, localAccounts, liveLogin, exportAccount,
-  localCodex = null, exportCodex = null, onError,
+  localCodex = null, exportCodex = null, localSessions = null, mayTalkTo = () => true, onError,
+  localControl = null, controlFrom = () => false, controlLimit = null, controlLog = null,
 }) {
   /** Frames from a deck that finished the handshake AND that somebody here has
    *  accepted. Nothing reaches this before both, which is the whole point of
@@ -42,6 +48,40 @@ export function createServe({
       learnCaller(ctx);
     }
     try {
+      if (msg.t === "control") {
+        // A COMMAND FOR ONE OF THIS DECK'S SESSIONS (lan-control.mjs). Every
+        // check is asked again for every command, and every command — run or
+        // refused — is written to the log where the session runs. In order:
+        // still paired (mayAnswer), the owner's switch on and not vetoed, the
+        // caller's address one of the owner's own tailnet machines, inside the
+        // rate, a command of the fixed set, and then the session's own state.
+        const from = trustedPeer(settings().trusted, ctx.peerFp)?.name || ctx.peerName || "";
+        const note = (fields) => controlLog?.write({ fp: ctx.peerFp, from, addr: ctx?.peerAddr, raw: msg.command, ...fields });
+        const mayControl = () => mayAnswer() && settings().acceptControl === true && settings().controlVetoed !== true
+          && !!localControl && controlFrom(ctx?.peerAddr);
+        if (!mayControl()) { note({ ok: false, why: "not accepted" }); return ctx.send({ t: "control", ok: false, why: "not accepted" }); }
+        if (controlLimit && !controlLimit.take(ctx.peerFp)) { note({ ok: false, why: "too many" }); return ctx.send({ t: "control", ok: false, why: "too many" }); }
+        const checked = checkCommand(msg.command);
+        if (!checked.ok) { note({ ok: false, why: checked.why }); return ctx.send({ t: "control", ok: false, why: checked.why }); }
+        if (!mayControl()) { note({ command: checked.command, ok: false, why: "not accepted" }); return ctx.send({ t: "control", ok: false, why: "not accepted" }); }
+        const done = await localControl(checked.command);
+        note({ command: checked.command, ok: done.ok, why: done.why });
+        return ctx.send({ t: "control", ok: !!done.ok, ...(done.ok ? {} : { why: String(done.why ?? "refused").slice(0, 80) }) });
+      }
+      if (msg.t === "sessions") {
+        // THIS DECK'S SESSIONS, READ-ONLY, to a deck past both checks above —
+        // and only while the owner shares them, to an address the tailnet rule
+        // allows (the listener refused any other already; this says it again
+        // for the one answer that names what somebody is working on).
+        // Whitelisted in lan-sessions.mjs: no prompt, question, tool input or
+        // path ever leaves.
+        const mayShare = () => mayAnswer() && settings().shareSessions === true && settings().sessionsVetoed !== true && !!localSessions
+          && mayTalkTo(ctx?.peerAddr);
+        if (!mayShare()) return ctx.send({ t: "no", why: "not shared" });
+        const rows = shareRows(await localSessions());
+        if (!mayShare()) return ctx.send({ t: "no", why: "not shared" });
+        return ctx.send({ t: "sessions", rows });
+      }
       if (msg.t === "manifest") {
         // THE CALLER'S CARD RIDES THE QUESTION, which is the only way a deck
         // that calls in ever says what it is: nothing here dials it, so nothing

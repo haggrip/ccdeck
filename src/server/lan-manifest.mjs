@@ -58,6 +58,15 @@ export function createManifests({ about, now, myFp, settings, usage = null }) {
       ...(Array.isArray(codexAccounts)
         ? { codex: codexManifest(codexAccounts, shared, { sendInUse: cfg.sendInUse === true, shareActive: cfg.shareActive }) }
         : {}),
+      // THAT THIS DECK SHARES ITS SESSIONS, and nothing about them: a deck
+      // that reads this asks with a `sessions` frame of its own (see
+      // lan-sessions.mjs). Absent while sharing is off, which is how a deck
+      // that turned it off is heard to have done so.
+      ...(cfg.shareSessions === true && cfg.sessionsVetoed !== true ? { sessions: 1 } : {}),
+      // THAT THIS DECK TAKES COMMANDS FOR ITS SESSIONS from paired decks
+      // (lan-control.mjs), so the asking deck can offer them. Only a word: the
+      // deck that hears it still has every command checked here.
+      ...(cfg.acceptControl === true && cfg.controlVetoed !== true && cfg.shareSessions === true && cfg.sessionsVetoed !== true ? { control: 1 } : {}),
     };
   };
 

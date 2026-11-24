@@ -1226,3 +1226,9 @@ input, textarea { caret-color: var(--accent); }
 .lan-add .lan-h + .lan-note { margin-top: 0; color: var(--text-secondary); }
 /* Make an invite sits under the paste field, outlined, at the left edge. */
 .lan-make { align-self: flex-start; margin-top: 8px; }
+
+/* The commands paired decks sent to this deck's sessions (lan-control.mjs):
+   the newest few, a refused one in the error colour. */
+.lan-control-log-h { margin-top: 8px; }
+.lan-control-log { margin: 4px 0 0; padding: 0; list-style: none; font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--muted); }
+.lan-control-log li.refused { color: var(--err); }

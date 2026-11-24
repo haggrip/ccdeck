@@ -158,7 +158,7 @@ import { startAccountWatch, noteCodexAutoTick } from "./account-watch.mjs";
 // it the prefs at boot; the settings route does after every write.
 import { applyLanPrefs, resetLanLoaded } from "./lan-deck.mjs";
 // The Local network panel's four routes — see lan-routes.mjs.
-import { handleLanInvite, handleLanPeer, handleLanStatus, handleLanSync } from "./lan-routes.mjs";
+import { handleLanControl, handleLanControlLog, handleLanInvite, handleLanPeer, handleLanRemoteSessions, handleLanStatus, handleLanSync } from "./lan-routes.mjs";
 // GET and POST /api/prefs — see prefs-routes.mjs.
 import { handlePrefsGiveBack, handlePrefsRead, handlePrefsWrite } from "./prefs-routes.mjs";
 // POST /api/session-name, and the names it keeps (internal #101) — see
@@ -455,6 +455,11 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     // deliberately kept out of the event stream. See src/server/system-metrics.mjs.
     if (req.method === "GET"  && url.pathname === "/api/prefs")        return handlePrefsRead(req, res, panelPlatform);
     if (req.method === "GET"  && url.pathname === "/api/lan")          return handleLanStatus(req, res);
+    // The sessions paired decks share with this one, read-only (lan-sessions.mjs).
+    if (req.method === "GET"  && url.pathname === "/api/lan/remote-sessions") return handleLanRemoteSessions(req, res);
+    // Commands for a paired deck's sessions, and the log of commands paired decks sent here (lan-control.mjs).
+    if (req.method === "POST" && url.pathname === "/api/lan/control") return guard(handleLanControl(req, res), res);
+    if (req.method === "GET"  && url.pathname === "/api/lan/control-log") return handleLanControlLog(req, res);
     if (req.method === "POST" && url.pathname === "/api/lan/peer")     return guard(handleLanPeer(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/lan/invite")   return guard(handleLanInvite(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/lan/sync")     return guard(handleLanSync(req, res), res);

@@ -6,6 +6,8 @@ import { usePanelPresence, isMounted, isDrawn, isLeaving, type PanelPhase } from
 import BoardFlow from "./components/BoardFlow";
 import DesktopTitlebar from "./components/DesktopTitlebar";
 import SessionList, { buildRows } from "./components/SessionList";
+import RemoteSessionRows from "./components/RemoteSessionRows";
+import { useRemoteSessions } from "./use-remote-sessions";
 import QuickOpen from "./components/QuickOpen";
 import { DialogPresence } from "./components/Dialog";
 import { quickOpenItems, startFolder } from "./quick-open-items";
@@ -483,6 +485,10 @@ function Inner() {
 
   // The deck's 250ms clock, and the sweeps that run on it — use-board-tick.ts.
   const now = useBoardTick({ stateRef, rerender, pruneSelectionToBoard, setContextFor, setSummaryFor });
+
+  // The sessions paired decks share with this one, read-only, for the foot of
+  // the Sessions list (use-remote-sessions.ts, RemoteSessionRows.tsx).
+  const remoteMachines = useRemoteSessions();
 
   // Continue for turns that stopped on a login or a usage limit (#2193): asks
   // the server while a card is stopped, for the store the cards and the
@@ -1553,6 +1559,7 @@ function Inner() {
               onNewSession={inWorkspace && stage.enabled ? stage.newSessionFrom : undefined}
               offline={phone && everConnected && !live && !restart.restarting ? <OfflineCard lastNewsAt={lastNewsAt} /> : undefined}
               emptyNotice={heroInList ? emptyHero(0) : undefined}
+              remote={remoteMachines.length > 0 ? <RemoteSessionRows machines={remoteMachines} now={now} /> : undefined}
             />
           )}
         </LeftColumn>

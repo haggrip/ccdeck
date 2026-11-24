@@ -267,6 +267,13 @@ describe("the fields the engine authors", () => {
       // Not the page's: the machine's word, read from the environment like
       // the veto below, and off when it says nothing.
       tailscaleOnly: false,
+      // Sharing sessions with paired decks: the page's switch, off when the
+      // file says nothing, and the machine's veto beside it.
+      shareSessions: false,
+      sessionsVetoed: false,
+      // Commands from paired decks: the same pair, its own switch and veto.
+      acceptControl: false,
+      controlVetoed: false,
       aliases: { "aaa-bbb-111": "Laptop" },
     });
   });

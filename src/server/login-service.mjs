@@ -469,6 +469,12 @@ export const SETTING_VARS = Object.freeze([
   // Local network held to the tailnet (deck-prefs.mjs lanTailscaleOnly). A deck
   // started at login without it would broadcast on the local network again.
   "AGENTS_DECK_LAN_TAILSCALE_ONLY",
+  // Sharing sessions with paired decks vetoed (deck-prefs.mjs
+  // lanSessionsVetoed). A deck started at login without it would share them
+  // again once the switch is on.
+  "AGENTS_DECK_NO_LAN_SESSIONS",
+  // Commands from paired decks vetoed (deck-prefs.mjs lanControlVetoed).
+  "AGENTS_DECK_NO_LAN_CONTROL",
   // The Claude agent's veto (claude-agent.mjs). A deck started at login without
   // it would run the person's Claude Code for the board again.
   "AGENTS_DECK_NO_AGENT",

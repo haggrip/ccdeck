@@ -244,6 +244,25 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
   // And the opposite for the fourth (#2192): absent is off, which is what the
   // engine does with a missing setting — the login this deck is on stays here.
   const sends = status.sendInUse === true;
+  // And the fifth: absent is off, as the engine reads it, and a machine that
+  // vetoed it at launch holds it off whatever the file says.
+  const sessionsVetoed = status.sessionsVetoed === true;
+  const sharesSessions = status.shareSessions === true && !sessionsVetoed;
+  const sessionsPress = (() => {
+    const p = pressProps("share-sessions");
+    return { ...p, disabled: p.disabled || sessionsVetoed };
+  })();
+  // And the sixth: commands from paired decks for this deck's sessions
+  // (lan-control.mjs). Off unless a real true was stored, held off by the
+  // machine's veto, and only offered while the sessions are shared at all —
+  // the other deck acts on the rows it was shared.
+  const controlVetoed = status.controlVetoed === true;
+  const takesControl = status.acceptControl === true && !controlVetoed && sharesSessions;
+  const controlPress = (() => {
+    const p = pressProps("accept-control");
+    return { ...p, disabled: p.disabled || controlVetoed || !sharesSessions };
+  })();
+  const controlLog = useControlLog(takesControl);
   const ts = status.tailscale ?? null;
   const tsOn = !!ts?.on;
   const tsAsks = ts?.ask !== false;
@@ -425,6 +444,87 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                   </button>
                 </div>
               </div>
+            )}
+          </div>
+
+          {/* THIS DECK'S SESSIONS, READ-ONLY, ON A PAIRED DECK'S BOARD — off
+              until somebody turns it on, and its own section because it shares
+              no login: names, project folders and states, never what a session
+              said (lan-sessions.mjs). Held off, and not pressable, while the
+              machine vetoed it at launch. */}
+          <div className="modal-section">
+            <h3 className="lan-h">{t("lan.setup.sessionsH")}</h3>
+            <div className="lan-switches">
+              <div className="lan-switch">
+                <span className="lan-switch-what">
+                  {t("lan.setup.shareSessions")}
+                  {(sharesSessions || sessionsVetoed) && (
+                    <span id="lan-share-sessions-detail" className="lan-switch-detail">
+                      {sessionsVetoed ? t("lan.setup.shareSessionsVetoed") : t("lan.setup.shareSessionsDetail")}
+                    </span>
+                  )}
+                </span>
+                <button
+                  type="button"
+                  className="switch ap-auto-state"
+                  role="switch"
+                  aria-checked={sharesSessions}
+                  aria-label={t("lan.setup.shareSessions")}
+                  aria-describedby={sharesSessions || sessionsVetoed ? "lan-share-sessions-detail" : undefined}
+                  {...sessionsPress}
+                  onClick={() => void write(
+                    { shareSessions: !sharesSessions },
+                    sharesSessions ? "stop sharing this deck's sessions" : "share this deck's sessions",
+                    "share-sessions",
+                  )}
+                  title={sharesSessions ? t("lan.setup.shareSessionsOn") : t("lan.setup.shareSessionsOff")}
+                >
+                  <span className="switch-knob" />
+                </button>
+              </div>
+              {/* COMMANDS FROM PAIRED DECKS for the sessions this deck's Command
+                  Panel started — off until somebody turns it on, and every
+                  command shown below as it is logged (lan-control.mjs). */}
+              <div className="lan-switch">
+                <span className="lan-switch-what">
+                  {t("lan.setup.acceptControl")}
+                  <span id="lan-accept-control-detail" className="lan-switch-detail">
+                    {controlVetoed ? t("lan.setup.acceptControlVetoed")
+                      : !sharesSessions ? t("lan.setup.acceptControlNeedsShare")
+                      : t("lan.setup.acceptControlDetail")}
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  className="switch ap-auto-state"
+                  role="switch"
+                  aria-checked={takesControl}
+                  aria-label={t("lan.setup.acceptControl")}
+                  aria-describedby="lan-accept-control-detail"
+                  {...controlPress}
+                  onClick={() => void write(
+                    { acceptControl: !takesControl },
+                    takesControl ? "stop taking commands from paired decks" : "take commands from paired decks",
+                    "accept-control",
+                  )}
+                  title={takesControl ? t("lan.setup.acceptControlOn") : t("lan.setup.acceptControlOff")}
+                >
+                  <span className="switch-knob" />
+                </button>
+              </div>
+            </div>
+            {controlLog.length > 0 && (
+              <>
+                <p className="lan-h lan-control-log-h">{t("lan.setup.controlLogH")}</p>
+                <ul className="lan-control-log">
+                  {controlLog.slice(-8).reverse().map(e => (
+                    <li key={`${e.at}-${e.sid}-${e.action}`} className={e.ok ? "" : "refused"}>
+                      {t("lan.setup.controlLogEntry", { when: new Date(e.at).toLocaleTimeString(), from: e.from || e.fp, action: e.action, session: e.sid.slice(0, 8) })}
+                      {!e.ok && <> · {t("lan.setup.controlLogRefused", { why: e.why ?? "" })}</>}
+                    </li>
+                  ))}
+                </ul>
+              </>
             )}
           </div>
 
@@ -660,4 +760,26 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
     </Dialog>,
     document.body,
   );
+}
+
+/** One command a paired deck sent to this deck's sessions, as the log keeps it
+ *  (src/server/lan-control.mjs createControlLog). */
+interface ControlEntry { at: number; from: string; fp: string; action: string; sid: string; ok: boolean; why?: string }
+
+/** The commands paired decks sent here, read while the switch is on and the
+ *  dialog is open: once, then every ten seconds. */
+function useControlLog(on: boolean): ControlEntry[] {
+  const [entries, setEntries] = useState<ControlEntry[]>([]);
+  useEffect(() => {
+    if (!on) { setEntries([]); return; }
+    let alive = true;
+    const read = () => void fetch("/api/lan/control-log")
+      .then(r => (r.ok ? r.json() : null))
+      .then((b: { entries?: ControlEntry[] } | null) => { if (alive && Array.isArray(b?.entries)) setEntries(b!.entries); })
+      .catch(() => {});
+    read();
+    const timer = setInterval(read, 10_000);
+    return () => { alive = false; clearInterval(timer); };
+  }, [on]);
+  return entries;
 }
