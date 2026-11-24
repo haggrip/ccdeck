@@ -82,15 +82,28 @@ export function sessionDisplay(
 
 /**
  * What a session is called where it is listed by name: the rail row, the top
- * bar's waiting queue, Skill activity. The card's face, else the node's own
- * label (its folder). One rule, so a session reads by one name everywhere
- * (owner, 2026-11-10). Absent only for a node with no label and no folder.
+ * bar's waiting queue, Skill activity. One rule, so a session reads by one name
+ * everywhere (owner, 2026-11-10), in the owner's order (2026-11-24):
+ *
+ *   1. the name typed in the deck, and then Claude's own name for it — both
+ *      ride `sessionName` (applySessionNamed), the typed one first;
+ *   2. Claude's title, `sessionTitle`;
+ *   3. its group's title: the one a person typed over the group, then the goal
+ *      titler's (src/server/goal-titler.mjs) — a session Claude never named
+ *      reads by what it is for rather than by its folder;
+ *   4. the node's own label, its folder.
+ *
+ * Absent only for a node with none of them.
  */
 export function sessionListName(a: {
   sessionName?: string | null;
   sessionTitle?: string | null;
+  groupName?: string | null;
+  goalTitle?: string | null;
   label?: string;
   cwdBasename?: string;
 }): string | undefined {
-  return sessionDisplay(a.sessionName, a.sessionTitle).face ?? (a.label || a.cwdBasename || undefined);
+  const said = (v?: string | null) => (typeof v === "string" ? v.trim() : "");
+  return sessionDisplay(a.sessionName, a.sessionTitle).face
+    ?? (said(a.groupName) || said(a.goalTitle) || a.label || a.cwdBasename || undefined);
 }

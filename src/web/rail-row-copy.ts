@@ -51,8 +51,9 @@ export function railGlyph(r: Row, group: RailGroup): RailGlyphKind {
  * in the list and "ccdeck · 2886" under a floating "retention job" in the
  * navigator.
  *
- * `title` is the session's name, else Claude Code's title, else its folder
- * (session-display.ts sessionListName). `folder` is there only when the title
+ * `title` is the session's name (typed in the deck, else Claude's), else Claude
+ * Code's title, else its group's title, else its folder (session-display.ts
+ * sessionListName). `folder` is there only when the title
  * is something else. `task` is what a person last asked it (sessionTask), left
  * out when it only says the title again.
  */
@@ -62,7 +63,8 @@ export interface SessionNames {
   task?: string;
 }
 
-type Nameable = Pick<AgentNodeData, "label" | "cwdBasename" | "sessionName" | "sessionTitle" | "prompts" | "firstPrompt">;
+type Nameable = Pick<AgentNodeData, "label" | "cwdBasename" | "sessionName" | "sessionTitle" | "prompts" | "firstPrompt">
+  & Partial<Pick<AgentNodeData, "groupName" | "goalTitle">>;
 
 export function sessionNames(a: Nameable): SessionNames {
   const title = sessionListName(a) ?? t("board.kind.session");
