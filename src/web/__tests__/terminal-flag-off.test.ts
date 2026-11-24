@@ -108,6 +108,9 @@ const ROUTES: [string, string, unknown?][] = [
   ["POST", "/api/terminal/folder", { cwd: "/tmp" }],
   // And the pane's question after a Codex exits: did it update itself?
   ["POST", "/api/terminal/codex-updated", { liveForMs: 60_000 }],
+  // One conversation in two deck terminals, and closing the older.
+  ["GET", "/api/terminal/twins"],
+  ["POST", "/api/terminal/twins/close", { sessionId: "0b9f3c1e-2d4a-4b6c-8e0f-1a2b3c4d5e6f" }],
 ];
 
 describe("the terminal routes on a deck with the panel switched off", () => {
@@ -127,11 +130,14 @@ describe("the terminal routes on a deck with the panel switched off", () => {
     expect(GUARDED_READS.has("/api/terminal/status")).toBe(true);
     expect(GUARDED_READS.has("/api/terminal/target")).toBe(true);
     expect(GUARDED_READS.has("/api/terminal/hosts")).toBe(true);
+    expect(GUARDED_READS.has("/api/terminal/twins")).toBe(true);
     expect((await ask("GET", "/api/terminal/status", undefined, { host: `127.0.0.1:${port}` })).status).toBe(401);
     expect((await ask("GET", "/api/terminal/hosts", undefined, { host: `127.0.0.1:${port}` })).status).toBe(401);
     expect((await ask("POST", "/api/terminal/hosts/end", { generation: 1, sessions: [] }, { host: `127.0.0.1:${port}` })).status).toBe(401);
     expect((await ask("POST", "/api/terminal/launch", { agent: "claude", cwd: "/tmp" }, { host: `127.0.0.1:${port}` })).status).toBe(401);
     expect((await ask("POST", "/api/terminal/claim", { key: "launch-k1" }, { host: `127.0.0.1:${port}` })).status).toBe(401);
+    expect((await ask("GET", "/api/terminal/twins", undefined, { host: `127.0.0.1:${port}` })).status).toBe(401);
+    expect((await ask("POST", "/api/terminal/twins/close", { sessionId: "0b9f3c1e-2d4a-4b6c-8e0f-1a2b3c4d5e6f" }, { host: `127.0.0.1:${port}` })).status).toBe(401);
   });
 
   it("answer a request that offers an upgrade exactly as the same request offering none", async () => {

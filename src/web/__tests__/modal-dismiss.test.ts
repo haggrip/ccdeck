@@ -237,7 +237,10 @@ describe("the modals themselves", () => {
       "ShareAccountsDialog.tsx",
       // Tool activity: the report, and its details as a sheet on phones.
       "ToolAuditDrawer.tsx", "ToolAuditModal.tsx",
-      "ToolModal.tsx", "TrafficRadar.tsx", "UsageHistoryModal.tsx",
+      "ToolModal.tsx", "TrafficRadar.tsx",
+      // The question before a card closes the older of two deck terminals.
+      "TwinTerminals.tsx",
+      "UsageHistoryModal.tsx",
     ]);
     for (const [name, src] of withBackdrop) {
       expect(`${name}: ${src.includes("useModalDismiss(")}`).toBe(`${name}: true`);

@@ -512,6 +512,8 @@ export const GUARDED_READS = new Set([
   "/api/terminal/projects",
   "/api/terminal/target",
   "/api/terminal/hosts",
+  // Which sessions two deck terminals hold at once (resume-rebind-routes.mjs).
+  "/api/terminal/twins",
   // The engine's install state (engine-install.mjs): which version is here,
   // an install's progress and why one failed. The same one caller.
   "/api/terminal/engine",

@@ -1106,6 +1106,16 @@ const catalog: Catalog = {
   "board.group.why.failed": "Nu a venit niciun titlu. Încearcă din nou.",
   "board.group.why.bad_request": "Acest grup nu poate primi un titlu.",
   "board.group.why.network": "ccdeck nu a răspuns. Încearcă din nou.",
+  "board.twins.badge": "În {count} terminale",
+  "board.twins.tip": "Conversația rulează simultan în {count} terminale ale deck-ului: două procese Claude scriu aceeași conversație.",
+  "board.twins.close": "Închide terminalul mai vechi",
+  "board.twins.closeShort": "Închide-l pe cel vechi",
+  "board.twins.title": "Închizi terminalul mai vechi?",
+  "board.twins.body": "Cel mai nou terminal rămâne deschis. Fiecare terminal mai vechi care ține conversația este închis, iar Claude din el se oprește, chiar și în mijlocul unei ture. Conversația se păstrează.",
+  "board.twins.cancel": "Anulează",
+  "board.twins.confirm": "Închide-l",
+  "board.twins.closing": "Se închide…",
+  "board.twins.failed": "Terminalul mai vechi nu a putut fi închis. Încearcă din nou peste câteva momente.",
 };
 
 export default catalog;

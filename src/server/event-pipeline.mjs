@@ -22,6 +22,8 @@ import { connectAccountNotify, noteHookStop } from "./account-watch.mjs";
 // The same stops, and what shows each session working again, for the Continue
 // action and the automatic continue of background sessions (#2193).
 import { noteStopContinue } from "./stop-continue.mjs";
+// A deck terminal that switched conversations with /resume (resume-rebind.mjs).
+import { noteResumeRebind } from "./resume-rebind-routes.mjs";
 // The settings as this process holds them — see prefs-state.mjs.
 import { heldPrefs } from "./prefs-state.mjs";
 // The deck's own token, taken back out of every event before the ring, the
@@ -241,6 +243,7 @@ export function pushEvent(raw, source, opts = {}) {
   if (source === "hook" && !opts.replay && !isEventOnly(raw?.provider)) {
     noteHookStop(raw, evt.receivedAt);
     noteStopContinue(raw, evt.receivedAt);
+    noteResumeRebind(raw, evt.receivedAt);
   }
 
   // Persisted history is not current activity. Fresh recovery snapshots are

@@ -497,6 +497,9 @@ const PRESSES: Press[] = [
   // 20px pill, a labelled control, so 0.97. And the detail panel's
   // disclosure of the commands it runs, a sentence that opens them.
   [".agent-node .stop-continue:active:not(:disabled)", "0.97", "transform"],
+  // Close the older terminal, at the end of a card's two-terminals row: the
+  // same 20px pill as Continue.
+  [".agent-node .twin-close:active", "0.97", "transform"],
   [".detail-continue-how > summary:active", "0.97", "transform"],
   // The integrations modal (#2178): Back to the list on a narrow window, and
   // the Jira panel's controls — a sprint's header, an issue's disclosure

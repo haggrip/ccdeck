@@ -1071,6 +1071,16 @@ const catalog: Catalog = {
   "board.group.why.failed": "No title came back. Try again.",
   "board.group.why.bad_request": "This group can’t be titled.",
   "board.group.why.network": "ccdeck didn’t answer. Try again.",
+  "board.twins.badge": "In {count} terminals",
+  "board.twins.tip": "This conversation is running in {count} of the deck’s terminals at once: two Claude processes writing one conversation.",
+  "board.twins.close": "Close the older terminal",
+  "board.twins.closeShort": "Close older",
+  "board.twins.title": "Close the older terminal?",
+  "board.twins.body": "The newest terminal stays open. Every older terminal holding this conversation is closed, and the Claude running in it stops, even mid-turn. The conversation itself is kept.",
+  "board.twins.cancel": "Cancel",
+  "board.twins.confirm": "Close it",
+  "board.twins.closing": "Closing…",
+  "board.twins.failed": "The older terminal could not be closed. Try again in a moment.",
 };
 
 export default catalog;

@@ -523,3 +523,46 @@
   font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: calc(16px + var(--ui-text-increase, 0px));
 }
+
+/* One conversation in two of the deck's terminals (TwinTerminals.tsx): the
+   continued row's geometry in the Waiting hue, because it wants the reader,
+   with Continue's button shape at its end. */
+.agent-node .twin-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: calc(4px * var(--ui-space, 1));
+  padding: 3px 8px;
+  border: 1px solid color-mix(in srgb, var(--warn) 85%, transparent);
+  border-radius: var(--r-ctl);
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
+  font-weight: 600;
+  min-width: 0;
+  color: var(--warn);
+}
+.agent-node .twin-said {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-node .twin-close {
+  flex: none;
+  min-height: 20px;
+  padding: 0 8px;
+  margin: -2px -5px -2px 0;
+  border: 1px solid color-mix(in srgb, var(--warn) 85%, transparent);
+  border-radius: var(--r-ctl);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+}
+@media (hover: hover) and (pointer: fine) {
+.agent-node .twin-close:hover { background: var(--ctl-fill); border-color: var(--text); }
+}
+.agent-node .twin-close:active { transform: scale(var(--press)); }
+.agent-node .twin-close[aria-busy="true"] { opacity: var(--dim-off); cursor: default; }

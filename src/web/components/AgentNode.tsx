@@ -43,6 +43,8 @@ import type { StopFacts } from "../../server/stop-failure.mjs";
 // Continue on a stopped background session, and the line a continue leaves
 // (#2193). See StopContinue.tsx.
 import { CardContinue, ContinuedRow } from "./StopContinue";
+// One conversation in two deck terminals, and closing the older (TwinTerminals.tsx).
+import { TwinTerminalsRow } from "./TwinTerminals";
 
 /** A card re-renders when its agent changes, not when the clock does (#873).
  *  Time reaches it through the three leaves that print it — the elapsed clock,
@@ -307,6 +309,8 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
       {/* What a continue did, once the session is no longer stopped (#2193):
           "Continued automatically 2m ago", for half an hour. */}
       {data.kind === "root" && !data.stopFailure && <ContinuedRow data={data} />}
+      {/* The conversation runs in two of the deck's terminals at once. */}
+      {data.kind === "root" && <TwinTerminalsRow data={data} />}
 
       {/* A row of its own rather than a chip in the head. The card is 256px
           wide and the head already spends it on the name and the state word;
