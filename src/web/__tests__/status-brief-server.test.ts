@@ -235,7 +235,7 @@ describe("the sessions the prompt is told about", () => {
     expect(prompt).toMatch(/\[a\] flake hunt · ccdeck · waiting/);
     expect(prompt).toMatch(/asks: "Allow Bash\?"/);
     expect(prompt).toMatch(/GitHub, from the GITHUB section below/);
-    expect(prompt).toMatch(/Slack: direct messages and mentions/);
+    expect(prompt).toMatch(/Slack: direct messages, mentions of me, and replies by others in threads I started or took part in/);
     expect(prompt).not.toMatch(/Jira:/);
     expect(prompt).toMatch(/Leave these people out entirely: "bot-account"/);
   });
@@ -248,8 +248,27 @@ describe("the tools the prompt names", () => {
     const listed = prompt.split("TOOLS (the only ones you have, all read-only):\n")[1].split("\n\n")[0].split("\n");
     expect(listed).toEqual(READS.map(n => `- ${n}`));
     expect(prompt).not.toMatch(/GitHub/);
-    expect(prompt).toMatch(/Slack: .*Use mcp__slack__slack_search_public_and_private, mcp__slack__slack_read_thread\./);
+    expect(prompt).toMatch(/Slack: .*Search with mcp__slack__slack_search_public_and_private/);
+    expect(prompt).toMatch(/Slack: .*Read each such thread with mcp__slack__slack_read_thread/);
     expect(prompt).toMatch(/Jira: .*Use mcp__atlassian__searchJiraIssuesUsingJql\./);
+  });
+
+  it("has Slack searched for thread replies as well as DMs, from the window's start", () => {
+    const since = Date.UTC(2026, 10, 24, 12, 0, 0);
+    const prompt = buildPrompt({ sessions: [], reach: { github: "none", slack: "on", jira: "none" }, tools: ["mcp__s__slack_search_public_and_private", "mcp__s__slack_read_thread", "mcp__s__slack_read_channel"], since, now: since });
+    const slack = prompt.split("\n").find(l => l.startsWith("- Slack:"))!;
+    expect(slack).toMatch(/channel_types "im,mpim"/);
+    expect(slack).toMatch(/filters "is:thread with:<@MY_ID>"/);
+    expect(slack).toContain(`"after" set to ${since / 1000}`);
+    expect(slack).toMatch(/even without a mention/);
+    expect(slack).toMatch(/You may also use mcp__s__slack_read_channel\./);
+  });
+
+  it("asks Slack without naming a search when the run has none", () => {
+    const prompt = buildPrompt({ sessions: [], reach: { github: "none", slack: "on", jira: "none" }, tools: [], since: 0, now: 0 });
+    const slack = prompt.split("\n").find(l => l.startsWith("- Slack:"))!;
+    expect(slack).toMatch(/threads I started or took part in/);
+    expect(slack).not.toMatch(/mcp__|Search with/);
   });
 
   it("says there are none when the run is given none", () => {

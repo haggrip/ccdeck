@@ -378,6 +378,27 @@ export function sessionDigest(rows, envelopes, { now = Date.now(), maxRows = 30,
 
 const clock = at => (Number.isFinite(at) ? new Date(at).toISOString() : "never");
 
+/**
+ * The Slack ask. "DMs and mentions" alone missed replies in threads the user
+ * started or joined: on 2026-11-24 a teammate answered his post in a channel
+ * thread with the guide he had to review, and no brief saw it. Slack's
+ * `is:thread with:<@me>` search returns exactly those replies, so the ask
+ * names that search beside the DM one, and has each thread read whole, since
+ * a reply that needs him often comes without a mention.
+ */
+function slackAsk(since, given) {
+  const search = given.find(n => toolTail(n) === "slack_search_public_and_private");
+  const thread = given.find(n => toolTail(n) === "slack_read_thread");
+  const after = Number.isFinite(since) ? ` with "after" set to ${Math.floor(since / 1000)}` : "";
+  const how = search ? [
+    ` Search with ${search}${after}, sorted by timestamp: once with channel_types "im,mpim" for direct messages, and once with filters "is:thread with:<@MY_ID>" for replies in threads I started or took part in, where MY_ID is my Slack user id (the search tool's description names it).`,
+    ...(thread ? [` Read each such thread with ${thread} to see whether the newest reply still waits on me.`] : []),
+  ].join("") : "";
+  const rest = PROMPT_TOOLS.slack.map(tail => given.find(n => toolTail(n) === tail)).filter(n => n && n !== search && n !== thread);
+  return `Slack: direct messages, mentions of me, and replies by others in threads I started or took part in, since ${clock(since)}, that still need an answer, a review or a decision from me. A reply that hands me something to review or answers my question counts even without a mention.`
+    + how + (rest.length ? ` You may also use ${rest.join(", ")}.` : "");
+}
+
 /** What the model is asked. Pure, so the suite can read it. */
 export function buildPrompt({ sessions, reach, tools = [], since, now = Date.now(), hidden = [], watch = [], dismissed = [], github = null }) {
   // Named in full, so the model never reaches for one it was not given: a
@@ -395,7 +416,7 @@ export function buildPrompt({ sessions, reach, tools = [], since, now = Date.now
   const want = [];
   if (reach.github === "on" && github?.status === "on" && github.activity) want.push("GitHub activity, from SINCE THE LAST BRIEF below: open the summary with what moved on my PRs and the ones I review (approvals, changes requested, comments, merges, CI). The deck puts the replies, merges and re-reviews it asks for on the to-do list itself.");
   if (reach.github === "on" && github?.status === "on") want.push("GitHub, from the GITHUB section below: a \"review\" item for each pull request where my review is requested; for my own, \"merge\" when it is approved with no failed or pending checks and not behind, \"fix\" when checks failed, it conflicts or it is behind its base, and \"reply\" when changes were requested. Use each one's updated time as \"activityAt\".");
-  if (reach.slack === "on") want.push(`Slack: direct messages and mentions of me since ${clock(since)} that still need an answer or a decision.` + use("slack"));
+  if (reach.slack === "on") want.push(slackAsk(since, given));
   if (reach.jira === "on") want.push("Jira: my issues in the current sprint that are not done." + use("jira"));
   if (reach.jira === "on" && given.some(n => ["searchConfluence", "searchConfluenceUsingCql"].includes(toolTail(n)))) want.push(`Confluence: comments on my pages or mentions of me since ${clock(since)} that still need an answer.` + use("jira"));
   return [
