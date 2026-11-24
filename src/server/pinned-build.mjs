@@ -121,7 +121,7 @@ const PINNED_MODULES = [
   "cswap-install.mjs",
   // The Claude agent, reached only through import() from Settings ›
   // Connectors' routes (connectors-routes.mjs).
-  "claude-agent.mjs",
+  "claude-agent.mjs", "remote-control-sessions.mjs",
 ];
 
 /**

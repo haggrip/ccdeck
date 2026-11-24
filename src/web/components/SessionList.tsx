@@ -35,6 +35,7 @@ import { CloseGlyph, FoldBody, GroupHead, MoreLine, PlusGlyph, RailRow, type Fol
 export const RAIL_NEW_SESSION_ID = "rail-new-session";
 import { renameFacts } from "../session-rename";
 import type { PaneLink } from "../workspace-split";
+import RemoteControlList from "./RemoteControlList";
 
 export interface Row {
   sessionId: string;
@@ -555,6 +556,9 @@ export default function SessionList({ state, now, historyReady = true, selectedI
       <ul className="sl-rows" ref={list} aria-busy={!historyReady || undefined}>
         {nodes}
       </ul>
+      {/* The person's Remote Control sessions on their other machines, as
+          links out (RemoteControlList): nothing at all while that is off. */}
+      <RemoteControlList />
       {(() => {
         // Counted from what is off the board now, not from the stored ids: a
         // removed session the deck has since forgotten is nothing to bring back.

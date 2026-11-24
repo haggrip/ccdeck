@@ -583,3 +583,11 @@
   .left-column > .sl-edge:hover { box-shadow: inset -2px 0 0 var(--accent); }
 }
 .left-column > .sl-edge:focus-visible { outline: var(--focus-w) solid var(--accent); outline-offset: calc(-1 * var(--focus-w)); }
+
+/* The Remote Control group (RemoteControlList): links out to claude.ai, drawn
+   as rows with a state dot in the glyph's place. */
+.rc-rows { flex: none; }
+.rc-row { text-decoration: none; color: inherit; }
+.rc-dot { flex: none; width: 8px; height: 8px; margin: 0 4px; border-radius: var(--r-pill); background: var(--muted); align-self: center; }
+.rc-dot.busy { background: var(--accent); }
+.rc-note { padding: 2px 12px; font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--muted); }

@@ -715,6 +715,16 @@ The connectors on your claude.ai account — Slack, Jira and Confluence, Linear,
 
 **What it keeps.** Nothing of what is said: the prompt reaches Claude Code on its standard input, never on its command line, no transcript is saved, and no prompt, answer or tool result goes to the event log, the deck's own log or the usage reports. The runs never appear on the board. `AGENTS_DECK_NO_AGENT=1` turns all of it off.
 
+## Remote Control sessions
+
+A machine that runs Claude Remote Control sessions without a deck of its own (a laptop running them as a service, say) can still have them on this deck's Sessions list. Name it in `AGENTS_DECK_REMOTE_CONTROL_HOSTS` as an ssh host alias, and the list gains a **Remote Control** group: each session's title, machine and state (idle or busy), linked to its own page on claude.ai, where you prompt it and approve its tools.
+
+- **How it reads them.** Over ssh, with the key and the alias this computer already has, never a password prompt (`BatchMode`). It runs one fixed, read-only script there: `claude agents --json`, plus the title lines and first prompt of each Remote Control session's transcript. It writes nothing and sends nothing to any session.
+- **What it never holds.** No Claude token and no credential of its own: Remote Control's sign-in, and every approval, stay with Claude.
+- **How often.** At most once every 30 seconds, and only while a page asks.
+- **What a title is.** The session's name when Claude has one, otherwise its first prompt. A link's query string is never shown.
+- `AGENTS_DECK_NO_REMOTE_CONTROL=1` or `AGENTS_DECK_NO_AGENT=1` turns it off.
+
 ## Options
 
 ```
@@ -864,6 +874,8 @@ Environment:
 | `AGENTS_DECK_NO_REPORTS=1` | Never send usage reports, nor the device fingerprint with feedback |
 | `AGENTS_DECK_NO_RADAR=1` | Keep Telemetry Radar from looking for Claude Code's collector or capturing in the background — see [Claude Telemetry Radar](#claude-telemetry-radar-macos-linux-and-windows) |
 | `AGENTS_DECK_NO_AGENT=1` | Never run your Claude Code for the deck: no connector or tool use, no summaries, no [goal titles](#goals-on-the-board) for the board's groups, and **Settings › Connectors** lists nothing — see [Claude connectors](#claude-connectors) |
+| `AGENTS_DECK_REMOTE_CONTROL_HOSTS` | Set to ssh host aliases (commas or spaces, e.g. `thinkpad`): the machines whose Claude Remote Control sessions the Sessions list shows. See [Remote Control sessions](#remote-control-sessions) |
+| `AGENTS_DECK_NO_REMOTE_CONTROL=1` | Never ask another machine for its Remote Control sessions (`AGENTS_DECK_NO_AGENT=1` does too) |
 | `AGENTS_DECK_NO_OPENCODE=1` | Leave opencode alone: no ccdeck plugin (`ccdeck.js`) in its plugins folder, `~/.config/opencode/plugins` (one an earlier start wrote is taken out), so its sessions stay off the board. `ccdeck --uninstall` removes it too |
 | `AGENTS_DECK_NO_COPILOT=1` | Leave GitHub Copilot CLI alone: no `ccdeck.json` in its hooks directory (one an earlier start wrote is taken out), so its sessions stay off the board. `ccdeck --uninstall` removes it too |
 | `COPILOT_HOME` | Where GitHub Copilot CLI keeps its settings, as Copilot reads it; the deck's hooks file goes in its `hooks` directory |

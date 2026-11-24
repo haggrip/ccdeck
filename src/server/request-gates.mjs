@@ -526,6 +526,7 @@ export const GUARDED_READS = new Set([
   // Settings › Connectors (connectors-routes.mjs): which services the person
   // reaches through their own Claude Code, and what the agent's runs cost.
   "/api/connectors",
+  "/api/remote-control",
   // The ccdeck account (account-flag.mjs): which account this deck is
   // connected to, its email, the device and the settings it syncs, and the
   // join preview's values. The user's own, and read by the deck's own page

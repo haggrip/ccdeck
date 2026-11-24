@@ -472,6 +472,8 @@ export const SETTING_VARS = Object.freeze([
   // The Claude agent's veto (claude-agent.mjs). A deck started at login without
   // it would run the person's Claude Code for the board again.
   "AGENTS_DECK_NO_AGENT",
+  "AGENTS_DECK_NO_REMOTE_CONTROL",
+  "AGENTS_DECK_REMOTE_CONTROL_HOSTS",
   // The account's veto (account-flag.mjs), carried because a veto is always
   // safe to pass on — and the one name here the README's table does not list:
   // the account it vetoes is hidden, so documenting the veto would announce
