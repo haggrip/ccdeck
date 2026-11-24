@@ -18,3 +18,14 @@ export async function handleRemoteControlRead(req, res, source = null) {
   const { remoteControlState } = source ?? await import(pathToFileURL(join(PKG_ROOT, "src/server/remote-control-sessions.mjs")).href);
   return send(res, 200, { ok: true, ...(await remoteControlState()) });
 }
+
+export const DESKTOP_SESSIONS_ROUTE = "/api/desktop-sessions";
+
+/** GET /api/desktop-sessions — which of this computer's sessions the Claude
+ *  desktop app runs, as { cliSessionId: local_id } (desktop-sessions.mjs). The
+ *  same guarded, this-computer-only read. */
+export async function handleDesktopSessionsRead(req, res, source = null) {
+  if (!loopback(req)) return send(res, 403, { ok: false, error: "Desktop sessions can be seen on this computer only." });
+  const { desktopSessionsState } = source ?? await import(pathToFileURL(join(PKG_ROOT, "src/server/desktop-sessions.mjs")).href);
+  return send(res, 200, { ok: true, ...(await desktopSessionsState()) });
+}

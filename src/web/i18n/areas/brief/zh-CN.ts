@@ -48,6 +48,8 @@ const catalog: Catalog = {
   "brief.kind.failed": "失败",
   "brief.kind.read": "查看",
   "brief.source.session": "会话",
+  "brief.source.desktop": "Claude 应用",
+  "brief.open.desktop": "在 Claude 应用中打开此会话",
   "brief.open.link": "在 {source} 中打开",
   "brief.open.session": "显示此会话的卡片",
   "brief.people.pin": "固定 {name}",

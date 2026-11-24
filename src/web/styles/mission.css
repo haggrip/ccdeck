@@ -1,0 +1,57 @@
+/* ---------------- Mission ----------------
+   The Status pane as the deck's main page (use-mission.ts, StatusPane.tsx
+   variant "mission"): laid over the canvas's cell, the Board kept under it.
+   One readable column of brief across the top, then the Todo list on the left
+   and the brief's other sections beside it. The pane's own rows, chips and
+   buttons are status-pane.css's, unchanged. */
+.status-pane.mission {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  width: auto;
+  max-height: none;
+  overflow-y: auto;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: var(--bg);
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  line-height: calc(18px + var(--ui-text-increase, 0px));
+}
+.status-pane.mission .stp-head {
+  gap: 12px;
+  padding: 0 16px 0 24px;
+  background: var(--bg);
+}
+.status-pane.mission .stp-heading { flex: none; font-size: calc(16px + var(--ui-text-increase, 0px)); }
+.status-pane.mission .stp-counts { flex: 1 1 auto; min-width: 0; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.status-pane.mission .stp-body {
+  box-sizing: border-box;
+  max-width: 1280px;
+  margin: 0 auto;
+  gap: 16px;
+  padding: 16px 24px 24px;
+}
+.status-pane.mission .stp-summary-text { max-width: 80ch; }
+.mission-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(280px, 2fr);
+  gap: 24px;
+  align-items: start;
+}
+.mission-main, .mission-side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+/* The Todo list is the page's subject: its sections sit on the panel's ground. */
+.mission-main .stp-todo { display: flex; flex-direction: column; gap: 16px; }
+.mission-main .stp-section,
+.mission-side .stp-section {
+  padding: 12px;
+  background: var(--panel);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-panel);
+}
+.status-pane.mission .stp-undo { position: sticky; bottom: 0; }
+/* The card beside a desktop link: the board glyph, as quiet as its siblings. */
+.stp-todo-card { flex: none; }
+@media (max-width: 960px) {
+  .mission-cols { grid-template-columns: minmax(0, 1fr); }
+}

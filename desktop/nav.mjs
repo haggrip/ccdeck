@@ -19,8 +19,19 @@ export function navigationFor(url, origin) {
   } catch {
     return "block";
   }
+  // The Claude desktop app's own links to a Claude Code session (the Todo
+  // list's, desktop-sessions.mjs): handed to the OS, which gives them to it.
+  if (parsed.protocol === "claude:") return claudeSessionLink(url) ? "external" : "block";
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return "block";
   return parsed.origin === origin ? "stay" : "external";
+}
+
+/** One of the two claude:// links the deck writes, and nothing else the
+ *  scheme can do: a local session (claude://code/continue?session=local_…)
+ *  or a Remote Control one (claude://code/session_…). */
+export function claudeSessionLink(url) {
+  return /^claude:\/\/code\/continue\?session=local_[A-Za-z0-9-]{1,64}$/.test(url)
+    || /^claude:\/\/code\/session_[A-Za-z0-9]{10,64}$/.test(url);
 }
 
 /** The deck's origin, for the window and for the checks against it. */

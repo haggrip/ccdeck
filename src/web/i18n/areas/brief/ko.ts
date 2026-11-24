@@ -48,6 +48,8 @@ const catalog: Catalog = {
   "brief.kind.failed": "실패",
   "brief.kind.read": "읽기",
   "brief.source.session": "세션",
+  "brief.source.desktop": "Claude 앱",
+  "brief.open.desktop": "이 세션을 Claude 앱에서 열기",
   "brief.open.link": "{source}에서 열기",
   "brief.open.session": "이 세션의 카드 보기",
   "brief.people.pin": "{name} 고정",

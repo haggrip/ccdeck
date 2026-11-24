@@ -1043,6 +1043,7 @@ const catalog: Catalog = {
   "board.keys.keptApp": "Le navigateur garde Ctrl+W, Ctrl+T et Ctrl+N dans un onglet — l’application de bureau les donne à la session.",
   "board.view.group": "Vue",
   "board.view.board": "Tableau",
+  "board.view.mission": "Mission",
   "board.view.workspace": "Workspace",
   "board.stage.shellUnavailable": "Impossible de charger le Command Panel. Rechargez la page pour l’utiliser.",
   "board.stage.skipToPane": "Aller au volet",

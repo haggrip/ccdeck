@@ -1043,6 +1043,7 @@ const catalog: Catalog = {
   "board.keys.keptApp": "The browser keeps Ctrl+W, Ctrl+T and Ctrl+N in a tab — the desktop app gives them to the session.",
   "board.view.group": "View",
   "board.view.board": "Board",
+  "board.view.mission": "Mission",
   "board.view.workspace": "Workspace",
   "board.stage.shellUnavailable": "The Command Panel could not be loaded. Reload the page to use it.",
   "board.stage.skipToPane": "Skip to the pane",

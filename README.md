@@ -524,6 +524,15 @@ Only visits **after this deck started** are ever considered. Your existing histo
 
 Step by step: [Detect browser automation while you were away](https://ccdeck.dev/guides/browser-watch/)
 
+## Mission
+
+**Mission** is the deck's main page: the Status pane's live Todo list and brief, full width, where the canvas would be. The topbar's switch reads **Mission | Board | Workspace** (Workspace only where the Command Panel is on), and a browser that never chose lands on Mission. The Board stays mounted under it, so the way back is instant; on a phone the deck is still the Board alone.
+
+- **The Todo list is the page.** Waiting on you and To do take the wide column; the brief's summary sits above, and Since, Talk to and People beside it.
+- **A session opens in the Claude desktop app** when the app runs it: the item links to `claude://code/continue?session=local_…`, the app's own link for that session, and a small board button beside it still shows the session's card. Sessions the app does not run (a terminal, tmux, a paired deck) open their card as before.
+- **How the deck knows.** It reads the desktop app's session files (`~/Library/Application Support/Claude/claude-code-sessions/` on macOS) for three fields only, the app's `local_` id and the Claude Code session ids it drives, at most every 15 seconds and only while a page asks. Nothing else in them is read, kept or sent. `AGENTS_DECK_NO_DESKTOP_LINKS=1` turns it off.
+- In the deck's own desktop shell, `claude://` links are handed to the OS only in those two shapes (a local session, or a Remote Control `session_` id); any other non-web link is still blocked.
+
 ## Status
 
 **Status**, on the right stripe under the Inspector, is one pane for the question you ask at the start of the day and every hour after: what is going on, and what is waiting on me? On the Board it is the top of the right column, above Usage and This machine; in Workspace it floats beside the docked column; on a phone it is a sheet over Sessions, under **More**. It stays open across reloads.
@@ -898,6 +907,7 @@ Environment:
 | `AGENTS_DECK_NO_AGENT=1` | Never run your Claude Code for the deck: no connector or tool use, no summaries, no [goal titles](#goals-on-the-board) for the board's groups, and **Settings › Connectors** lists nothing — see [Claude connectors](#claude-connectors) |
 | `AGENTS_DECK_REMOTE_CONTROL_HOSTS` | Set to ssh host aliases (commas or spaces, e.g. `thinkpad`): the machines whose Claude Remote Control sessions the Sessions list shows. See [Remote Control sessions](#remote-control-sessions) |
 | `AGENTS_DECK_NO_REMOTE_CONTROL=1` | Never ask another machine for its Remote Control sessions (`AGENTS_DECK_NO_AGENT=1` does too) |
+| `AGENTS_DECK_NO_DESKTOP_LINKS=1` | Never read the Claude desktop app's session ids: Todo items open their session's card instead of the desktop app. See [Mission](#mission) |
 | `AGENTS_DECK_NO_OPENCODE=1` | Leave opencode alone: no ccdeck plugin (`ccdeck.js`) in its plugins folder, `~/.config/opencode/plugins` (one an earlier start wrote is taken out), so its sessions stay off the board. `ccdeck --uninstall` removes it too |
 | `AGENTS_DECK_NO_COPILOT=1` | Leave GitHub Copilot CLI alone: no `ccdeck.json` in its hooks directory (one an earlier start wrote is taken out), so its sessions stay off the board. `ccdeck --uninstall` removes it too |
 | `COPILOT_HOME` | Where GitHub Copilot CLI keeps its settings, as Copilot reads it; the deck's hooks file goes in its `hooks` directory |

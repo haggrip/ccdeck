@@ -48,6 +48,8 @@ const catalog: Catalog = {
   "brief.kind.failed": "Échec",
   "brief.kind.read": "Lire",
   "brief.source.session": "Session",
+  "brief.source.desktop": "App Claude",
+  "brief.open.desktop": "Ouvrir cette session dans l’app Claude",
   "brief.open.link": "Ouvrir dans {source}",
   "brief.open.session": "Afficher la carte de cette session",
   "brief.people.pin": "Épingler {name}",

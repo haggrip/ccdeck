@@ -204,7 +204,7 @@ import { handleIntegrations } from "./integrations/routes.mjs";
 // Settings › Connectors: the person's Claude connectors, read through their own
 // Claude Code — see connectors-routes.mjs and claude-agent.mjs.
 import { handleConnectorsRead, handleConnectorsWrite } from "./connectors-routes.mjs";
-import { handleRemoteControlRead } from "./remote-control-routes.mjs";
+import { handleDesktopSessionsRead, handleRemoteControlRead } from "./remote-control-routes.mjs";
 // The Command Panel's eight routes, every one absent while the panel is
 // switched off and answered by the optional local engine while it is on —
 // see terminal-routes.mjs — its folder check, which the deck answers itself
@@ -570,6 +570,9 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "POST" && url.pathname === "/api/connectors") return guard(handleConnectorsWrite(req, res), res);
     // The person's Remote Control sessions on their other machines, read-only.
     if (req.method === "GET"  && url.pathname === "/api/remote-control") return guard(handleRemoteControlRead(req, res), res);
+    // Which of this computer's sessions the Claude desktop app runs, so the
+    // Todo list opens them there (desktop-sessions.mjs).
+    if (req.method === "GET"  && url.pathname === "/api/desktop-sessions") return guard(handleDesktopSessionsRead(req, res), res);
 
     // Through writeJsonArray rather than `send`, and through `guard` like every
     // route above it: this is the one answer whose size is the ring's size, and

@@ -131,9 +131,10 @@ import { stageClaimsKeys, targetSession } from "./stage-shell";
 import { paneCount, sessionPaneLinks } from "./workspace-split";
 import { useFeatureUse } from "./feature-use";
 import { StageDockSlot, StageNavigatorSlot } from "./components/StageSlots";
-import ViewSwitch from "./components/ViewSwitch";
+import ViewSwitch, { type SwitchView } from "./components/ViewSwitch";
 import { EmptyInspector } from "./components/Inspector";
 import { readView, useView, type View } from "./use-view";
+import { useMission } from "./use-mission";
 import { useSideColumn, type SidePanel } from "./side-column";
 import { useInspectorFold, withInspectorFold } from "./inspector-fold";
 import { useWorkspaceInspector } from "./use-workspace-inspector";
@@ -167,6 +168,9 @@ const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 // mounted, and so fetched, only while /api/prefs says the account is on.
 const AccountBridge = lazy(() => import("./components/AccountBridge"));
 import { useT } from "./i18n";
+
+/** Mission's page has no pin and no close (StatusPane.tsx, variant "mission"). */
+const NOOP = () => {};
 
 export default function App() {
   return (
@@ -757,11 +761,16 @@ function Inner() {
   // Board or Workspace, as the browser remembered it (use-view.ts). Whether the
   // layout follows it is the stage hook's: it holds the gate (use-stage.ts).
   const viewState = useView();
+  // Mission, the Todo list and the brief as the main page (use-mission.ts): on
+  // by default, never on a phone. While it is up the sessions' views are held
+  // at the Board, under it, so nothing about them remounts on the way back.
+  const mission = useMission();
+  const missionOn = mission.on && !phone;
   // The stage and the detail panel evict each other by the reader's own flags,
   // so a folded right column changes nothing between them.
   const stage = useStage({
     stateRef, canvasRef, detailOpen, detailShown: detailWanted, setDetailOpen, primarySelectedIdRef, selectAgent,
-    view: viewState.stored, phone, clearSelection, ready: historyReplayed, codex: providers.codex,
+    view: missionOn ? "board" : viewState.stored, phone, clearSelection, ready: historyReplayed, codex: providers.codex,
   });
   const inWorkspace = stage.workspace;
   // Workspace in use, and two or more sessions side by side in it: features
@@ -933,6 +942,7 @@ function Inner() {
   // Command Panel turned off): the canvas goes back to the grid.
   useEffect(() => { if (!inWorkspace) unpinBoard(appRef.current); }, [inWorkspace]);
   const { leaveWorkspace, openInPane } = stage;
+  const setMission = mission.set;
   const switchView = useCallback((next: View, how: "pointer" | "key", sessionId?: string) => {
     runSwitch(how, () => {
       if (next === "workspace") {
@@ -950,8 +960,23 @@ function Inner() {
         leaveWorkspace();
       }
       viewState.set(next);
+      // Either view of the sessions is a way out of Mission.
+      setMission(false);
     });
-  }, [leaveWorkspace, openInPane, markLanded, viewState.set]);
+  }, [leaveWorkspace, openInPane, markLanded, viewState.set, setMission]);
+  // The topbar's switch: Mission, or one of the two views of the sessions.
+  // Into Mission, Workspace's stage comes down as leaving it for the Board does;
+  // the view remembered under it is kept for the way back.
+  const switchTo = useCallback((next: SwitchView, how: "pointer" | "key") => {
+    if (next !== "mission") return switchView(next, how);
+    runSwitch(how, () => {
+      if (workspaceRef.current) {
+        unpinBoard(appRef.current);
+        leaveWorkspace();
+      }
+      setMission(true);
+    });
+  }, [switchView, leaveWorkspace, setMission]);
   const switchViewRef = useMirroredRef(switchView);
   const workspaceRef = useMirroredRef(inWorkspace);
   // Ctrl + backtick: read through a ref by the one key listener (use-deck-shortcuts.ts).
@@ -995,7 +1020,8 @@ function Inner() {
   // hides is out of it, as the Inspector the stage evicts is.
   const inRightCol = (shown: boolean, phase: PanelPhase) => (shown ? isMounted(phase) : phase === "leaving");
   // The Status pane is drawn while it is open and its column is not folded.
-  const statusShown = statusPane.open && !sideFold.right;
+  // In Mission the pane's contents are the page, so the pane itself stays shut.
+  const statusShown = statusPane.open && !sideFold.right && !missionOn;
   const rightCol = !phone && !inWorkspace
     && (detailShown || statusShown || inRightCol(usageRail.shown, usagePhase) || inRightCol(machineRail.shown, machinePhase));
   // Which side columns the reader has open, folded or not, now that the
@@ -1243,8 +1269,12 @@ function Inner() {
     feedbackUnread, openFeedbackConversations,
     inspectorOpen, toggleInspector,
     // A folded right column reads closed, so a press brings it back.
-    statusPaneOpen: statusShown,
-    toggleStatusPane: () => (statusPane.open && sideFold.right ? raiseRight() : statusPane.toggle()),
+    statusPaneOpen: statusShown || missionOn,
+    // In Mission the door leads to the pane on the Board.
+    toggleStatusPane: () => {
+      if (missionOn) { statusPane.setOpen(true); switchTo("board", lastInputWasKey() ? "key" : "pointer"); return; }
+      if (statusPane.open && sideFold.right) raiseRight(); else statusPane.toggle();
+    },
   });
   /** A phone opens on Sessions, and a row there opens that session's pane when
    *  the deck has a terminal for it (the Command Panel is on), else the
@@ -1263,6 +1293,11 @@ function Inner() {
     // No terminal: the Inspector opens as a sheet and the list stays under it.
     openSession(sessionId);
   }, [openSession, phone, closeSessionListToCanvas, stage.enabled, openInPane, markLanded, removedAgentIds, bringBack]);
+  /** A Todo item's session card, from Mission: the Board, with its card. */
+  const openFromMission = useCallback((sessionId: string) => {
+    switchView("board", lastInputWasKey() ? "key" : "pointer");
+    pickSession(sessionId);
+  }, [switchView, pickSession]);
   /** A card on the phone's Board opens its session with the Sessions row's own
    *  press, and leaving the pane comes back to the Board, where the tap was. */
   const pickFromBoard = useCallback((sessionId: string) => {
@@ -1476,7 +1511,7 @@ function Inner() {
           {/* Board | Workspace, left of the search field in the right-hand
               group: only where the Command Panel is on (use-view.ts), and never
               on a phone, where the Board is the whole of the deck. */}
-          {!phone && stage.workspaceOffered && <ViewSwitch view={inWorkspace ? "workspace" : "board"} onChange={switchView} />}
+          {!phone && <ViewSwitch view={missionOn ? "mission" : inWorkspace ? "workspace" : "board"} workspace={stage.workspaceOffered} onChange={switchTo} />}
           {/* Search, at the end of the bar (Settings is at the Panel bar's
               foot, Feedback in the corner after it). Who is waiting, by name,
               is the waiting pill's popover, and the selected session is named
@@ -1609,6 +1644,13 @@ function Inner() {
             place and inside <main> with the board it stands for — components/
             StageSlots.tsx. Nothing at all with the terminal flag off. */}
         <StageNavigatorSlot stage={stage} />
+        {/* MISSION: the Todo list and the brief, laid over the canvas's cell
+            with the Board kept under it (use-mission.ts). Its line to the deck
+            lives while it is up. */}
+        {missionOn && (
+          <StatusPane variant="mission" rows={buildRows(stateRef.current, now, watchingSessions)} now={now}
+            pinned onTogglePin={NOOP} besideInspector={false} onOpenSession={openFromMission} onClose={NOOP} />
+        )}
       </CanvasMain>
 
       {/* The terminal stage itself: laid over the canvas cell's right-hand
