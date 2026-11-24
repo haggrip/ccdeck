@@ -37,6 +37,8 @@ import {
   applySessionNamed, applySessionRecapped, applyUsageObserved, stampSessionFacts,
 } from "./transcript-events";
 import { applyNotification, clearAnsweredWaiting } from "./waiting-block";
+// /resume inside a running Claude: the empty card it left goes (resume-fold.ts).
+import { noteResumeHandoff } from "./resume-fold";
 import type { HookEnvelope } from "./types";
 
 // The board's state and the keys it is filed under are graph-state.ts's, where
@@ -226,6 +228,7 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
     case "SessionEnd": applyTurnEnd(state, name, sessionId, now); break;
     case "Notification": applyNotification(state, p, sessionId, now); break;
   }
+  if (name === "SessionStart" || name === "SessionEnd") noteResumeHandoff(state, name, p, sessionId);
 
   return state;
 }
