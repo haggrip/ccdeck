@@ -6,7 +6,8 @@
 //
 // It is inside the pane, so it goes wherever the pane goes, pinned or not.
 // Nothing here sends anything anywhere: the box hands your words to the list's
-// keeper, and the buttons close, reopen and snooze items on this deck alone.
+// keeper, and the buttons close, dismiss, reopen and snooze items on this deck
+// alone.
 import { useState, type FormEvent } from "react";
 import type { TFunction } from "../i18n";
 import { KitIcon, KitStateGlyph } from "./kit-icons";
@@ -29,9 +30,9 @@ function sourceName(item: TodoItem, t: TFunction): string {
   return k ? SOURCE_NAMES[k] ?? "" : "";
 }
 
-function Row({ item, now, sessions, onOpenSession, act, t }: {
+function Row({ item, now, sessions, onOpenSession, act, dismiss, t }: {
   item: TodoItem; now: number; sessions: ReadonlySet<string>;
-  onOpenSession: (id: string) => void; act: StatusTodoHandle["act"]; t: TFunction;
+  onOpenSession: (id: string) => void; act: StatusTodoHandle["act"]; dismiss: StatusTodoHandle["dismiss"]; t: TFunction;
 }) {
   const open = openerOf(item, sessions);
   const snoozed = isSnoozed(item, now);
@@ -78,6 +79,10 @@ function Row({ item, now, sessions, onOpenSession, act, t }: {
           )}
           <button type="button" className="glyph-btn stp-todo-done" onClick={() => act("close", item.id)}
             aria-label={t("brief.todo.close", { title: item.title })} title={t("brief.todo.close", { title: item.title })}><KitStateGlyph name="done" /></button>
+          {dismiss && (
+            <button type="button" className="glyph-btn stp-dismiss" onClick={() => dismiss({ id: item.id })}
+              aria-label={t("brief.dismiss", { title: item.title })} title={t("brief.dismiss", { title: item.title })}><KitIcon name="close" /></button>
+          )}
         </span>
       </span>
     </li>
@@ -86,7 +91,7 @@ function Row({ item, now, sessions, onOpenSession, act, t }: {
 
 function List({ id, title, items, ...rest }: {
   id: string; title: string; items: TodoItem[]; now: number; sessions: ReadonlySet<string>;
-  onOpenSession: (id: string) => void; act: StatusTodoHandle["act"]; t: TFunction;
+  onOpenSession: (id: string) => void; act: StatusTodoHandle["act"]; dismiss: StatusTodoHandle["dismiss"]; t: TFunction;
 }) {
   return (
     <section className="stp-section" aria-labelledby={id}>
@@ -125,8 +130,8 @@ export default function StatusTodo({ todo, now, sessions, onOpenSession, t }: {
       </form>
       {reading && <p className="stp-state" aria-live="polite">{t("brief.todo.reading")}</p>}
       {failed && <p className="stp-flag">{t("brief.todo.keeperFailed", { message: failed.message || failed.code })}</p>}
-      <List id="stp-waiting" title={t("brief.section.waiting")} items={waiting} now={now} sessions={sessions} onOpenSession={onOpenSession} act={todo.act} t={t} />
-      <List id="stp-todo" title={t("brief.section.todo")} items={rest} now={now} sessions={sessions} onOpenSession={onOpenSession} act={todo.act} t={t} />
+      <List id="stp-waiting" title={t("brief.section.waiting")} items={waiting} now={now} sessions={sessions} onOpenSession={onOpenSession} act={todo.act} dismiss={todo.dismiss} t={t} />
+      <List id="stp-todo" title={t("brief.section.todo")} items={rest} now={now} sessions={sessions} onOpenSession={onOpenSession} act={todo.act} dismiss={todo.dismiss} t={t} />
       {closed.length > 0 && (
         <details className="stp-closed">
           <summary className="stp-h">{t("brief.todo.recent")}<span className="stp-n">{closed.length}</span></summary>

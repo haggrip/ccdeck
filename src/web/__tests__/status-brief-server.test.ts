@@ -160,8 +160,9 @@ describe("what is kept of the model's answer", () => {
     });
     expect(brief.summary).toBe("Two PRs wait on you.");
     expect(brief.waiting.map(i => i.title)).toEqual(["Review #12", "Pick a schema"]);
-    expect(brief.waiting[1]).toEqual({ kind: "decide", title: "Pick a schema", source: "session", sessionId: "s-1" });
-    expect(brief.todo).toEqual([{ kind: "todo", title: "Ship it", source: "jira", url: "https://x.atlassian.net/browse/DIS-1" }]);
+    // CHANGED ON PURPOSE (dismiss): each item carries the key it is dismissed by.
+    expect(brief.waiting[1]).toEqual({ kind: "decide", title: "Pick a schema", source: "session", sessionId: "s-1", dkey: "session:s-1:brief:decide" });
+    expect(brief.todo).toEqual([{ kind: "todo", title: "Ship it", source: "jira", url: "https://x.atlassian.net/browse/DIS-1", dkey: "url:https://x.atlassian.net/browse/DIS-1" }]);
     expect(brief.talkTo[0]).toMatchObject({ kind: "talk", person: "Dana" });
     // One Dana: the handle and the name fold to one key.
     expect(brief.people.map(p => p.key)).toEqual(["dana"]);

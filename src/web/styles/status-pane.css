@@ -177,6 +177,28 @@
 .stp-todo-item[data-closed] .stp-title { color: var(--muted); text-decoration: line-through; }
 .stp-todo-reopen { flex: none; margin-top: 2px; }
 
+/* Dismiss: an × on every row, a short Undo under the counts, and what you
+   dismissed folded under Talk to, each with a way back. */
+.stp-dismiss { flex: none; }
+.stp-item > .stp-dismiss { margin-top: 2px; }
+.stp-undo {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 -12px -12px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--line-soft);
+  background: var(--panel);
+  color: var(--muted);
+}
+.stp-undo:empty { display: none; }
+.stp-undo-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stp-undo-btn, .stp-restore { flex: none; margin-top: 2px; }
+/* Dismissed is not done: no line through it. */
+.stp-dismissed .stp-todo-item[data-closed] .stp-title { text-decoration: none; }
+
 /* Settings: a short form under the counts while the gear is pressed. */
 .stp-settings {
   display: flex;

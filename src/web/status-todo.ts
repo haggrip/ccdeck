@@ -34,11 +34,22 @@ export interface TodoItem {
   closedReason?: string;
 }
 
+/** Something the user dismissed: a brief item or a list item, by its key. */
+export interface Dismissal {
+  key: string;
+  at: number;
+  title: string;
+  url?: string;
+  source?: "github" | "slack" | "jira" | "session" | "deck";
+}
+
 export interface TodoView {
   ok: true;
   now: number;
   open: TodoItem[];
   closed: TodoItem[];
+  /** What the user dismissed, newest first. */
+  dismissed?: Dismissal[];
   keeper: { lastRunAt: number | null; lastCostUsd: number | null; error: { at: number; code: string; message: string } | null };
   keeperRunning?: boolean;
   keeperQueued?: number;

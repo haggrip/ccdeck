@@ -309,7 +309,8 @@ describe("the list's runner", () => {
     const fake = fakeKeeper(() => ({ ok: true, json: { ops: [] } }));
     const t = createStatusTodo({ dir, agent: async () => fake.agent, sessions, now: () => 5000, setTimer: timers.setTimer, clearTimer: timers.clearTimer });
     const r = await t.brief({ waiting: [{ kind: "merge", title: "acme/web#88 approved, not merged", url: "https://github.com/acme/web/pull/88" }], linkStates: [] });
-    expect(r).toEqual({ added: 1, closed: false });
+    // CHANGED ON PURPOSE (dismiss): it also says what new activity brought back.
+    expect(r).toEqual({ added: 1, closed: false, revived: [] });
     expect((await t.watched())).toEqual([{ url: "https://github.com/acme/web/pull/88", kind: "merge" }]);
     await t.brief({ waiting: [], linkStates: [{ url: "https://github.com/acme/web/pull/88", state: "merged" }] });
     expect((await t.view()).closed[0]).toMatchObject({ closedBy: "brief", closedReason: "Merged" });
