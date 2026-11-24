@@ -14,7 +14,7 @@ import { rmTempDir } from "./rm-temp-dir";
 // @ts-expect-error — .mjs server module, no types
 const agentModule = await import("../../server/claude-agent.mjs");
 const {
-  createClaudeAgent, agentArgs, agentEnv, mcpServerId, isReadOnly, connectorsFrom, denyList, oneJsonObject,
+  createClaudeAgent, agentArgs, agentEnv, mcpServerId, isReadOnly, connectorsFrom, denyList, blockedServers, oneJsonObject,
   SYSTEM_PROMPT, AGENT_VETO_ENV, BUILTIN_TOOLS,
 } = agentModule;
 
@@ -23,14 +23,24 @@ afterAll(() => rmTempDir(ROOT));
 
 const FAKE = join(ROOT, "fake-claude.mjs");
 writeFileSync(FAKE, `#!/usr/bin/env node
-import { appendFileSync, readFileSync } from "node:fs";
+import { appendFileSync, existsSync, readFileSync } from "node:fs";
 const scenario = JSON.parse(readFileSync(process.env.FAKE_CLAUDE_SCENARIO, "utf8"));
-const log = (entry) => appendFileSync(process.env.FAKE_CLAUDE_LOG, JSON.stringify({ pid: process.pid, at: Date.now(), ...entry }) + "\\n");
+const logFile = process.env.FAKE_CLAUDE_LOG;
+// How many processes of this case started before this one.
+const before = existsSync(logFile) ? readFileSync(logFile, "utf8").split("\\n").filter(l => l.includes('"start":true')).length : 0;
+const log = (entry) => appendFileSync(logFile, JSON.stringify({ pid: process.pid, at: Date.now(), ...entry }) + "\\n");
 log({ start: true, argv: process.argv.slice(2), cwd: process.cwd(), internal: process.env.AGENTS_DECK_INTERNAL ?? null,
   leaked: Object.keys(process.env).filter(k => k.startsWith("CCDECK_") || k === "CLAUDECODE") });
 if (scenario.exitAtOnce) { process.stderr.write(scenario.stderr ?? "boom\\n"); process.exit(scenario.exitAtOnce); }
 const out = (o) => process.stdout.write(JSON.stringify(o) + "\\n");
 const flag = (name) => { const i = process.argv.indexOf(name); return i >= 0 ? process.argv[i + 1] : null; };
+// Like Claude Code: a server in --settings' deniedMcpServers never connects,
+// and a server added since the case began (lateServers) answers from the
+// second process on.
+const blocked = new Set((JSON.parse(flag("--settings") ?? "{}").deniedMcpServers ?? []).map(s => s.serverName));
+const servers = [...(scenario.servers ?? []), ...(before >= 1 ? scenario.lateServers ?? [] : [])].filter(s => !blocked.has(s.name));
+const list = (name) => (flag(name) ?? "").split(",").filter(Boolean);
+const covers = (rules, tool) => rules.some(r => r === tool || tool.startsWith(r + "__"));
 let buf = "";
 process.stdin.setEncoding("utf8");
 process.stdin.on("data", (d) => {
@@ -44,18 +54,24 @@ process.stdin.on("data", (d) => {
       if (m.request.subtype === "initialize") {
         out({ type: "control_response", response: { subtype: "success", request_id: id, response: { account: scenario.account ?? { email: "me@example.com", tokenSource: "claude.ai" } } } });
       } else if (m.request.subtype === "mcp_status") {
-        out({ type: "control_response", response: { subtype: "success", request_id: id, response: { mcpServers: scenario.servers ?? [] } } });
+        out({ type: "control_response", response: { subtype: "success", request_id: id, response: { mcpServers: servers } } });
       }
       continue;
     }
     if (m.type === "user") {
       log({ prompt: m.message.content });
       if (scenario.hang) continue;
-      const allowed = (flag("--allowedTools") ?? "").split(",").filter(Boolean);
+      const allowed = list("--allowedTools");
       out({ type: "system", subtype: "init", tools: scenario.offer ?? allowed, mcp_servers: [] });
-      for (const name of scenario.toolUses ?? []) {
-        out({ type: "assistant", message: { content: [{ type: "tool_use", id: "t", name, input: {} }] } });
-      }
+      (scenario.toolUses ?? []).forEach((name, i) => {
+        const id = scenario.toolUseIds?.[i] ?? "t" + i;
+        out({ type: "assistant", message: { content: [{ type: "tool_use", id, name, input: {} }] } });
+        if (scenario.noToolResult) return;
+        // Refused unless on the allowlist and not denied, as dontAsk does.
+        const refused = !scenario.ranAnyway && (!covers(allowed, name) || covers(list("--disallowedTools"), name));
+        out({ type: "user", message: { role: "user", content: [{ type: "tool_result", tool_use_id: id,
+          ...(refused ? { is_error: true, content: "<tool_use_error>No such tool available: " + name + "</tool_use_error>" } : { content: "done" }) }] } });
+      });
       const delay = scenario.delayMs ?? 0;
       setTimeout(() => {
         log({ end: true });
@@ -137,8 +153,20 @@ describe("the argument vector", () => {
     expect(args[args.indexOf("--allowedTools") + 1]).toBe(`Bash,Read,${SEARCH}`);
     expect(args[args.indexOf("--disallowedTools") + 1]).toBe(`mcp__claude_ai_Linear,${SEND}`);
     expect(args).not.toContain("--strict-mcp-config");
+    expect(args).not.toContain("--settings");
     expect(args).toContain("--disable-slash-commands");
     expect(agentArgs({ builtins: ["Skill"], allow: ["Skill"] })).not.toContain("--disable-slash-commands");
+  });
+
+  it("keeps the servers a run has nothing from out with deniedMcpServers, for that process only", () => {
+    const args: string[] = agentArgs({ allow: [SEARCH], blockServers: ["claude.ai Linear", "plugin:1password:1password"] });
+    expect(JSON.parse(args[args.indexOf("--settings") + 1])).toEqual({
+      deniedMcpServers: [{ serverName: "claude.ai Linear" }, { serverName: "plugin:1password:1password" }],
+    });
+    // A run with no MCP servers at all needs none of it.
+    const none: string[] = agentArgs({ allow: ["Read"], builtins: ["Read"], blockServers: ["claude.ai Linear"] });
+    expect(none).toContain("--strict-mcp-config");
+    expect(none).not.toContain("--settings");
   });
 
   it("is the bare protocol for a listing, which sends no prompt and names no model", () => {
@@ -174,9 +202,10 @@ describe("what the deck reads of Claude Code's servers", () => {
     expect(isReadOnly({ openWorld: true })).toBe(false);
   });
 
-  it("keeps a server's id, label, status and tools, and nothing of its address or config", () => {
+  it("keeps a server's name, id, label, status and tools, and nothing of its address or config", () => {
     const list = connectorsFrom(SERVERS);
     expect(list.map((c: { label: string }) => c.label)).toEqual(["Slack", "Linear", "Wiz"]);
+    expect(list.map((c: { name: string }) => c.name)).toEqual(["claude.ai Slack", "claude.ai Linear", "claude.ai Wiz"]);
     expect(list[0].tools).toEqual([
       { name: SEARCH, title: "slack_search_public", readOnly: true },
       { name: "mcp__claude_ai_Slack__slack_send_message", title: "slack_send_message", readOnly: false },
@@ -194,6 +223,13 @@ describe("what the deck reads of Claude Code's servers", () => {
     ]));
     expect(deny).not.toContain(SEARCH);
     expect(deny).not.toContain("mcp__claude_ai_Slack");
+  });
+
+  it("blocks, by name, every server a run has nothing from", () => {
+    expect(blockedServers(connectorsFrom(SERVERS), [SEARCH])).toEqual(["claude.ai Linear", "claude.ai Wiz"]);
+    expect(blockedServers(connectorsFrom(SERVERS), [SEARCH, ISSUES])).toEqual(["claude.ai Wiz"]);
+    // A tool the listing does not have yet still keeps its server in.
+    expect(blockedServers(connectorsFrom(SERVERS), ["mcp__claude_ai_Wiz__scan"])).toEqual(["claude.ai Slack", "claude.ai Linear"]);
   });
 
   it("reads one JSON object out of an answer, fenced or with words around it, and nothing else", () => {
@@ -313,7 +349,17 @@ describe("a run against a fake claude", () => {
     expect(run.argv[run.argv.indexOf("--disallowedTools") + 1].split(",").sort()).toEqual(["Edit", CANVAS].sort());
     expect(run.argv).toContain("--append-system-prompt");
     expect(run.argv).not.toContain("--strict-mcp-config");
-    expect(agent.recentRuns()[0]).toMatchObject({ ok: true, tools: ["Bash", ISSUES] });
+    expect(run.argv).not.toContain("--settings");
+    expect(agent.recentRuns()[0]).toMatchObject({ ok: true, tools: ["Bash", ISSUES], refused: [] });
+  });
+
+  it("does not connect a server whose every tool is switched off, in a run given everything", async () => {
+    const { agent, entries } = setup({ offer: ["Bash", SEARCH] });
+    await agent.setOffTools([ISSUES, "mcp__claude_ai_Linear__save_issue"]);
+    expect(await agent.runAgent({ prompt: "x" })).toMatchObject({ ok: true });
+    const run = entries().filter(e => e.start).at(-1);
+    expect(JSON.parse(run.argv[run.argv.indexOf("--settings") + 1])).toEqual({ deniedMcpServers: [{ serverName: "claude.ai Linear" }] });
+    expect(run.argv[run.argv.indexOf("--allowedTools") + 1].split(",")).not.toContain("mcp__claude_ai_Linear");
   });
 
   it("ends a run given everything when Claude Code offers a tool that is switched off", async () => {
@@ -333,6 +379,26 @@ describe("a run against a fake claude", () => {
     const deny = run.argv[run.argv.indexOf("--disallowedTools") + 1].split(",");
     expect(deny).toEqual(expect.arrayContaining([SEARCH, CANVAS, "mcp__claude_ai_Linear", "mcp__claude_ai_Wiz"]));
     expect(run.argv).not.toContain("--strict-mcp-config");
+    // The servers it has nothing from never connect, so their instructions
+    // (which name their tools) never reach the model.
+    expect(JSON.parse(run.argv[run.argv.indexOf("--settings") + 1])).toEqual({
+      deniedMcpServers: [{ serverName: "claude.ai Linear" }, { serverName: "claude.ai Wiz" }],
+    });
+  });
+
+  it("lists again and starts once more when the run's process has a server the listing did not know", async () => {
+    const FIGMA = { name: "claude.ai Figma", status: "connected", source: "claudeai", tools: [{ name: "use_figma", annotations: {} }] };
+    const { agent, entries } = setup({ lateServers: [FIGMA], answer: '{"n": 1}' });
+    const r = await agent.runAgent({ prompt: "x", tools: [SEARCH] });
+    expect(r).toMatchObject({ ok: true, json: { n: 1 } });
+    const starts = entries().filter(e => e.start);
+    // list, run (meets Figma, sends no prompt), list again, run.
+    expect(starts).toHaveLength(4);
+    expect(entries().filter(e => e.prompt)).toHaveLength(1);
+    const run = starts.at(-1);
+    expect(JSON.parse(run.argv[run.argv.indexOf("--settings") + 1]).deniedMcpServers).toContainEqual({ serverName: "claude.ai Figma" });
+    expect(run.argv[run.argv.indexOf("--disallowedTools") + 1].split(",")).toContain("mcp__claude_ai_Figma");
+    expect((await agent.connectorsState()).connectors.map((c: { server: string }) => c.server)).toContain("claude_ai_Figma");
   });
 
   it("ends the run when Claude Code offers the model a tool it was not given", async () => {
@@ -342,8 +408,29 @@ describe("a run against a fake claude", () => {
     expect(entries().some(e => e.end)).toBe(false);
   });
 
-  it("ends the run when the model calls a tool it was not given", async () => {
-    const { agent } = setup({ offer: [SEARCH], toolUses: [SEND], delayMs: 3_000 });
+  it("goes on when Claude Code refuses a tool the model guessed, and names the guess in the ledger", async () => {
+    const { agent } = setup({ offer: [SEARCH], toolUses: [SEND, SEARCH, "Bash"], answer: '{"found": 2}' });
+    const r = await agent.runAgent({ prompt: "x", tools: [SEARCH], tag: "brief" });
+    expect(r).toMatchObject({ ok: true, json: { found: 2 } });
+    expect(r.usage).toMatchObject({ toolCalls: 3, tools: [SEND, SEARCH, "Bash"], refused: [SEND, "Bash"] });
+    expect(agent.recentRuns()[0]).toMatchObject({ ok: true, tag: "brief", refused: [SEND, "Bash"] });
+  });
+
+  it("ends the run when a tool it was not given ran anyway", async () => {
+    const { agent, entries } = setup({ offer: [SEARCH], toolUses: [SEND], ranAnyway: true, delayMs: 3_000 });
+    const r = await agent.runAgent({ prompt: "x", tools: [SEARCH] });
+    expect(r).toMatchObject({ ok: false, code: "tool_violation" });
+    expect(r.error).toContain(SEND);
+    expect(entries().some(e => e.end)).toBe(false);
+  });
+
+  it("ends the run when Claude Code never answers a call to a tool it was not given", async () => {
+    const { agent } = setup({ offer: [SEARCH], toolUses: [SEND], noToolResult: true });
+    expect(await agent.runAgent({ prompt: "x", tools: [SEARCH] })).toMatchObject({ ok: false, code: "tool_violation" });
+  });
+
+  it("ends the run when a call to a tool it was not given has no id to answer", async () => {
+    const { agent } = setup({ offer: [SEARCH], toolUses: [SEND], toolUseIds: [""], delayMs: 3_000 });
     expect(await agent.runAgent({ prompt: "x", tools: [SEARCH] })).toMatchObject({ ok: false, code: "tool_violation" });
   });
 
@@ -381,6 +468,11 @@ describe("a run against a fake claude", () => {
   it("says why when claude dies before it answers", async () => {
     const { agent } = setup({ exitAtOnce: 1, stderr: "Not logged in · Please run /login\n" });
     expect(await agent.runAgent({ prompt: "x", tools: [] })).toMatchObject({ ok: false, code: "not_signed_in" });
+  });
+
+  it("never gives the warning for a blocked server as the reason a run failed", async () => {
+    const { agent } = setup({ exitAtOnce: 1, stderr: "Warning: claude.ai MCP servers blocked by enterprise policy: claude.ai Linear\nsomething else broke\n" });
+    expect(await agent.runAgent({ prompt: "x", tools: [] })).toMatchObject({ ok: false, code: "failed", error: "something else broke" });
   });
 
   it("lists Claude Code's own tools first, then the connectors, and why when it cannot", async () => {

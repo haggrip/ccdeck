@@ -23,7 +23,7 @@ import { selfPressAccepted, selfPressProps } from "../panel-press";
 
 interface Tool { name: string; title: string; readOnly: boolean }
 interface Connector { server: string; label: string; source: string; status: string; tools: Tool[] }
-interface Run { at: number; ok: boolean; code: string; tag: string; model: string; costUsd: number; durationMs: number; toolCalls: number; tools?: string[] }
+interface Run { at: number; ok: boolean; code: string; tag: string; model: string; costUsd: number; durationMs: number; toolCalls: number; tools?: string[]; refused?: string[] }
 interface ConnectorsState {
   ok: boolean; vetoed: boolean; listedAt: number; code: string; error: string;
   connectors: Connector[]; enabled: string[]; off: string[]; runs: Run[];
@@ -140,7 +140,7 @@ export default function ConnectorsSection() {
         : runs.map((r, i) => (
           <SettingRow key={`${r.at}-${i}`} as="div"
             name={`${new Date(r.at).toLocaleTimeString()}${r.tag ? ` · ${r.tag}` : ""}`}
-            note={[r.model, t("connectors.runs.tools", { count: r.toolCalls }), r.ok ? t("connectors.runs.ok") : t("connectors.runs.failed", { code: r.code }), ...(r.tools?.length ? [r.tools.join(", ")] : [])].join(" · ")}
+            note={[r.model, t("connectors.runs.tools", { count: r.toolCalls }), r.ok ? t("connectors.runs.ok") : t("connectors.runs.failed", { code: r.code }), ...(r.tools?.length ? [r.tools.join(", ")] : []), ...(r.refused?.length ? [t("connectors.runs.refused", { tools: r.refused.join(", ") })] : [])].join(" · ")}
             control={<span>{money(r.costUsd)}</span>} />
         ))}
     </SettingsGroup>

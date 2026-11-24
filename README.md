@@ -709,9 +709,9 @@ The connectors on your claude.ai account — Slack, Jira and Confluence, Linear,
 
 **What that means.** A run reads text other people wrote — Slack messages, Jira comments, pull requests — and such text can carry instructions. Each run is told to treat it as data and to change nothing it was not asked to, but with the shell or a sending tool on, a crafted message could still ask for commands on this machine or a message sent in your name. Switch off what the deck should not use.
 
-**What still holds.** A tool that is off is never offered to the model. A run allows only its own list (`--permission-mode dontAsk`, nobody to ask), so your own permission mode never applies to it, and a run that is offered or calls a tool outside its list is ended on the spot.
+**What still holds.** A tool that is off is never offered to the model, and a run that names its tools never connects the servers it has nothing from, so it doesn't see their instructions either. A run allows only its own list (`--permission-mode dontAsk`, nobody to ask), so your own permission mode never applies to it. A run that is offered a tool outside its list ends on the spot. If the model calls a tool it wasn't offered, Claude Code refuses it and the run goes on (the section names the refused tool); a run where such a tool ran anyway ends.
 
-**What it costs.** Each run uses your Claude plan, on Haiku unless a feature asks for another model, with a spending cap per run. The section shows the last runs: when, which feature, the model, the cost and which tools each called. Listing the connectors sends no prompt and costs nothing.
+**What it costs.** Each run uses your Claude plan, on Haiku unless a feature asks for another model, with a spending cap per run. The section shows the last runs: when, which feature, the model, the cost, which tools each called and which calls were refused. Listing the connectors sends no prompt and costs nothing.
 
 **What it keeps.** Nothing of what is said: the prompt reaches Claude Code on its standard input, never on its command line, no transcript is saved, and no prompt, answer or tool result goes to the event log, the deck's own log or the usage reports. The runs never appear on the board. `AGENTS_DECK_NO_AGENT=1` turns all of it off.
 
