@@ -21,13 +21,18 @@
 //     own engine (lan-control-local.mjs). A session run anywhere else —
 //     a terminal, a systemd service, Claude Remote Control — is refused, because
 //     the deck has no way into it that is not an injection of its own invention.
-//   - RATE-LIMITED per peer (RATE).
+//   - A NEW SESSION ONLY THE WAY THE PANEL STARTS ONE (`start`): Claude
+//     Code, in a folder that exists on this machine, launched by the Command
+//     Panel's own engine into the deck's own tmux, in Claude Code's default
+//     permission mode — exactly what the panel's New session does. Nothing but
+//     the folder is taken from the peer, and the folder only as a path.
+//   - RATE-LIMITED per peer (RATE), and a new session more tightly (START_RATE).
 //   - EVERY COMMAND IS LOGGED where the session runs (`createControlLog`): what,
 //     for which session, from which deck, when, and how it ended. The prompt's
 //     words are not kept, only its length.
 
 /** What a paired deck may ask. Nothing else is a command. */
-export const ACTIONS = Object.freeze(["prompt", "allow", "deny", "answer", "interrupt", "stop"]);
+export const ACTIONS = Object.freeze(["prompt", "allow", "deny", "answer", "interrupt", "stop", "start"]);
 /** The longest prompt one command carries, in characters. */
 export const MAX_PROMPT = 8_000;
 /** A session id as the deck's own rows carry one. */
@@ -37,6 +42,13 @@ export const MAX_CHOICE = 9;
 
 /** Per peer: at most `burst` commands in `burstMs`, and `perMinute` a minute. */
 export const RATE = Object.freeze({ burst: 3, burstMs: 5_000, perMinute: 20 });
+/** Per peer, for `start` on top of RATE: one new session in 10 s, 3 a minute. */
+export const START_RATE = Object.freeze({ burst: 1, burstMs: 10_000, perMinute: 3 });
+
+/** The longest folder path a `start` carries. */
+export const MAX_FOLDER = 1_024;
+/** A launch key, as the panel's launcher accepts one (terminal-sessions.mjs). */
+const LAUNCH_KEY = /^[A-Za-z0-9_-]{1,96}$/;
 
 /**
  * A command as this deck will run it, rebuilt field by field from what a peer
@@ -47,6 +59,17 @@ export function checkCommand(raw) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { ok: false, why: "bad command" };
   const action = raw.action;
   if (typeof action !== "string" || !ACTIONS.includes(action)) return { ok: false, why: "unknown action" };
+  if (action === "start") {
+    // A folder, as a path: absolute, or under the home folder (`~`, `~/…`),
+    // which the deck it runs on expands. No control characters at all.
+    if (typeof raw.cwd !== "string") return { ok: false, why: "no folder" };
+    const cwd = raw.cwd.trim();
+    if (!cwd) return { ok: false, why: "no folder" };
+    if (cwd.length > MAX_FOLDER || /[\u0000-\u001f\u007f-\u009f]/.test(cwd)) return { ok: false, why: "bad folder" };
+    if (!(cwd.startsWith("/") || cwd === "~" || cwd.startsWith("~/"))) return { ok: false, why: "bad folder" };
+    if (raw.key !== undefined && (typeof raw.key !== "string" || !LAUNCH_KEY.test(raw.key))) return { ok: false, why: "bad key" };
+    return { ok: true, command: { action, cwd, ...(raw.key ? { key: raw.key } : {}) } };
+  }
   if (typeof raw.sid !== "string" || !SESSION_ID.test(raw.sid)) return { ok: false, why: "bad session" };
   const command = { action, sid: raw.sid };
   if (action === "prompt") {
@@ -72,6 +95,7 @@ export function checkCommand(raw) {
  * either. `null` when it may, else why not.
  */
 export function stateRefuses(command, row) {
+  if (command.action === "start") return null;
   if (!row) return "no such session";
   if (row.state === "ended") return "session ended";
   const kind = row.waiting?.kind ?? null;
@@ -127,21 +151,23 @@ export const LOG_KEPT = 50;
 
 /**
  * Where the session runs, every command a paired deck sent, run or refused:
- * `{ at, from, fp, addr, action, sid, chars?, choice?, ok, why? }`. In memory,
+ * `{ at, from, fp, addr, action, sid, chars?, choice?, cwd?, ok, why? }` — for a
+ * `start`, the folder asked for and, once launched, the new session's id. In memory,
  * newest last; `onEntry` hears each one as it is written (the page's frame,
  * the deck's log line).
  */
 export function createControlLog({ now = Date.now, onEntry = null, kept = LOG_KEPT } = {}) {
   const entries = [];
   return {
-    write({ fp, from, addr, command, raw, ok, why }) {
+    write({ fp, from, addr, command, raw, ok, why, started = null }) {
       const action = command?.action ?? (typeof raw?.action === "string" && ACTIONS.includes(raw.action) ? raw.action : "unknown");
-      const sid = command?.sid ?? (typeof raw?.sid === "string" ? raw.sid.slice(0, 128) : "");
+      const sid = (typeof started === "string" && started ? started.slice(0, 128) : null) ?? command?.sid ?? (typeof raw?.sid === "string" ? raw.sid.slice(0, 128) : "");
       const entry = {
         at: now(), from: typeof from === "string" ? from.slice(0, 80) : "", fp: typeof fp === "string" ? fp.slice(0, 16) : "",
         addr: typeof addr === "string" ? addr.replace(/^::ffff:/, "") : "", action, sid,
         ...(command?.action === "prompt" ? { chars: command.text.length } : {}),
         ...(command?.action === "answer" ? { choice: command.choice } : {}),
+        ...(command?.action === "start" ? { cwd: command.cwd } : {}),
         ok: !!ok, ...(ok ? {} : { why: String(why ?? "refused").slice(0, 80) }),
       };
       entries.push(entry);

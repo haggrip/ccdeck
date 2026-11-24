@@ -654,3 +654,4 @@
 .sl-remote-control .rsc-stop { margin-left: auto; }
 .sl-remote-control .rsc-said { flex: 1 1 100%; font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--muted); }
 .sl-remote-control .rsc-said.bad { color: var(--err); }
+.sl-remote-control.sl-remote-start { padding-left: 12px; }

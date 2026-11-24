@@ -65,7 +65,7 @@ describe("the switch", () => {
 
 describe("a command", () => {
   it("is one of a fixed set, rebuilt field by field", () => {
-    expect(ACTIONS).toEqual(["prompt", "allow", "deny", "answer", "interrupt", "stop"]);
+    expect(ACTIONS).toEqual(["prompt", "allow", "deny", "answer", "interrupt", "stop", "start"]);
     expect(checkCommand({ action: "prompt", sid: SID, text: "hello", cmd: "rm -rf /", shell: true }))
       .toEqual({ ok: true, command: { action: "prompt", sid: SID, text: "hello" } });
     expect(checkCommand({ action: "allow", sid: SID, text: "ignored" })).toEqual({ ok: true, command: { action: "allow", sid: SID } });

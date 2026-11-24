@@ -28,7 +28,7 @@ import { checkCommand } from "./lan-control.mjs";
 export function createServe({
   settings, serverNow, myFp, inbound, learnCaller, keepManifest, manifestFrame, localAccounts, liveLogin, exportAccount,
   localCodex = null, exportCodex = null, localSessions = null, mayTalkTo = () => true, onError,
-  localControl = null, controlFrom = () => false, controlLimit = null, controlLog = null,
+  localControl = null, controlFrom = () => false, controlLimit = null, startLimit = null, controlLog = null,
 }) {
   /** Frames from a deck that finished the handshake AND that somebody here has
    *  accepted. Nothing reaches this before both, which is the whole point of
@@ -63,10 +63,16 @@ export function createServe({
         if (controlLimit && !controlLimit.take(ctx.peerFp)) { note({ ok: false, why: "too many" }); return ctx.send({ t: "control", ok: false, why: "too many" }); }
         const checked = checkCommand(msg.command);
         if (!checked.ok) { note({ ok: false, why: checked.why }); return ctx.send({ t: "control", ok: false, why: checked.why }); }
+        // A new session is held to its own, tighter rate on top of the one above.
+        if (checked.command.action === "start" && startLimit && !startLimit.take(ctx.peerFp)) {
+          note({ command: checked.command, ok: false, why: "too many" });
+          return ctx.send({ t: "control", ok: false, why: "too many" });
+        }
         if (!mayControl()) { note({ command: checked.command, ok: false, why: "not accepted" }); return ctx.send({ t: "control", ok: false, why: "not accepted" }); }
         const done = await localControl(checked.command);
-        note({ command: checked.command, ok: done.ok, why: done.why });
-        return ctx.send({ t: "control", ok: !!done.ok, ...(done.ok ? {} : { why: String(done.why ?? "refused").slice(0, 80) }) });
+        const started = done.ok && typeof done.sid === "string" && done.sid ? done.sid.slice(0, 128) : null;
+        note({ command: checked.command, ok: done.ok, why: done.why, started });
+        return ctx.send({ t: "control", ok: !!done.ok, ...(started ? { sid: started } : {}), ...(done.ok ? {} : { why: String(done.why ?? "refused").slice(0, 80) }) });
       }
       if (msg.t === "sessions") {
         // THIS DECK'S SESSIONS, READ-ONLY, to a deck past both checks above —
