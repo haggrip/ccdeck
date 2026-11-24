@@ -195,6 +195,10 @@ function buildIndex(): SettingsEntry[] {
       entryOf({ id: "integrations-add", section: "integrations", label: L("settings.search.connectTools") }),
       entryOf({ id: "integrations-connections", section: "integrations", label: L("settings.search.connections") }),
     ],
+    connectors: [
+      entryOf({ id: "connectors-list", section: "connectors", label: L("connectors.group.list"), words: ["connector", "tools", "bash", "shell", "slack", "linear", "confluence", "simplelocalize", "1password", "mcp", "claude.ai"] }),
+      entryOf({ id: "connectors-runs", section: "connectors", label: L("connectors.group.runs"), words: ["cost", "usage", "agent"] }),
+    ],
     data: [
       entryOf({ id: "tool-history-retention", section: "data", group: L("settings.tools.title"), label: L("settings.tools.keep") }),
       entryOf({ id: "tool-history-size", section: "data", group: L("settings.tools.title"), label: L("settings.tools.space") }),

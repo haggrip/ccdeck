@@ -129,7 +129,7 @@ describe("the nav", () => {
   it("lists the tabs in V4's order, with Experimental not among them", () => {
     const html = draw("general");
     const tabs = [...html.matchAll(/role="tab" id="settings-tab-([a-z]+)"/g)].map(m => m[1]);
-    expect(tabs).toEqual(["general", "appearance", "reading", "keyboard", "notifications", "sounds", "integrations", "data", "claude", "radar", "about"]);
+    expect(tabs).toEqual(["general", "appearance", "reading", "keyboard", "notifications", "sounds", "integrations", "connectors", "data", "claude", "radar", "about"]);
   });
 });
 
@@ -265,7 +265,7 @@ describe("each page's groups, in order", () => {
 describe("no setting the pages drew before went missing", () => {
   // The expected ids come from the search index, which lists every place a result
   // lands, so they are not typed from the markup they are checked against.
-  const SECTIONS: SettingsSection[] = ["general", "appearance", "reading", "keyboard", "notifications", "sounds", "integrations", "data", "claude", "radar", "about"];
+  const SECTIONS: SettingsSection[] = ["general", "appearance", "reading", "keyboard", "notifications", "sounds", "integrations", "connectors", "data", "claude", "radar", "about"];
   const expected = (section: SettingsSection) => SETTINGS_INDEX.filter(e => e.section === section && !isSectionEntry(e)).map(e => e.id);
   // Tool history draws its rows once the deck has answered how much it keeps, which a
   // static render cannot wait for: its ids are held to the component that draws them.

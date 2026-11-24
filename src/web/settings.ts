@@ -16,7 +16,7 @@ import { isApplePlatform } from "./platform";
 
 /** A section of Settings, in nav order. */
 export type SettingsSection =
-  | "general" | "appearance" | "reading" | "keyboard" | "notifications" | "sounds" | "integrations" | "data" | "claude" | "radar"
+  | "general" | "appearance" | "reading" | "keyboard" | "notifications" | "sounds" | "integrations" | "connectors" | "data" | "claude" | "radar"
   | "account" | "about";
 
 /** One section's nav entry: the word on its tab, and the line under its name
@@ -46,6 +46,9 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionEntry[] = [
   { id: "notifications", get label() { return t("settings.section.notifications.label"); }, get note() { return t("settings.section.notifications.note"); } },
   { id: "sounds", get label() { return t("settings.section.sounds.label"); }, get note() { return t("settings.section.sounds.note"); } },
   { id: "integrations", get label() { return t("settings.section.integrations.label"); }, get note() { return t("settings.section.integrations.note"); } },
+  // The person's claude.ai connectors, read through their own Claude Code
+  // (claude-agent.mjs): beside the trackers the deck connects itself.
+  { id: "connectors", get label() { return t("connectors.section.label"); }, get note() { return t("connectors.section.note"); } },
   { id: "data", get label() { return t("settings.section.data.label"); }, get note() { return t("settings.section.data.note"); } },
   { id: "claude", get label() { return t("settings.section.claude.label"); }, get note() { return t("settings.section.claude.note"); } },
   { id: "radar", get label() { return t("settings.section.radar.label"); }, get note() { return t("settings.section.radar.note"); } },
