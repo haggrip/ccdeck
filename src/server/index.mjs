@@ -216,6 +216,7 @@ import {
   handleTerminalStatus, handleTerminalTarget, handleTerminalProjects, terminalUpgradeOptions,
   handleEngineStatus, handleEngineAction,
 } from "./terminal-routes.mjs";
+import { handleTerminalTwins, handleTerminalTwinsClose } from "./resume-rebind-routes.mjs";
 import { installTerminalUpgrade } from "./terminal-socket.mjs";
 // Claude Code's own installer, run from the deck where a session pane or a
 // sign-in finds no `claude` (claude-install.mjs).
@@ -608,6 +609,9 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "POST" && url.pathname === "/api/terminal/claim")  return guard(handleTerminalClaim(req, res, terminal), res);
     if (req.method === "POST" && url.pathname === "/api/terminal/folder") return guard(handleTerminalFolder(req, res, terminal), res);
     if (req.method === "POST" && url.pathname === "/api/terminal/codex-updated") return guard(handleTerminalCodexUpdated(req, res, terminal), res);
+    // One conversation in two deck terminals, and closing the older (resume-rebind-routes.mjs).
+    if (req.method === "GET"  && url.pathname === "/api/terminal/twins") return guard(handleTerminalTwins(req, res), res);
+    if (req.method === "POST" && url.pathname === "/api/terminal/twins/close") return guard(handleTerminalTwinsClose(req, res), res);
     // The engine's install, from the page (engine-install.mjs): its state, an
     // install from the registry or from a file, a cancel and a remove.
     if (req.method === "GET"  && url.pathname === "/api/terminal/engine") return guard(handleEngineStatus(req, res, terminal), res);
