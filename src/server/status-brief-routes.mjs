@@ -17,6 +17,7 @@ import { deckDataDir } from "./deck-home.mjs";
 import { eventsSince } from "./event-ring.mjs";
 import { summarizeSessions } from "./session-summary.mjs";
 import { createStatusBrief } from "./status-brief.mjs";
+import { statusTodo } from "./status-todo-routes.mjs";
 // The shared contract: the user's own Claude Code, headless, read-only.
 import { agentVetoed, connectorsState, listConnectors, runAgent } from "./claude-agent.mjs";
 
@@ -38,6 +39,7 @@ function statusBrief() {
       const envelopes = eventsSince(0);
       return { rows: summarizeSessions(envelopes), envelopes };
     },
+    todo: statusTodo(),
     log: msg => console.warn(`[status-brief] ${msg}`),
   });
   return brief;

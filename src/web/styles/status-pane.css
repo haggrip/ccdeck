@@ -151,6 +151,32 @@
 .stp-pin-person[aria-pressed="true"] { color: var(--accent); }
 .stp-pin-person, .stp-hide-person { flex: none; }
 
+/* The live Todo list (StatusTodo.tsx): the box your words go to, the two
+   headings of what is open, and Recently closed folded under them. */
+.stp-todo { display: flex; flex-direction: column; gap: 12px; }
+.stp-say { display: flex; align-items: center; gap: 4px; }
+.stp-say-input { flex: 1 1 auto; }
+.stp-say-send { flex: none; }
+.stp-todo-item { align-items: flex-start; }
+.stp-todo-side { display: flex; flex: none; flex-direction: column; align-items: flex-end; gap: 2px; }
+.stp-due { color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.stp-due[data-overdue] { color: var(--err); }
+.stp-todo-item[data-overdue] .stp-kind { background: color-mix(in srgb, var(--err) 18%, transparent); color: var(--text); }
+.stp-todo-item[data-snoozed] .stp-link { opacity: var(--dim-off); }
+.stp-todo-item .stp-src { flex-wrap: wrap; column-gap: 0; }
+.stp-sep { white-space: nowrap; }
+.stp-sep::before { content: "·"; margin: 0 4px; }
+.stp-src > .stp-sep:first-child::before { content: none; margin: 0; }
+.stp-sep > svg { margin-left: 3px; vertical-align: -1px; }
+.stp-todo-done, .stp-todo-snooze, .stp-todo-wake { flex: none; }
+.stp-closed > summary { list-style: none; }
+.stp-closed > summary::-webkit-details-marker { display: none; }
+.stp-closed > summary::before { content: "▸"; margin-right: 4px; color: var(--muted); }
+.stp-closed[open] > summary::before { content: "▾"; }
+.stp-closed .stp-list { margin-top: 4px; }
+.stp-todo-item[data-closed] .stp-title { color: var(--muted); text-decoration: line-through; }
+.stp-todo-reopen { flex: none; margin-top: 2px; }
+
 /* Settings: a short form under the counts while the gear is pressed. */
 .stp-settings {
   display: flex;

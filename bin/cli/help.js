@@ -25,6 +25,10 @@ Commands:
   usage                    The active account's limits, every lane
   sessions                 What every session is doing, the ones waiting on
                            you first. --all adds the ended ones. Alias: ps
+  todo                     The Status pane's live Todo list. \`todo add <text>\`
+                           puts an item on it, linked to the Claude Code
+                           session it is run from; a URL in the text is its
+                           link. Nothing is posted anywhere else
   open                     Open the deck in a browser. Over SSH, print the
                            \`ssh -L\` line that opens it on your own computer
   tui                      A full-screen view of the accounts and the sessions

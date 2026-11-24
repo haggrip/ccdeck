@@ -13,6 +13,8 @@ import { autoDue, liveItems, localBrief, peopleShown, safeHref, type BriefView }
 import { StatusPaneView, countsLine } from "../components/StatusPane";
 import type { Row } from "../components/SessionList";
 import type { StatusBriefHandle } from "../use-status-brief";
+import type { StatusTodoHandle } from "../use-status-todo";
+import type { TodoView } from "../status-todo";
 import { railItems } from "../rail-items";
 import { resetLanguageForTest, t } from "../i18n";
 import { createStatusBrief } from "../../server/status-brief.mjs";
@@ -106,8 +108,20 @@ const VIEW: BriefView = {
 };
 
 const handle = (view: BriefView | null): StatusBriefHandle => ({ view, unreachable: false, refresh() {}, setSettings() {}, person() {} });
+// CHANGED ON PURPOSE (the live Todo list): Waiting on you and To do are drawn
+// from the deck's persistent list now, not from the last brief.
+const TODO: TodoView = {
+  ok: true, now: 2_000_000, keeper: { lastRunAt: null, lastCostUsd: null, error: null },
+  closed: [],
+  open: [
+    { id: "t_aaaaaa1", title: "schema", detail: "Which schema?", kind: "answer", origin: "deck", link: { kind: "session", sessionId: "ask", project: "api" }, state: "open", createdAt: 1, updatedAt: 1 },
+    { id: "t_aaaaaa2", title: "Alex · Review #12", kind: "review", origin: "brief", link: { kind: "pr", url: "https://github.com/o/r/pull/12" }, state: "open", createdAt: 2, updatedAt: 2 },
+    { id: "t_aaaaaa3", title: "API-231", kind: "todo", origin: "brief", link: { kind: "ticket", url: "https://x.atlassian.net/browse/API-231" }, state: "open", createdAt: 3, updatedAt: 3 },
+  ],
+};
+const todoHandle = (view: TodoView | null = TODO): StatusTodoHandle => ({ view, say() {}, act() {} });
 const draw = (over: Partial<Parameters<typeof StatusPaneView>[0]> = {}) => renderToStaticMarkup(createElement(StatusPaneView, {
-  rows: ROWS, now: 2_000_000, brief: handle(VIEW), pinned: false, onTogglePin() {}, besideInspector: false,
+  rows: ROWS, now: 2_000_000, brief: handle(VIEW), todo: todoHandle(), pinned: false, onTogglePin() {}, besideInspector: false,
   onOpenSession() {}, onClose() {}, ...over,
 }));
 
@@ -125,8 +139,9 @@ describe("the pane's markup", () => {
     const html = draw();
     expect(html).toMatch(/<a class="stp-link" href="https:\/\/github.com\/o\/r\/pull\/12" target="_blank" rel="noreferrer noopener"/);
     expect(html).toMatch(/<button type="button" class="stp-link" title="Show this session&#x27;s card">/);
-    // A session the deck lists live is said once: by its live row.
+    // The brief's own Waiting on you is the list's now: said once, from the list.
     expect(html.match(/Pick a schema/g)).toBeNull();
+    expect(html.match(/<span class="stp-title">[^<]*Review #12<\/span>/g)).toHaveLength(1);
     expect(html).not.toMatch(/href="(?!https:)/);
   });
 
@@ -166,6 +181,8 @@ describe("the pane's markup", () => {
     expect(new Set(classes)).toEqual(new Set([
       "glyph-btn stp-refresh", "glyph-btn stp-settings-btn", "glyph-btn stp-pin", "glyph-btn stp-close",
       "stp-link", "glyph-btn stp-pin-person", "glyph-btn stp-hide-person",
+      // The live Todo list's: send your words to it, snooze, and close an item.
+      "glyph-btn stp-say-send", "glyph-btn stp-todo-snooze", "glyph-btn stp-todo-done",
     ]));
   });
 });
