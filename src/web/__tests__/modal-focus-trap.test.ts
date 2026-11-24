@@ -313,7 +313,8 @@ describe("the deck's ten overlays", () => {
     // Quota history (#2121) shares the same trap and named close focus.
     // The thirtieth is a connected tracker's panel (#2178).
     // Explore integrations joins the same focus and dismissal contract.
-    expect(MODALS.length).toBe(33);
+    // The thirty-fourth asks before a card closes an older deck terminal.
+    expect(MODALS.length).toBe(34);
   });
 
   it("gives every dialog a boundary for the trap to hold Tab inside", () => {
@@ -415,7 +416,11 @@ describe("the deck's ten overlays", () => {
       // is walked by, and a door that opened it at Sounds lands the reader on
       // "Sounds", which says where they are. Its × is a Shift+Tab away.
       "SettingsModal.tsx",
-      "ShareAccountsDialog.tsx", "ToolAuditDrawer.tsx", "ToolAuditModal.tsx", "UsageHistoryModal.tsx",
+      "ShareAccountsDialog.tsx", "ToolAuditDrawer.tsx", "ToolAuditModal.tsx",
+      // Closing an older deck terminal names Cancel, as Clear does: the
+      // harmless answer takes the stray Enter.
+      "TwinTerminals.tsx",
+      "UsageHistoryModal.tsx",
     ]);
     expect(hook).toMatch(/\(focusRef\?\.current \?\? tabbablesIn\(dialogRef\.current\)\[0\]\)\?\.focus\(\)/);
   });

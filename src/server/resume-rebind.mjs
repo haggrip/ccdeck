@@ -183,6 +183,8 @@ export function twinGroups(panes, held) {
 // ---------------------------------------------------------------------------
 // tmux, spelled out (see the header for why not through tmux.mjs).
 
+/** tmux.mjs's override, read under the same name and by the same spelling. */
+const TMUX_ENV = "CCDECK_TMUX";
 const KNOWN_PLACES = ["/opt/homebrew/bin/tmux", "/usr/local/bin/tmux", "/usr/bin/tmux"];
 const NO_SERVER = /no server running|error connecting to|failed to connect to server|No such file or directory/i;
 
@@ -195,7 +197,7 @@ export function tmuxCandidates({ env = process.env, platform = process.platform,
     if (!bin.includes("/")) return pathLookup(bin, platform, { pathEnv, ...(exists ? { exists } : {}) });
     try { return (exists ?? (() => true))(bin) ? bin : null; } catch { return null; }
   };
-  const forced = env.CCDECK_TMUX?.trim();
+  const forced = env[TMUX_ENV]?.trim();
   if (forced) { const at = look(forced); return at ? [at] : []; }
   const out = [];
   for (const bin of ["tmux", ...KNOWN_PLACES, managed ?? managedTmuxPath(deckDataDir(platform, env))]) {

@@ -53,7 +53,7 @@ function TwinCloseConfirm({ onConfirm, onCancel }: { onConfirm: () => void; onCa
   // card. Presses inside are the dialog's own, not the node's.
   return createPortal(
     <div onClick={e => e.stopPropagation()} onPointerDown={e => e.stopPropagation()}>
-      <Dialog scrim={scrimPress} dialogRef={dialogRef} className="clear-confirm twin-confirm" labelledBy="twin-confirm-title">
+      <Dialog scrim={scrimPress} dialogRef={dialogRef} className="clear-confirm" labelledBy="twin-confirm-title">
         <header className="modal-head">
           <div className="modal-title">
             <span id="twin-confirm-title" className="modal-tool-name">{t("board.twins.title")}</span>

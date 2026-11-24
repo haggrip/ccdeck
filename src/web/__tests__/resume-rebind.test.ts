@@ -351,7 +351,7 @@ describe("the board after /resume inside a terminal", () => {
     expect(html).toContain("Open in 2 terminals");
     expect(html).toContain("Close the older terminal");
     // The question is asked first: no dialog is drawn until the button is pressed.
-    expect(html).not.toContain("twin-confirm");
+    expect(html).not.toContain("role=\"dialog\"");
   });
 
   it("reads the route's answer defensively", () => {

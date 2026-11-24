@@ -582,6 +582,9 @@ const CONTROLS: Control[] = [
   // edged in the row's own hue on the card's face, and in the text colour
   // under the pointer.
   { at: ".agent-node .stop-continue", states: [".agent-node .stop-continue:hover:not(:disabled)"], beds: ["--panel", "--bg-soft"] },
+  // Close the older terminal, at the end of a card's two-terminals row,
+  // edged in the row's Waiting hue, as Continue is in its row's.
+  { at: ".agent-node .twin-close", states: [".agent-node .twin-close:hover"], beds: ["--panel", "--bg-soft"] },
   // Radar's Clear history, armed for its second press. At rest it is a glyph
   // with no boundary; armed, its words and its edge take the error colour until
   // the press lands or focus leaves. The activity list's ground is mixed from

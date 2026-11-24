@@ -149,6 +149,7 @@
   /* A stopped session's Continue (#2193) keeps its colour change and loses
      the travel of its press. */
   .agent-node .stop-continue { transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease); }
+  .agent-node .twin-close { transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease); }
 
   /* Bubbles: the rise becomes the fade. Their status classes keep the colour
      that carried the meaning. */
