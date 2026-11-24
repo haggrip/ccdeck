@@ -454,18 +454,47 @@ function maybeResolveSessionName(payload) {
     .then(read => {
       if (!read) return;
       noteRecap(sid, read.recap);
-      const naming = read.naming;
-      if (!naming) return;
-      const sig = `${naming.name ?? ""}\u0000${naming.aiTitle ?? ""}`;
-      if (nameBySession.get(sid) === sig) return;
-      nameBySession.set(sid, sig);
-      pushEvent({
-        hook_event_name: "SessionNamed",
-        session_id: sid,
-        sessionName: naming.name ?? null,
-        sessionTitle: naming.aiTitle ?? null,
-      }, "internal");
+      noteNaming(sid, read.naming);
     }));
+}
+
+/** Tell the pages a session's naming, when it is not what they were last told. */
+function noteNaming(sid, naming) {
+  if (!naming) return;
+  const sig = `${naming.name ?? ""}\u0000${naming.aiTitle ?? ""}`;
+  if (nameBySession.get(sid) === sig) return;
+  nameBySession.set(sid, sig);
+  pushEvent({
+    hook_event_name: "SessionNamed",
+    session_id: sid,
+    sessionName: naming.name ?? null,
+    sessionTitle: naming.aiTitle ?? null,
+  }, "internal");
+}
+
+// A NAME THAT LANDS BETWEEN HOOK EVENTS. Claude names a session by appending a
+// line to its transcript — Claude Desktop's `custom-title` when it titles or
+// renames one, Claude Code's `ai-title`, `agent-name` and `/rename`'s
+// `custom-title`, and the deck's own rename (provider-session-name.mjs) — and
+// none of those fires a hook. Read only off hook events, the new name waited
+// for the session's next tool call or prompt: a resting session renamed in
+// Claude Desktop kept its old name on the board until someone typed into it.
+// The output watch already reads every recent transcript's new bytes between
+// hook events (resting ones too, every RECAP_WATCH_EVERY-th tick); a tail that
+// carries a naming record has the cursor fold it and says it, through the
+// same change gate as the hook path.
+const NAMING_MARKS = ['"custom-title"', '"ai-title"', '"agent-name"'];
+
+/** Exported for the suite: whether a tail of transcript text carries a naming record. */
+export function tailNamesSession(text) {
+  return typeof text === "string" && NAMING_MARKS.some(m => text.includes(m));
+}
+
+function onNamingTail(sid, text, path) {
+  if (!sid || !path || !tailNamesSession(text)) return;
+  readSessionNamingFromTranscript(path)
+    .then(read => { if (read) noteNaming(sid, read.naming); })
+    .catch(() => {});
 }
 
 // ─── The deck's own name for a session (internal #101) ──────────────────
@@ -566,6 +595,7 @@ function onActivityTail(sid, text) {
  *  activity line read the same bytes for different questions. */
 function onTranscriptTail(sid, text, path) {
   onRecapTail(sid, text, path);
+  onNamingTail(sid, text, path);
   onActivityTail(sid, text);
 }
 

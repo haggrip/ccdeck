@@ -103,7 +103,15 @@ function nameSummary(s, p) {
   const said = v => (typeof v === "string" ? v.trim() : "");
   if (said(p.sessionName)) s.sessionName = said(p.sessionName);
   if (said(p.sessionTitle)) s.sessionTitle = said(p.sessionTitle);
-  s.name = s.sessionName || s.sessionTitle || s.name;
+  // The deck's own name and the group's two titles: a string sets one, null
+  // clears it, and an event without the field leaves it (applySessionNamed).
+  for (const field of ["deckName", "groupName", "goalTitle"]) {
+    if (field in p) s[field] = said(p[field]) || null;
+  }
+  // sessionListName's order: the name typed in the deck, Claude's name or
+  // title, then the group's (typed, then the goal titler's). Worked out
+  // afresh, so clearing a name brings the next one back.
+  s.name = s.deckName || s.sessionName || s.sessionTitle || s.groupName || s.goalTitle || null;
 }
 
 /** Scanned facts can wait for a session, but cannot give it a provider, a
