@@ -15,6 +15,8 @@ import { useSingleKeyShortcuts } from "./use-single-key-shortcuts";
 import ToolAuditModal, { type ToolActivityView } from "./components/ToolAuditModal";
 import UsagePanel from "./components/UsagePanel";
 import MachinePanel from "./components/MachinePanel";
+import StatusPane from "./components/StatusPane";
+import { useStatusPane } from "./use-status-pane";
 import AccountsPanel from "./components/AccountsPanel";
 import AccountsSwitch, { type AccountSide } from "./components/AccountsSwitch";
 import AccountCapacityDialog from "./components/AccountCapacityDialog";
@@ -219,7 +221,10 @@ function Inner() {
   // other folds to its stripe, its stored flags untouched (one-side-column.ts).
   // Read here, ahead of every panel's presence; the open flags it decides on
   // are settled further down, once the selection and the stage are known.
-  const sides = useOneSideColumn({ left: leftPanel !== null, right: usagePanelOpen || machinePanelOpen, board: readView() !== "workspace" });
+  // The Status pane's open and pinned flags (use-status-pane.ts): the right
+  // column's top part, so it counts as that column being open.
+  const statusPane = useStatusPane();
+  const sides = useOneSideColumn({ left: leftPanel !== null, right: usagePanelOpen || machinePanelOpen || statusPane.open, board: readView() !== "workspace" });
   const { fold: sideFold, foldRef: sideFoldRef, raise: raiseSide } = sides;
   const rightFolded = useCallback(() => sideFoldRef.current.right, [sideFoldRef]);
   const raiseRight = useCallback(() => raiseSide("right"), [raiseSide]);
@@ -983,14 +988,16 @@ function Inner() {
   // (panel-place.css). A panel stays in it for its exit fade; one the stage
   // hides is out of it, as the Inspector the stage evicts is.
   const inRightCol = (shown: boolean, phase: PanelPhase) => (shown ? isMounted(phase) : phase === "leaving");
+  // The Status pane is drawn while it is open and its column is not folded.
+  const statusShown = statusPane.open && !sideFold.right;
   const rightCol = !phone && !inWorkspace
-    && (detailShown || inRightCol(usageRail.shown, usagePhase) || inRightCol(machineRail.shown, machinePhase));
+    && (detailShown || statusShown || inRightCol(usageRail.shown, usagePhase) || inRightCol(machineRail.shown, machinePhase));
   // Which side columns the reader has open, folded or not, now that the
   // selection and the stage are known: a change runs this render again before
   // it is drawn, with the fold it makes (one-side-column.ts).
   sides.settle({
     left: leftColumnWanted > 0,
-    right: !phone && (detailWanted || usageAsked.shown || machineAsked.shown),
+    right: !phone && (detailWanted || usageAsked.shown || machineAsked.shown || statusPane.open),
     board: !inWorkspace,
   });
 
@@ -1229,6 +1236,9 @@ function Inner() {
     openQuickOpen,
     feedbackUnread, openFeedbackConversations,
     inspectorOpen, toggleInspector,
+    // A folded right column reads closed, so a press brings it back.
+    statusPaneOpen: statusShown,
+    toggleStatusPane: () => (statusPane.open && sideFold.right ? raiseRight() : statusPane.toggle()),
   });
   /** A phone opens on Sessions, and a row there opens that session's pane when
    *  the deck has a terminal for it (the Command Panel is on), else the
@@ -1647,6 +1657,16 @@ function Inner() {
       {/* Both inside Workspace's side column, which is a track of the grid
           there with a part docked and nothing on the Board (SideColumn.tsx), so
           a panel never remounts when it docks, floats or the view switches. */}
+      {/* The Status pane: the column's first part, above Usage and This machine
+          (components/StatusPane.tsx, status-pane.css). Mounted only while it is
+          open, which is also what starts and stops its line to the deck. */}
+      {statusShown && (
+        <StatusPane rows={buildRows(stateRef.current, now, watchingSessions)} now={now}
+          pinned={statusPane.pinned} onTogglePin={statusPane.togglePin}
+          besideInspector={rightCol && detailShown}
+          sideWidth={inWorkspace && side.on ? side.width : 0}
+          onOpenSession={pickSession} onClose={() => statusPane.setOpen(false)} />
+      )}
       <SideColumn on={side.on} split={side.split} width={side.width} share={side.share} onWidth={side.setWidth} onShare={side.setShare}>
       {isMounted(usagePhase) && (
         <UsagePanel

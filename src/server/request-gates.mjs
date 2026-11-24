@@ -448,6 +448,9 @@ export const GUARDED_READS = new Set([
   // The ring folded to one row per session (#2183): each project's path and a
   // standing question's own words, which is the ring's secret in fewer bytes.
   "/api/sessions",
+  // The Status pane's brief: what the user's Slack, GitHub and Jira said, and
+  // the sessions' own words, summarised (status-brief-routes.mjs).
+  "/api/status-brief",
   "/api/claude-accounts",
   // Reveals the local machine's Codex profile roster, even though paths and
   // credentials are deliberately omitted from the response.

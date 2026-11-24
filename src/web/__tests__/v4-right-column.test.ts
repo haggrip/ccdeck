@@ -200,7 +200,9 @@ describe("App's wiring", () => {
 
   it("draws the column on a desktop Board only, while it holds a part", () => {
     expect(app).toMatch(/const inRightCol = \(shown: boolean, phase: PanelPhase\) => \(shown \? isMounted\(phase\) : phase === "leaving"\);/);
-    expect(app).toMatch(/const rightCol = !phone && !inWorkspace\s*&& \(detailShown \|\| inRightCol\(usageRail\.shown, usagePhase\) \|\| inRightCol\(machineRail\.shown, machinePhase\)\);/);
+    // CHANGED ON PURPOSE (the Status pane): the column's top part, which it
+    // holds while the pane is open and its column is not folded.
+    expect(app).toMatch(/const rightCol = !phone && !inWorkspace\s*&& \(detailShown \|\| statusShown \|\| inRightCol\(usageRail\.shown, usagePhase\) \|\| inRightCol\(machineRail\.shown, machinePhase\)\);/);
     expect(app).toContain('data-right-col={rightCol ? "" : undefined}');
   });
 

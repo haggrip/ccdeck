@@ -353,7 +353,9 @@ describe("App's wiring and the sheet", () => {
     // Inspector the reader has open, so a right column folded and brought back
     // comes back with its panels as they were.
     expect(app).toContain("const inspectorFold = useInspectorFold(!phone && detailWanted, { usage: usagePanelOpen, machine: machinePanelOpen });");
-    expect(app).toMatch(/const rightCol = !phone && !inWorkspace\s*&& \(detailShown \|\| inRightCol\(usageRail\.shown, usagePhase\) \|\| inRightCol\(machineRail\.shown, machinePhase\)\);/);
+    // CHANGED ON PURPOSE (the Status pane): the column's top part, which it
+    // holds while the pane is open and its column is not folded.
+    expect(app).toMatch(/const rightCol = !phone && !inWorkspace\s*&& \(detailShown \|\| statusShown \|\| inRightCol\(usageRail\.shown, usagePhase\) \|\| inRightCol\(machineRail\.shown, machinePhase\)\);/);
     expect(app).toContain('data-right-col={rightCol ? "" : undefined}');
     expect(app).not.toContain("data-fold-stack");
     // CHANGED ON PURPOSE (critique 3 review): with the Inspector open, an

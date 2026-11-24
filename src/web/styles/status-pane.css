@@ -1,0 +1,203 @@
+/* ---------------- the Status pane ----------------
+   components/StatusPane.tsx. On a desktop Board it is the first part of the
+   right column (panel-place.css), above Usage, This machine and the Inspector:
+   the column's ground, a 1px --line under it, its content's height. Pinned,
+   it keeps that height beside the Inspector; unpinned, the Inspector folds it
+   to its header row like the column's other panels ([data-fold="inspector"]).
+   Where the right column is no box (Workspace), it floats where Usage would,
+   in the same box Usage and This machine float in. On a phone it is a sheet
+   over Sessions, as they are (phone-sheet.css). */
+.status-pane {
+  position: fixed;
+  top: calc(var(--topbar-h) + 8px);
+  right: var(--rail-r);
+  z-index: 20;
+  box-sizing: border-box;
+  width: calc(360px + var(--ui-panel-increase, 0px));
+  max-height: calc(100vh - var(--topbar-h) - 24px - var(--status-room, 0px));
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-panel);
+  box-shadow: var(--shadow-overlay);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  color: var(--text);
+  text-align: left;
+}
+/* Workspace with its side column docked: beside the column, not over it. */
+.app[data-view="workspace"] .status-pane[style] { right: calc(var(--rail-r) + var(--stp-side, 0px)); }
+@media (min-width: 641px) {
+  .app[data-right-col] > .right-col > .status-pane {
+    position: relative;
+    inset: auto;
+    z-index: auto;
+    width: auto;
+    min-height: var(--pane-head-h);
+    max-height: 62%;
+    flex: 0 1 auto;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    border-radius: 0;
+    box-shadow: none;
+  }
+  /* Alone in the column, it has all of it. */
+  .app[data-right-col] > .right-col > .status-pane:last-child,
+  .app[data-right-col] > .right-col > .status-pane:has(+ .ws-side:empty:last-child) { max-height: none; border-bottom: 0; }
+}
+
+/* The header: the title, then refresh, settings, pin and the ×. Sticky against
+   the pane's own scrollport, as Usage's is. */
+.stp-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: var(--pane-head-h);
+  padding: 0 4px 0 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+.stp-heading {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  line-height: calc(20px + var(--ui-text-increase, 0px));
+  font-weight: 600;
+  color: var(--text);
+}
+.status-pane[data-fold="inspector"] .stp-head { padding: 0; border-bottom: 0; }
+.status-pane .stp-head .fold-row { display: flex; flex: 1 1 auto; align-self: stretch; min-width: 0; margin: 0; }
+.status-pane .glyph-btn { color: var(--muted); }
+.stp-pin[aria-pressed="true"] { color: var(--accent); }
+/* The refresh arrow turns while a brief is written: panel-glyph.css's rule
+   for every busy .glyph-btn, reduced motion included. */
+.stp-settings-btn[aria-expanded="true"] { color: var(--text); }
+.stp-refresh, .stp-close { flex: none; }
+
+.stp-body { display: flex; flex-direction: column; gap: 12px; padding: 10px 12px 12px; }
+.stp-counts { margin: 0; color: var(--text); font-variant-numeric: tabular-nums; }
+.stp-summary { display: flex; flex-direction: column; gap: 4px; }
+.stp-summary-text { margin: 0; color: var(--text); }
+.stp-meta, .stp-state, .stp-empty, .stp-muted { margin: 0; color: var(--muted); }
+.stp-flag { margin: 0; color: var(--warn); }
+
+.stp-section { display: flex; flex-direction: column; gap: 4px; }
+.stp-h {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: none;
+}
+.stp-n { color: var(--muted); font-weight: 400; font-variant-numeric: tabular-nums; }
+.stp-list { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.stp-people { gap: 4px; }
+.stp-item, .stp-person { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
+.stp-kind {
+  flex: none;
+  min-width: 52px;
+  margin-top: 3px;
+  padding: 0 5px;
+  border-radius: var(--r-tag);
+  background: var(--line-soft);
+  color: var(--muted);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  text-align: center;
+  white-space: nowrap;
+}
+.stp-item:is([data-kind="answer"], [data-kind="approve"], [data-kind="decide"]) .stp-kind { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--text); }
+.stp-item[data-kind="failed"] .stp-kind { background: color-mix(in srgb, var(--err) 18%, transparent); color: var(--text); }
+.stp-link {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  margin: 0 -4px;
+  padding: 2px 4px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  a.stp-link:hover, button.stp-link:hover { background: var(--line-soft); }
+}
+.stp-title { overflow-wrap: anywhere; }
+.stp-title b { font-weight: 600; }
+.stp-handle { color: var(--muted); }
+.stp-detail {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.stp-src { display: inline-flex; align-items: center; gap: 3px; color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); }
+.stp-person-acts { display: flex; flex: none; gap: 2px; margin-top: 2px; }
+.stp-pin-person[aria-pressed="true"] { color: var(--accent); }
+.stp-pin-person, .stp-hide-person { flex: none; }
+
+/* Settings: a short form under the counts while the gear is pressed. */
+.stp-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-ctl);
+  background: var(--panel-inset, var(--bg-soft));
+}
+.stp-field { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.stp-field .v4-select { max-width: 60%; }
+.stp-sources { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0; padding: 0; border: 0; }
+.stp-sources legend { padding: 0; margin-bottom: 4px; color: var(--muted); }
+.stp-check { display: inline-flex; align-items: center; gap: 4px; }
+.stp-hidden { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.stp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--line-soft);
+  color: var(--text);
+  font: inherit;
+}
+.stp-readonly { font-size: calc(11px + var(--ui-text-increase, 0px)); }
+
+/* A phone: a sheet over Sessions, as Usage and This machine are. */
+@media (max-width: 640px) {
+  .app.app.app .status-pane {
+    --sheet-bottom: calc(var(--dock-h) + env(safe-area-inset-bottom));
+    --sheet-room: calc(100dvh - var(--topbar-h) - var(--sheet-bottom) - 16px);
+    position: fixed;
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: var(--sheet-bottom);
+    z-index: 23;
+    width: 100%;
+    max-width: none;
+    max-height: min(80dvh, var(--sheet-room));
+    overscroll-behavior: contain;
+    border: 0;
+    border-top: 1px solid var(--line-soft);
+    border-radius: var(--r-overlay) var(--r-overlay) 0 0;
+  }
+  .status-pane .stp-pin { display: none; }
+}

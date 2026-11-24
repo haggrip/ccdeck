@@ -111,6 +111,12 @@ const SELECTS: Record<string, Array<{ name: string; chain: El[] }>> = {
     { name: "the new session's model", chain: [el("body"), el("div", ["anchored-popover", "ns-pop"]), el("div", ["ns-form"]), el("details", ["ns-options"]), el("div", ["ns-options-fields"]), el("label", ["ns-setting"]), el("span", ["v4-select"]), el("select", ["sm-select"])] },
     { name: "the new session's permissions", chain: [el("body"), el("div", ["anchored-popover", "ns-pop"]), el("div", ["ns-form"]), el("details", ["ns-options"]), el("div", ["ns-options-fields"]), el("label", ["ns-setting"]), el("span", ["v4-select"]), el("select", ["sm-select"])] },
   ],
+  // ADDED ON PURPOSE (the Status pane): its settings' model and interval, in
+  // the kit's Select, on the pane's inset ground.
+  "components/StatusPane.tsx": [
+    { name: "the Status brief's model", chain: [el("body"), el("div", ["app"]), el("div", ["right-col"]), el("aside", ["status-pane"]), el("div", ["stp-body"]), el("div", ["stp-settings"]), el("label", ["stp-field"]), el("span", ["v4-select"]), el("select", ["sm-select"])] },
+    { name: "how often the Status brief refreshes", chain: [el("body"), el("div", ["app"]), el("div", ["right-col"]), el("aside", ["status-pane"]), el("div", ["stp-body"]), el("div", ["stp-settings"]), el("label", ["stp-field"]), el("span", ["v4-select"]), el("select", ["sm-select"])] },
+  ],
   "components/JiraMovePopover.tsx": [{
     name: "where a Jira move sends the issues",
     chain: [el("body"), el("div", ["modal-backdrop"]), el("div", ["modal", "ig-modal"]), el("div", ["ig-body"]), el("div", ["jr-panel"]), el("div", ["ig-split"]), el("div", ["ig-list"]), el("div", ["jr-list-scroll"]), el("div", ["jr-board"]), el("div", ["anchored-popover", "jr-move-pop"]), el("form"), el("select")],
