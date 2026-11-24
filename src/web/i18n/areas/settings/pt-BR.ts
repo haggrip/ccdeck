@@ -207,7 +207,7 @@ const catalog: Catalog = {
   "settings.key.textLarger": "texto do terminal maior",
   "settings.key.textSmaller": "texto do terminal menor",
   "settings.key.textReset": "texto do terminal de volta a 100%",
-  "settings.key.rename": "renomear a sessão em foco na lista — ou clicar duas vezes nela",
+  "settings.key.rename": "renomear a sessão em foco na lista ou o cartão selecionado no quadro — ou clicar duas vezes no nome",
   "settings.key.clickPanel": "um cartão: abrir a sessão dele no Painel de Comando",
   "settings.key.clear": "limpar o ccdeck e o log de eventos — pergunta antes",
   "settings.key.fit": "ajustar todos os agentes à tela",
@@ -719,6 +719,13 @@ const catalog: Catalog = {
   "settings.account.preview.none": "Ainda não há configurações compartilhadas nesta conta. Publique as deste ccdeck e seus outros ccdecks poderão usá-las.",
   "settings.account.preview.same": "Este ccdeck já mostra as configurações compartilhadas.",
   "settings.account.preview.stale": "As configurações compartilhadas mudaram enquanto você olhava. Aqui estão elas de novo.",
+  "settings.goals.name": "Dar títulos aos grupos pelo objetivo",
+  "settings.goals.note": "O Haiku nomeia cada grupo do quadro a partir das suas sessões. Um título digitado por você sempre vence.",
+  "settings.goals.details": "Usa o seu próprio Claude Code, uma execução por vez: para um grupo novo e de novo quando uma sessão passa para outro ticket ou branch. No máximo 30 execuções por hora e 150 por dia. Lê os títulos, prompts e branch das sessões e pode ler os tickets, pull requests e threads do Slack mencionados por conectores somente leitura.",
+  "settings.goals.aria": "Dar títulos aos grupos pelo objetivo automaticamente",
+  "settings.goals.now": "Dar título a todos os grupos agora",
+  "settings.goals.queued": "Grupos na fila: {count}.",
+  "settings.search.kw.goal-titles": "objetivo, título, grupo, pasta, haiku, título automático, renomear, ticket",
 };
 
 export default catalog;

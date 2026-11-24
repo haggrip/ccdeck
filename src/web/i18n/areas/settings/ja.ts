@@ -616,7 +616,7 @@ const catalog: Catalog = {
   "settings.key.textLarger": "ターミナルの文字を大きく",
   "settings.key.textSmaller": "ターミナルの文字を小さく",
   "settings.key.textReset": "ターミナルの文字を 100% に戻す",
-  "settings.key.rename": "一覧でフォーカス中のセッションの名前を変更 — ダブルクリックでも可",
+  "settings.key.rename": "一覧でフォーカス中のセッション、またはボードで選択中のカードの名前を変更 — 名前のダブルクリックでも可",
   "settings.key.clickPanel": "カード：そのセッションをコマンドパネルで開く",
   "settings.section.account.label": "アカウント",
   "settings.section.account.note": "このマシンを ccdeck アカウントに接続し、他のマシンと設定を同期します。",
@@ -719,6 +719,13 @@ const catalog: Catalog = {
   "settings.account.preview.none": "このアカウントには共有設定がまだありません。この ccdeck の設定を公開すると、他の ccdeck が参加できます。",
   "settings.account.preview.same": "この ccdeck はすでに共有設定を表示しています。",
   "settings.account.preview.stale": "表示中に共有設定が変更されました。最新の内容を表示しています。",
+  "settings.goals.name": "グループに目的のタイトルを付ける",
+  "settings.goals.note": "Haikuがボード上の各グループにセッションから名前を付けます。入力したタイトルが常に優先されます。",
+  "settings.goals.details": "ご自身のClaude Codeを一度に1回ずつ使います。新しいグループのとき、そしてセッションが別のチケットやブランチに移ったときに実行します。1時間に最大30回、1日に最大150回です。セッションのタイトル、プロンプト、ブランチを読み、読み取り専用のコネクタで言及されたチケット、プルリクエスト、Slackスレッドを読むことがあります。",
+  "settings.goals.aria": "グループに目的のタイトルを自動で付ける",
+  "settings.goals.now": "すべてのグループに今すぐタイトルを付ける",
+  "settings.goals.queued": "キュー内のグループ: {count}",
+  "settings.search.kw.goal-titles": "目的, タイトル, グループ, フォルダ, 自動タイトル, 名前変更, チケット",
 };
 
 export default catalog;

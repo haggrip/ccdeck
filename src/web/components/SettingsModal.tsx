@@ -19,7 +19,7 @@
 import { useMediaQuery } from "../use-media-query";
 import { useT } from "../i18n";
 import LanguageSection from "./LanguageSection";
-import SessionRecoveryRow, { ContinueStoppedRow } from "./SessionRecoverySettings";
+import SessionRecoveryRow, { ContinueStoppedRow, GoalTitlesRow } from "./SessionRecoverySettings";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { Providers } from "../providers";
 import { focusedTabToFollow, isFindChord, sectionIndex, sectionsDrawn, settingsSections, type SettingsDoors, type SettingsSection } from "../settings";
@@ -334,6 +334,7 @@ export default function SettingsModal({
               {providers.claude && <SessionRecoveryRow provider="Claude" />}
               <SessionRecoveryRow provider="Codex" />
               {providers.claude && <ContinueStoppedRow />}
+              {providers.claude && <GoalTitlesRow />}
             </SessionsSection>
             <UpdatesSection autoRestart={restart.autoRestart} onToggleAutoRestart={restart.toggleAutoRestart} version={versionCheck.version} />
             <ElsewhereSection claudeHere={providers.claude} codexHere={providers.codex} singleKeys={singleKeys} doors={doors} />

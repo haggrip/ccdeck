@@ -63,7 +63,9 @@ describe("every switch is the one switch (#886)", () => {
     // and the preference is Settings › General's "Update when idle".
     // Twenty-four with Settings › Connectors, whose read-only tools are drawn
     // by one `role="switch"` from each connector's list.
-    expect(switches, "the twenty-four switches in the source").toBe(24);
+    // CHANGED ON PURPOSE: twenty-five with Settings › General's goal titles
+    // switch (SessionRecoverySettings.tsx GoalTitlesRow).
+    expect(switches, "the twenty-five switches in the source").toBe(25);
     expect(count(/className="switch(?: ap-auto-state)?"/g)).toBe(switches);
     expect(count(/<span className="switch-knob" \/>/g)).toBe(switches);
   });

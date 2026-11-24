@@ -27,6 +27,8 @@ import { blockedSessions, nextWaiting, prevWaiting } from "./ambient-counts";
 import { cardElement, cardOnScreen, isCanvasNodeElement } from "./canvas-node-element";
 import { hidePeek, peekedId, showPeek } from "./components/SessionPeek";
 import { canvasKeyIntent, shouldReleaseFocusOnEscape } from "./canvas-keys";
+import { requestCardRename } from "./card-rename";
+import { isRenameKey } from "./session-rename";
 import type { ClearSource } from "./clear-confirm";
 import { escapeOutcome, modalStack } from "./modal-dismiss";
 import { isUndoChord } from "./rearrange-undo";
@@ -575,6 +577,9 @@ export function useDeckShortcuts({
       // two gestures away. Delete and not Backspace: Backspace is the key a
       // stray press in the wrong place sends, and only the session list brings a card back.
       if (e.key === "Delete") removeSelectedRef.current();
+      // F2 names the selected card where it is drawn, as F2 names a row in
+      // the Sessions list (card-rename.ts); the card opens its own field.
+      if (isRenameKey(e) && primarySelectedIdRef.current && requestCardRename(primarySelectedIdRef.current)) e.preventDefault();
       // The only way in, now that the topbar's ☰ is gone — and a genuine
       // toggle, so the same key that opened the sidebar closes it again. The
       // panel's own ‹ is the second way out and calls the same setter; Escape

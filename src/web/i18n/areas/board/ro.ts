@@ -1087,6 +1087,18 @@ const catalog: Catalog = {
   "board.inspector.subagents.other": "{count} de subagenți",
   "board.chat.noTranscript": "ccdeck nu citește conversațiile {agent}, așa că aici nu există un chat de afișat. Prompturile și apelurile de instrumente sunt pe tablă.",
   "board.stage.eventsOnly": "{agent} rulează în propriul terminal, pe care ccdeck nu îl poate deschide aici. Prompturile, apelurile de instrumente și întrebările pentru tine apar pe tablă.",
+  "board.group.field": "Titlul grupului",
+  "board.group.reset": "Folosește titlul automat",
+  "board.group.rename": "Dă un titlu acestui grup",
+  "board.group.suggest": "Cere-i lui Haiku un titlu de obiectiv",
+  "board.group.why.off": "Titlurile de obiectiv sunt oprite în Setări.",
+  "board.group.why.named": "Ai dat deja un titlu acestui grup.",
+  "board.group.why.empty": "Încă nu există din ce să-i dai un titlu.",
+  "board.group.why.budget": "Limita pe oră pentru titluri a fost atinsă. Încearcă mai târziu.",
+  "board.group.why.unavailable": "Claude Code nu poate fi folosit aici pentru titluri.",
+  "board.group.why.failed": "Nu a venit niciun titlu. Încearcă din nou.",
+  "board.group.why.bad_request": "Acest grup nu poate primi un titlu.",
+  "board.group.why.network": "ccdeck nu a răspuns. Încearcă din nou.",
 };
 
 export default catalog;

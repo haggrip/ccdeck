@@ -616,7 +616,7 @@ const catalog: Catalog = {
   "settings.key.textLarger": "放大終端機文字",
   "settings.key.textSmaller": "縮小終端機文字",
   "settings.key.textReset": "終端機文字恢復為 100%",
-  "settings.key.rename": "重新命名清單中焦點所在的工作階段——也可按兩下",
+  "settings.key.rename": "重新命名清單中焦點所在的工作階段或看板上選取的卡片——也可按兩下名稱",
   "settings.key.clickPanel": "卡片：在指令面板中開啟其工作階段",
   "settings.section.account.label": "帳號",
   "settings.section.account.note": "將這台電腦連接到您的 ccdeck 帳號，並與您其他電腦上的設定保持同步。",
@@ -719,6 +719,13 @@ const catalog: Catalog = {
   "settings.account.preview.none": "這個帳號中還沒有共用設定。發佈這個 ccdeck 的設定後，您其他 ccdeck 就能加入。",
   "settings.account.preview.same": "這個 ccdeck 已使用共用設定。",
   "settings.account.preview.stale": "您檢視期間共用設定發生了變化，已重新顯示最新內容。",
+  "settings.goals.name": "依目標為群組命名",
+  "settings.goals.note": "Haiku 會依工作階段為看板上的每個群組命名。你輸入的標題一律優先。",
+  "settings.goals.details": "使用你自己的 Claude Code，一次執行一個：新群組出現時執行，工作階段改到其他工單或分支時再次執行。每小時最多 30 次，每天最多 150 次。它會讀取工作階段的標題、提示和分支，並可能透過唯讀連接器讀取其中提到的工單、拉取請求和 Slack 討論串。",
+  "settings.goals.aria": "自動依目標為群組命名",
+  "settings.goals.now": "立即為所有群組命名",
+  "settings.goals.queued": "排隊中的群組：{count}",
+  "settings.search.kw.goal-titles": "目標, 標題, 群組, 資料夾, 自動標題, 重新命名, 工單",
 };
 
 export default catalog;

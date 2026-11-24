@@ -616,7 +616,7 @@ const catalog: Catalog = {
   "settings.key.textLarger": "larger terminal text",
   "settings.key.textSmaller": "smaller terminal text",
   "settings.key.textReset": "terminal text back to 100%",
-  "settings.key.rename": "rename the focused session in the list — or double-click it",
+  "settings.key.rename": "rename the focused session in the list, or the selected card on the board — or double-click its name",
   "settings.key.clickPanel": "a card: open its session in the Command Panel",
   "settings.section.account.label": "Account",
   "settings.section.account.note": "Connect this deck to your ccdeck account, and keep its settings in step with your other machines.",
@@ -719,6 +719,13 @@ const catalog: Catalog = {
   "settings.account.preview.none": "There are no shared settings in this account yet. Publish this deck's, and your other decks can join them.",
   "settings.account.preview.same": "This deck already shows the shared settings.",
   "settings.account.preview.stale": "The shared settings changed while you were looking. Here they are again.",
+  "settings.goals.name": "Title groups by their goal",
+  "settings.goals.note": "Haiku names each group on the board from its sessions. A title you type always wins.",
+  "settings.goals.details": "Uses your own Claude Code, one run at a time: for a new group, and again when a session moves to another ticket or branch. At most 30 runs an hour and 150 a day. It reads the sessions’ titles, prompts and branch, and may read the tickets, pull requests and Slack threads they mention through read-only connectors.",
+  "settings.goals.aria": "Title groups by their goal automatically",
+  "settings.goals.now": "Title all groups now",
+  "settings.goals.queued": "Groups queued: {count}.",
+  "settings.search.kw.goal-titles": "goal, title, group, folder, haiku, auto title, rename, ticket",
 };
 
 export default catalog;

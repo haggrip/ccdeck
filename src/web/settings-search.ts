@@ -134,6 +134,7 @@ function buildIndex(): SettingsEntry[] {
     general: [
       entryOf({ id: "claude-session-recovery", claudeOnly: true, section: "general", group: sessions, label: L("settings.recover.claudeName") }),
       entryOf({ id: "claude-continue-stopped", claudeOnly: true, section: "general", group: sessions, label: L("settings.recover.continueName") }),
+      entryOf({ id: "goal-titles", claudeOnly: true, section: "general", group: sessions, label: L("settings.goals.name") }),
       entryOf({ id: "codex-session-recovery", section: "general", group: sessions, label: L("settings.recover.codexName") }),
       // No group: the row stands under no caption of its own (LanguageSection.tsx).
       entryOf({ id: "language", section: "general", label: L("settings.language.name") }),

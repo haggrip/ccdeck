@@ -626,7 +626,7 @@ const catalog: Catalog = {
   "settings.key.textLarger": "text mai mare în terminal",
   "settings.key.textSmaller": "text mai mic în terminal",
   "settings.key.textReset": "textul din terminal înapoi la 100%",
-  "settings.key.rename": "redenumește sesiunea cu focus din listă — sau dă dublu clic pe ea",
+  "settings.key.rename": "redenumește sesiunea cu focus din listă sau cardul selectat de pe tablă — sau dă dublu clic pe numele lui",
   "settings.key.clickPanel": "un card: deschide-i sesiunea în Panoul de comenzi",
   "settings.section.account.label": "Cont",
   "settings.section.account.note": "Conectează acest ccdeck la contul tău ccdeck și păstrează setările sincronizate cu celelalte computere ale tale.",
@@ -729,6 +729,13 @@ const catalog: Catalog = {
   "settings.account.preview.none": "Nu există încă setări partajate în acest cont. Publică-le pe cele ale acestui ccdeck și celelalte ccdeck-uri ale tale se pot alătura.",
   "settings.account.preview.same": "Acest ccdeck arată deja setările partajate.",
   "settings.account.preview.stale": "Setările partajate s-au schimbat cât te uitai. Iată-le din nou.",
+  "settings.goals.name": "Titluri de grup după obiectiv",
+  "settings.goals.note": "Haiku numește fiecare grup de pe tablă după sesiunile lui. Un titlu scris de tine câștigă mereu.",
+  "settings.goals.details": "Folosește propriul tău Claude Code, câte o rulare pe rând: pentru un grup nou și din nou când o sesiune trece la alt tichet sau branch. Cel mult 30 de rulări pe oră și 150 pe zi. Citește titlurile, prompturile și branch-ul sesiunilor și poate citi tichetele, pull request-urile și firele Slack menționate, prin conectori doar pentru citire.",
+  "settings.goals.aria": "Titluri de grup automate după obiectiv",
+  "settings.goals.now": "Dă titluri tuturor grupurilor acum",
+  "settings.goals.queued": "Grupuri în coadă: {count}.",
+  "settings.search.kw.goal-titles": "obiectiv, titlu, grup, dosar, haiku, titlu automat, redenumire, tichet",
 };
 
 export default catalog;

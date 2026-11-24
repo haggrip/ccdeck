@@ -616,7 +616,7 @@ const catalog: Catalog = {
   "settings.key.textLarger": "größerer Terminaltext",
   "settings.key.textSmaller": "kleinerer Terminaltext",
   "settings.key.textReset": "Terminaltext zurück auf 100 %",
-  "settings.key.rename": "die fokussierte Sitzung in der Liste umbenennen — oder doppelklicken",
+  "settings.key.rename": "die fokussierte Sitzung in der Liste oder die ausgewählte Karte auf dem Board umbenennen — oder ihren Namen doppelklicken",
   "settings.key.clickPanel": "eine Karte: ihre Sitzung im Command Panel öffnen",
   "settings.section.account.label": "Konto",
   "settings.section.account.note": "Verbinde dieses ccdeck mit deinem ccdeck-Konto und halte seine Einstellungen mit deinen anderen Rechnern im Gleichklang.",
@@ -719,6 +719,13 @@ const catalog: Catalog = {
   "settings.account.preview.none": "In diesem Konto gibt es noch keine geteilten Einstellungen. Veröffentliche die dieses ccdeck, dann können deine anderen ccdecks sie übernehmen.",
   "settings.account.preview.same": "Dieses ccdeck zeigt bereits die geteilten Einstellungen.",
   "settings.account.preview.stale": "Die geteilten Einstellungen haben sich geändert, während du geschaut hast. Hier sind sie noch einmal.",
+  "settings.goals.name": "Gruppen nach ihrem Ziel benennen",
+  "settings.goals.note": "Haiku benennt jede Gruppe auf dem Board nach ihren Sitzungen. Ein von dir eingegebener Titel hat immer Vorrang.",
+  "settings.goals.details": "Nutzt dein eigenes Claude Code, ein Lauf nach dem anderen: für eine neue Gruppe und erneut, wenn eine Sitzung zu einem anderen Ticket oder Branch wechselt. Höchstens 30 Läufe pro Stunde und 150 pro Tag. Es liest Titel, Prompts und Branch der Sitzungen und kann erwähnte Tickets, Pull Requests und Slack-Threads über schreibgeschützte Connectoren lesen.",
+  "settings.goals.aria": "Gruppen automatisch nach ihrem Ziel benennen",
+  "settings.goals.now": "Alle Gruppen jetzt benennen",
+  "settings.goals.queued": "Gruppen in der Warteschlange: {count}.",
+  "settings.search.kw.goal-titles": "Ziel, Titel, Gruppe, Ordner, Haiku, automatischer Titel, umbenennen, Ticket",
 };
 
 export default catalog;

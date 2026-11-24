@@ -1052,6 +1052,18 @@ const catalog: Catalog = {
   "board.inspector.subagents.other": "서브에이전트 {count}개",
   "board.chat.noTranscript": "ccdeck는 {agent} 대화를 읽지 않으므로 여기에 표시할 채팅이 없습니다. 프롬프트와 도구 호출은 보드에 표시됩니다.",
   "board.stage.eventsOnly": "{agent}는 자체 터미널에서 실행되며 ccdeck는 여기에서 열 수 없습니다. 프롬프트, 도구 호출, 사용자에게 묻는 질문은 보드에 표시됩니다.",
+  "board.group.field": "그룹 제목",
+  "board.group.reset": "자동 제목 사용",
+  "board.group.rename": "이 그룹에 제목 붙이기",
+  "board.group.suggest": "Haiku에게 목표 제목 요청",
+  "board.group.why.off": "목표 제목이 설정에서 꺼져 있습니다.",
+  "board.group.why.named": "이미 이 그룹에 제목을 붙였습니다.",
+  "board.group.why.empty": "아직 제목을 만들 내용이 없습니다.",
+  "board.group.why.budget": "목표 제목의 시간당 한도에 도달했습니다. 나중에 다시 시도하세요.",
+  "board.group.why.unavailable": "여기서는 목표 제목에 Claude Code를 사용할 수 없습니다.",
+  "board.group.why.failed": "제목이 돌아오지 않았습니다. 다시 시도하세요.",
+  "board.group.why.bad_request": "이 그룹에는 제목을 붙일 수 없습니다.",
+  "board.group.why.network": "ccdeck가 응답하지 않았습니다. 다시 시도하세요.",
 };
 
 export default catalog;

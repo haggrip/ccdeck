@@ -47,6 +47,7 @@
 @import "./styles/tool-bursts.css";              /* floating tool bursts */
 @import "./styles/session-list.css";             /* the session list */
 @import "./styles/session-rename.css";           /* naming a session in place: header, list row, Inspector */
+@import "./styles/group-titles.css";            /* a group's goal title, and naming groups and cards on the board */
 @import "./styles/phone-board.css";              /* a phone's Board: the stack of session cards */
 @import "./styles/detail-sections.css";          /* the detail panel's hero and sections, prompt history, tool rows */
 @import "./styles/dialogs.css";                  /* the tool, clear, shortcuts, what's-new and session-end dialogs */

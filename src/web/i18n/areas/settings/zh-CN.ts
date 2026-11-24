@@ -616,7 +616,7 @@ const catalog: Catalog = {
   "settings.key.textLarger": "放大终端文字",
   "settings.key.textSmaller": "缩小终端文字",
   "settings.key.textReset": "终端文字恢复为 100%",
-  "settings.key.rename": "重命名列表中焦点所在的会话——也可双击",
+  "settings.key.rename": "重命名列表中焦点所在的会话或看板上选中的卡片——也可双击名称",
   "settings.key.clickPanel": "卡片：在命令面板中打开其会话",
   "settings.section.account.label": "账号",
   "settings.section.account.note": "将这台电脑连接到您的 ccdeck 账号，并与您其他电脑上的设置保持同步。",
@@ -719,6 +719,13 @@ const catalog: Catalog = {
   "settings.account.preview.none": "此账号中还没有共享设置。发布此 ccdeck 的设置后，您其他 ccdeck 就能加入。",
   "settings.account.preview.same": "此 ccdeck 已使用共享设置。",
   "settings.account.preview.stale": "您查看期间共享设置发生了变化，已重新显示最新内容。",
+  "settings.goals.name": "按目标为分组命名",
+  "settings.goals.note": "Haiku 根据会话为看板上的每个分组命名。你输入的标题始终优先。",
+  "settings.goals.details": "使用你自己的 Claude Code，每次运行一个：新分组出现时运行，会话转到其他工单或分支时再次运行。每小时最多 30 次，每天最多 150 次。它读取会话的标题、提示和分支，并可能通过只读连接器读取其中提到的工单、拉取请求和 Slack 线程。",
+  "settings.goals.aria": "自动按目标为分组命名",
+  "settings.goals.now": "立即为所有分组命名",
+  "settings.goals.queued": "排队中的分组：{count}",
+  "settings.search.kw.goal-titles": "目标, 标题, 分组, 文件夹, 自动标题, 重命名, 工单",
 };
 
 export default catalog;

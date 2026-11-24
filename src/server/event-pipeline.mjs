@@ -44,6 +44,7 @@ import { outputWatch, touchSession } from "./session-tracking.mjs";
 import { usageDay } from "./usage-day.mjs";
 // What the deck learns about a session that its hooks never say, read off the
 // transcript and sent back through pushEvent — see session-enrichment.mjs.
+import { noteGroupEvent } from "./group-title-route.mjs";
 import { knownModelId, maybeAnnounceDeckName, maybeResolveContext, maybeResolveModel, maybeResolveSessionName, maybeResolveUsage } from "./session-enrichment.mjs";
 // The Codex half: a session's rollout, found by id — see codex-enrichment.mjs.
 import { maybeResolveCodex } from "./codex-enrichment.mjs";
@@ -282,6 +283,9 @@ export function pushEvent(raw, source, opts = {}) {
   if (!opts.replay && (source === "hook" || source === "codex") && raw && typeof raw === "object" && !isEventOnly(raw.provider)) {
     maybeAnnounceDeckName(raw, source === "codex" || raw.provider === "codex" ? "codex" : "claude");
   }
+  // The board's group titles, the same once-per-run tell, and the goal
+  // titler's ear for a session that said something (group-title-route.mjs).
+  noteGroupEvent(raw, source, opts);
 
   // Kick off async transcript scans. Model and usage are both re-read
   // periodically (throttled to 2.5s per session) so the cost columns track

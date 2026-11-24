@@ -1052,6 +1052,18 @@ const catalog: Catalog = {
   "board.inspector.subagents.other": "{count} subagentes",
   "board.chat.noTranscript": "O ccdeck não lê as conversas do {agent}, então não há chat para mostrar aqui. Os prompts e as chamadas de ferramentas ficam no quadro.",
   "board.stage.eventsOnly": "O {agent} roda no próprio terminal, e o ccdeck não consegue abri-lo aqui. Os prompts, as chamadas de ferramentas e as perguntas para você aparecem no quadro.",
+  "board.group.field": "Título do grupo",
+  "board.group.reset": "Usar o título automático",
+  "board.group.rename": "Dar título a este grupo",
+  "board.group.suggest": "Pedir ao Haiku um título de objetivo",
+  "board.group.why.off": "Os títulos de objetivo estão desligados nas configurações.",
+  "board.group.why.named": "Você já deu um título a este grupo.",
+  "board.group.why.empty": "Ainda não há de onde tirar um título.",
+  "board.group.why.budget": "O limite por hora de títulos foi atingido. Tente mais tarde.",
+  "board.group.why.unavailable": "O Claude Code não está disponível aqui para os títulos.",
+  "board.group.why.failed": "Nenhum título voltou. Tente de novo.",
+  "board.group.why.bad_request": "Este grupo não pode receber título.",
+  "board.group.why.network": "O ccdeck não respondeu. Tente de novo.",
 };
 
 export default catalog;

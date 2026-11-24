@@ -4,6 +4,7 @@ import { SettingRow } from "./SettingsParts";
 import { useT, type TFunction } from "../i18n";
 import { useOptimisticSwitch } from "../use-optimistic-switch";
 import { refuseSave, setSettingsFailure } from "../settings-failure";
+import { goalTitleReasonKey, requestAllGoalTitles } from "../group-rename";
 
 /** One switch over one boolean in /api/prefs: what it reads as, saving it, and
  *  what went wrong. `fallback` is the server's default, used when the answer
@@ -79,6 +80,37 @@ export function ContinueStoppedRow() {
     <SettingRow settingId="claude-continue-stopped" name={t("settings.recover.continueName")} note={t("settings.recover.continueNote")} details={t("settings.recover.continueDetails")} control={
       <button type="button" className="switch" role="switch" aria-label={t("settings.recover.continueAria")} aria-checked={pref.enabled} {...selfPressProps(false, !pref.ready)} onClick={pref.change}><span className="switch-knob" /></button>
     } />
+    {pref.error && <p role="alert">{pref.error}</p>}
+  </>;
+}
+
+/** Title the board's groups by their goal (src/server/goal-titler.mjs): ON,
+ *  the server's default (deck-prefs.mjs `goalTitles`). Claude's, last in the
+ *  Sessions group, since it runs through the person's own Claude Code. Its
+ *  Details say what it reads and how often it may run, which is what the
+ *  reader weighs; the button titles every group on the board now. */
+export function GoalTitlesRow() {
+  const t = useT();
+  const pref = usePrefSwitch("goalTitles", true, t);
+  const [said, setSaid] = useState("");
+  const [busy, setBusy] = useState(false);
+  const titleAll = async () => {
+    if (busy) return;
+    setBusy(true);
+    const res = await requestAllGoalTitles();
+    setBusy(false);
+    setSaid(res.ok ? t("settings.goals.queued", { count: res.queued }) : t(goalTitleReasonKey(res.reason)));
+  };
+  return <>
+    <SettingRow settingId="goal-titles" name={t("settings.goals.name")} note={t("settings.goals.note")} details={t("settings.goals.details")} control={
+      <button type="button" className="switch" role="switch" aria-label={t("settings.goals.aria")} aria-checked={pref.enabled} {...selfPressProps(false, !pref.ready)} onClick={pref.change}><span className="switch-knob" /></button>
+    } />
+    {pref.enabled && (
+      <p className="settings-goal-titles-now">
+        <button type="button" className="btn" aria-busy={busy || undefined} onClick={() => void titleAll()}>{t("settings.goals.now")}</button>
+        {said && <span role="status"> {said}</span>}
+      </p>
+    )}
     {pref.error && <p role="alert">{pref.error}</p>}
   </>;
 }

@@ -1052,6 +1052,18 @@ const catalog: Catalog = {
   "board.inspector.subagents.other": "{count} subagents",
   "board.chat.noTranscript": "ccdeck doesn’t read {agent} conversations, so there is no chat to show here. Its prompts and tool calls are on the board.",
   "board.stage.eventsOnly": "{agent} runs in its own terminal, and ccdeck can’t open it here. Its prompts, tool calls and questions for you show on the board.",
+  "board.group.field": "Group title",
+  "board.group.reset": "Use the automatic title",
+  "board.group.rename": "Title this group",
+  "board.group.suggest": "Ask Haiku for a goal title",
+  "board.group.why.off": "Goal titles are turned off in Settings.",
+  "board.group.why.named": "You already titled this group.",
+  "board.group.why.empty": "Nothing to title it from yet.",
+  "board.group.why.budget": "The hourly limit for goal titles is reached. Try later.",
+  "board.group.why.unavailable": "Claude Code can’t be reached for goal titles here.",
+  "board.group.why.failed": "No title came back. Try again.",
+  "board.group.why.bad_request": "This group can’t be titled.",
+  "board.group.why.network": "ccdeck didn’t answer. Try again.",
 };
 
 export default catalog;

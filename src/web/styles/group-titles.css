@@ -1,0 +1,91 @@
+/* ── A group's goal title, and naming in place on the board ─────────────────
+   A group on the board is labelled by what its session is FOR once it has a
+   goal title (group-titles.mjs): a person's, else the goal titler's. The goal
+   takes the reading ink, a step up from the folder's --muted, because it is
+   now the answer to "what is this"; the folder follows it in --muted at the
+   qualifiers' weight, so where the session runs is still said, second. */
+.cluster-label[data-goal] {
+  color: var(--text);
+}
+.cluster-label-folder {
+  font-weight: 400;
+  color: var(--muted);
+}
+/* Far out, the pill says the goal alone: at the overview distance the board
+   is a map, and the folder is in the tooltip. */
+.canvas-wrap[data-lod="overview"] .cluster-label-folder { display: none; }
+
+/* THE PENCIL inside a group's label, after its words (SessionClusters.tsx).
+   A label that can be titled lays out as a row: its words in one span that
+   takes the ellipsis, then the pencil, which is never what gets cut off. The
+   pencil keeps its room at rest, so nothing moves when it shows; hidden, it
+   takes no press, and the label's own press (zoom to the session) is the
+   whole of it. Shown under the pointer, and while the label has focus. */
+.cluster-label[data-titled] {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.cluster-label[data-titled] .cluster-label-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cluster-label-edit {
+  flex: none;
+  display: inline-flex;
+  color: var(--muted);
+  opacity: 0;
+  pointer-events: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  .cluster-label:hover .cluster-label-edit {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .cluster-label .cluster-label-edit:hover { color: var(--text); }
+}
+.cluster-label:focus .cluster-label-edit {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* The field in the pill's place: the pill's spot and 1× scale, a 260px field
+   with its two glyphs, over the board and taking the pointer back from the
+   layer that lets it through. */
+.cluster-title-edit {
+  display: block;
+  width: 300px;
+  pointer-events: auto;
+}
+.sn-field[data-place="group"] { flex-wrap: wrap; }
+.sn-field[data-place="group"] .sn-input,
+.sn-field[data-place="card"] .sn-input {
+  height: 22px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  font-weight: 500;
+}
+.sn-field[data-place="group"] .sn-error {
+  padding: 2px 6px;
+  border-radius: var(--r-ctl);
+  background: var(--panel);
+}
+.sn-field .sn-suggest { flex: none; color: var(--accent); }
+.sn-field .sn-suggest[aria-busy="true"] { cursor: progress; opacity: 0.6; }
+
+/* A card's name, named in place: the field takes the name's place on the
+   head (AgentNode.tsx), opened by a double-click on the name or F2. */
+.head .title > .sn-field[data-place="card"] { flex: 1 1 auto; }
+
+
+/* Settings › Sessions: the button under the goal titles' switch, and the line
+   that says how many groups it queued. */
+.settings-goal-titles-now {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+}

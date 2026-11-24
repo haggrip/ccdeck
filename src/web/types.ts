@@ -303,6 +303,13 @@ export interface AgentNodeData {
    *  files (session-deck-names.mjs). Wins over the provider's name until the
    *  reader clears it. */
   deckName?: string;
+  /** The title a person gave the session's GROUP on the board — what the
+   *  session is for (src/server/group-titles.mjs). Drawn over the group in
+   *  place of the folder, and over `goalTitle`, until they clear it. */
+  groupName?: string;
+  /** The goal titler's few words for the group (src/server/goal-titler.mjs):
+   *  drawn while no person has named it. */
+  goalTitle?: string;
   /** The provider's own name for the session (/rename, `--name`, Claude
    *  Code's slug), as the transcript last said it: what `sessionName` reads
    *  when the deck has no name of its own, and what a cleared name gives back. */
@@ -734,6 +741,11 @@ export interface HookPayload {
    *  or null once they cleared it (internal #101). Absent says nothing, so the
    *  transcript's own naming never clears or replaces it. */
   deckName?: string | null;
+  /** On `SessionNamed`: the title a person gave the session's group on the
+   *  board, or null once cleared; and the goal titler's title, or null. Absent
+   *  says nothing about either (src/server/group-titles.mjs). */
+  groupName?: string | null;
+  goalTitle?: string | null;
   /** Claude-only, on the synthetic `SessionRecapped`: Claude Code's recap as the
    *  transcript last showed it, or null once a later turn has retired it. */
   recap?: SessionRecap | null;

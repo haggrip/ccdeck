@@ -1052,6 +1052,18 @@ const catalog: Catalog = {
   "board.inspector.subagents.other": "{count} sous-agents",
   "board.chat.noTranscript": "ccdeck ne lit pas les conversations de {agent} : il n’y a donc pas de chat à afficher ici. Ses prompts et ses appels d’outils sont sur le tableau.",
   "board.stage.eventsOnly": "{agent} tourne dans son propre terminal, que ccdeck ne peut pas ouvrir ici. Ses prompts, ses appels d’outils et ses questions pour toi apparaissent sur le tableau.",
+  "board.group.field": "Titre du groupe",
+  "board.group.reset": "Utiliser le titre automatique",
+  "board.group.rename": "Donner un titre à ce groupe",
+  "board.group.suggest": "Demander un titre d’objectif à Haiku",
+  "board.group.why.off": "Les titres d’objectif sont désactivés dans les réglages.",
+  "board.group.why.named": "Vous avez déjà donné un titre à ce groupe.",
+  "board.group.why.empty": "Rien pour en tirer un titre pour l’instant.",
+  "board.group.why.budget": "La limite horaire des titres est atteinte. Réessayez plus tard.",
+  "board.group.why.unavailable": "Claude Code n’est pas joignable ici pour les titres.",
+  "board.group.why.failed": "Aucun titre n’est revenu. Réessayez.",
+  "board.group.why.bad_request": "Ce groupe ne peut pas recevoir de titre.",
+  "board.group.why.network": "ccdeck n’a pas répondu. Réessayez.",
 };
 
 export default catalog;

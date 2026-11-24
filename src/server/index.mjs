@@ -161,6 +161,10 @@ import { handlePrefsGiveBack, handlePrefsRead, handlePrefsWrite } from "./prefs-
 // session-name-route.mjs and session-deck-names.mjs.
 import { announceKeptNames, handleSessionNameWrite } from "./session-name-route.mjs";
 import { loadDeckNames } from "./session-deck-names.mjs";
+// The board's group titles: a person's, and the goal titler's (Haiku through
+// the connectors bridge) — see group-title-route.mjs and goal-titler.mjs.
+import { announceKeptGroupTitles, connectGoalTitler, handleGoalTitleRequest, handleGoalTitleStatus, handleGroupTitleWrite } from "./group-title-route.mjs";
+import { startGoalTitler } from "./goal-titler-boot.mjs";
 // Usage reports and the feedback dialog (#1853). The requests to
 // api.ccdeck.dev are made in reports.mjs, never in this file.
 import {
@@ -338,6 +342,10 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
   // and told to the sessions the replay put back — see announceKeptNames.
   await loadDeckNames();
   announceKeptNames(eventsSince(0));
+  // The groups' titles the same way, and the titler that writes the automatic
+  // ones, started after the replay so it never titles from a log alone.
+  await startGoalTitler({ connect: connectGoalTitler });
+  announceKeptGroupTitles(eventsSince(0));
   // The async handlers below are dispatched as floating promises. Node's
   // default for an unhandled rejection is to kill the process, which would
   // take the whole deck down — SSE stream, hook ingest and all — because one
@@ -444,6 +452,9 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "POST" && url.pathname === "/api/lan/sync")     return guard(handleLanSync(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/prefs")        return guard(handlePrefsWrite(req, res, panelPlatform), res);
     if (req.method === "POST" && url.pathname === "/api/session-name") return guard(handleSessionNameWrite(req, res), res);
+    if (req.method === "POST" && url.pathname === "/api/group-title") return guard(handleGroupTitleWrite(req, res), res);
+    if (req.method === "POST" && url.pathname === "/api/group-title/auto") return guard(handleGoalTitleRequest(req, res), res);
+    if (req.method === "GET"  && url.pathname === "/api/group-title/status") return handleGoalTitleStatus(req, res);
     if (req.method === "POST" && url.pathname === "/api/prefs/give-back") return guard(handlePrefsGiveBack(req, res, panelPlatform), res);
     if (req.method === "POST" && url.pathname === "/api/reports")      return guard(handleReportsWrite(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/ui-language")  return guard(handleUiLanguageWrite(req, res), res);
