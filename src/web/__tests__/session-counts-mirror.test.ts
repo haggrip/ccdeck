@@ -54,6 +54,20 @@ function mirror(events: { at: number; payload: P }[]) {
 }
 
 const LOGS: Record<string, { at: number; payload: P }[]> = {
+  "Claude Desktop restores a session after a restart: idle until somebody types": log(
+    ev("r1", "UserPromptSubmit", { prompt: "ship it" }),
+    ev("r1", "Stop"),
+    ev("r1", "SubagentStop", { agent_id: "helper" }),
+    ev("r1", "SessionEnd", { reason: "other" }),
+    ev("r1", "SessionStart", { source: "resume" }),
+    ev("r1", "SessionNamed", { name: "Ship it" }),
+    ev("r1", "UserPromptSubmit", { prompt: "and now the docs" }),
+    ev("r1", "Stop"),
+  ),
+  "a deck that only hears the resume still draws the session idle": log(
+    ev("r2", "SessionStart", { source: "resume" }),
+    ev("r2", "UsageObserved", {}),
+  ),
   "a turn with a permission prompt, the scans that follow it, and the idle prompt after": log(
     ev("s1", "SessionStart", { source: "startup" }),
     ev("s1", "UserPromptSubmit", { prompt: "fix the build" }),

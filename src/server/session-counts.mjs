@@ -90,7 +90,7 @@ export function createSessionCounts({ capture = () => true } = {}) {
     let s = sessions.get(id);
     if (!s) {
       if (!create) return null;
-      s = { rootActive: true, subs: new Map(), stack: [], keyed: false, calls: new Map(), waiting: null, lastAt: at, provider: null };
+      s = { rootActive: true, subs: new Map(), stack: [], keyed: false, calls: new Map(), waiting: null, lastAt: at, provider: null, promptAt: 0 };
       while (sessions.size >= MAX_SESSIONS) sessions.delete(sessions.keys().next().value);
     } else {
       sessions.delete(id);
@@ -150,8 +150,13 @@ export function createSessionCounts({ capture = () => true } = {}) {
 
     switch (name) {
       case "SessionStart":
+        // A resumed session waits for its human (session-lifecycle.ts
+        // applySessionStart): it neither starts nor ends a turn.
+        s.rootActive = raw.source !== "resume" || s.promptAt >= at;
+        break;
       case "UserPromptSubmit":
         s.rootActive = true;
+        if (at > s.promptAt) s.promptAt = at;
         break;
       case "SubagentStart":
         if (key) {

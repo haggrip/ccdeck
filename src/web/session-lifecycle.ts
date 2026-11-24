@@ -69,7 +69,16 @@ export function applySessionStart(state: GraphState, p: HookPayload, sessionId: 
   // replay — retracts the marker instead of leaving it standing on a
   // session whose beginning we did, in the end, receive (#677).
   root.synthetic = false;
-  root.state = "active";
+  // A RESUMED SESSION IS WAITING FOR ITS HUMAN, NOT WORKING. Claude Code
+  // sends `SessionStart` with `source: "resume"` when a session is reopened —
+  // every session Claude Desktop restores after a restart, all at once — and
+  // nothing runs until somebody types. Marked active, each of them spun as
+  // working until its next `Stop`, which an untouched session never sends.
+  // A prompt newer than this start still wins: the hooks race, and a resumed
+  // session somebody already typed into is working.
+  const newestPrompt = root.prompts[root.prompts.length - 1];
+  const resumedIdle = (p as { source?: unknown }).source === "resume" && !(newestPrompt && newestPrompt.at >= now);
+  root.state = resumedIdle ? "done" : "active";
   // A session that is starting is not a closed one, whatever an earlier
   // `SessionEnd` or a stale sweep concluded (#445). `/clear` is the case
   // that reaches here — it emits SessionEnd and then SessionStart with
@@ -84,7 +93,7 @@ export function applySessionStart(state: GraphState, p: HookPayload, sessionId: 
   // `SessionStart` — `/clear` on a resumed id, or a re-attached terminal —
   // left an `active` card whose elapsed clock was frozen at the previous
   // ending, counting from a moment the card no longer claims.
-  root.endedAt = undefined;
+  root.endedAt = resumedIdle ? (root.endedAt ?? now) : undefined;
   // And a turn that stopped on an error before it is history: a fresh start
   // has nothing to "continue".
   clearStopFailure(root, now);
