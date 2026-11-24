@@ -363,6 +363,7 @@ const catalog: Catalog = {
   "board.rename.field": "Session name",
   "board.rename.reset": "Use the default name",
   "board.rename.failed": "Not saved. Try again.",
+  "board.rename.deckOnly": "Saved in the deck; Claude's own title not updated.",
   "board.rail.unread": "{label} · {n} unread",
   "board.rail.unreadCount": "{n} unread",
   "board.rail.watch.on": "Watching — the deck keeps its own copy of the history",

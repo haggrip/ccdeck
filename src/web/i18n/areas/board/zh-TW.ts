@@ -363,6 +363,7 @@ const catalog: Catalog = {
   "board.rename.field": "工作階段名稱",
   "board.rename.reset": "使用預設名稱",
   "board.rename.failed": "未儲存。請再試一次。",
+  "board.rename.deckOnly": "已儲存在 deck 中；Claude 自己的標題未更新。",
   "board.rail.unread": "{label} · {n} 則未讀",
   "board.rail.unreadCount": "{n} 則未讀",
   "board.rail.watch.on": "監看中——ccdeck 會保留自己的歷程副本",

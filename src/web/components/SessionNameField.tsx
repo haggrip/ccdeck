@@ -83,6 +83,9 @@ export function useRenaming(sessionId: string | null | undefined, back: RefObjec
   };
 }
 
+/** How long "saved in the deck" stays before the field closes. */
+const DECK_ONLY_NOTE_MS = 2_500;
+
 export default function SessionNameField({ facts: given, place, onDone, save, fieldLabel, resetLabel, suggest }: SessionNameFieldProps) {
   const t = useT();
   const [facts] = useState(given);
@@ -90,6 +93,9 @@ export default function SessionNameField({ facts: given, place, onDone, save, fi
   const [failed, setFailed] = useState(false);
   const [failLine, setFailLine] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // The name was kept in the deck but Claude's own title was not written: said
+  // quietly for a moment, then the field closes as on any save.
+  const [deckOnly, setDeckOnly] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const wrapRef = useRef<HTMLSpanElement>(null);
   const alive = useRef(true);
@@ -108,12 +114,18 @@ export default function SessionNameField({ facts: given, place, onDone, save, fi
   };
   const commit = async (typed: string) => {
     if (saving || closed.current) return;
+    if (deckOnly) { finish(true); return; }
     const ask = saveAsk(typed, facts);
     if (ask.kind === "none") { finish(false); return; }
     setSaving(true);
     const res = save ? await save(ask.name) : await saveSessionName(facts, ask.name);
     if (!alive.current) return;
     setSaving(false);
+    if (res.ok && res.providerSynced === false) {
+      setDeckOnly(true);
+      setTimeout(() => { if (alive.current) finish(true); }, DECK_ONLY_NOTE_MS);
+      return;
+    }
     if (res.ok) { finish(true); return; }
     setFailLine(null);
     setFailed(true);
@@ -215,6 +227,7 @@ export default function SessionNameField({ facts: given, place, onDone, save, fi
         </button>
       )}
       {failed && <span id={errorId} className="sn-error" role="alert">{failLine ?? t("board.rename.failed")}</span>}
+      {deckOnly && <span className="sn-note" role="status">{t("board.rename.deckOnly")}</span>}
     </span>
   );
 }

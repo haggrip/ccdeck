@@ -44,7 +44,39 @@ export function announceKeptNames(envelopes, announce = announceDeckName) {
   return told;
 }
 
-export async function handleSessionNameWrite(req, res, { write = writeDeckName, announce = announceDeckName, renameProvider = renameProviderSession } = {}) {
+/** How long to wait before asking again when the transcript was mid-write
+ *  (its last byte not yet a newline): a line Claude Code is writing lands in
+ *  milliseconds. Two more tries, then the deck's name stands alone. */
+export const MID_WRITE_RETRY_MS = Object.freeze([150, 400]);
+
+/**
+ * Write the provider's own name too, as a courtesy: `{ synced: true }`, or
+ * `{ synced: false, reason }` for why not. Never throws. Only `mid_write` is
+ * asked again — every other reason (no transcript yet, two matches, a file that
+ * is not plain or not this user's) stays true for as long as anyone waits.
+ */
+export async function syncProviderName(renameProvider, provider, sessionId, name, { waits = MID_WRITE_RETRY_MS, sleep = ms => new Promise(r => setTimeout(r, ms)) } = {}) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await renameProvider(provider, sessionId, name);
+      return { synced: true };
+    } catch (err) {
+      const reason = typeof err?.reason === "string" ? err.reason
+        : err?.code === "ENOENT" ? "no_transcript" : "unavailable";
+      if (reason !== "mid_write" || attempt >= waits.length) return { synced: false, reason };
+      await sleep(waits[attempt]);
+    }
+  }
+}
+
+// THE DECK'S NAME IS THE ONE THAT MUST STICK. It used to be written only after
+// the provider's (`syncProvider`) had been, and a provider refusal answered 409
+// with nothing kept: a session with no transcript yet, or one Claude Code was
+// writing to at that instant, could not be named at all. Now the deck's name is
+// kept and announced first, the provider's is best effort after it, and the
+// answer says which — `providerSynced: false` with the reason — so the page
+// can say "saved in the deck" quietly instead of "not saved".
+export async function handleSessionNameWrite(req, res, { write = writeDeckName, announce = announceDeckName, renameProvider = renameProviderSession, retry = {} } = {}) {
   const raw = await readBody(req, res).catch(() => null);
   let body = null;
   try { body = JSON.parse(raw ?? ""); } catch { /* answered below */ }
@@ -56,10 +88,6 @@ export async function handleSessionNameWrite(req, res, { write = writeDeckName, 
     return send(res, 400, { ok: false, reason: "bad_request" });
   }
   let kept;
-  if (body.syncProvider === true && name !== null) {
-    try { await renameProvider(provider, sessionId, name); }
-    catch { return send(res, 409, { ok: false, reason: "provider_name_not_saved" }); }
-  }
   try {
     kept = await write(provider, sessionId, name);
   } catch (err) {
@@ -69,5 +97,9 @@ export async function handleSessionNameWrite(req, res, { write = writeDeckName, 
     return send(res, 500, { ok: false, reason: "not_saved" });
   }
   announce(sessionId, kept);
-  return send(res, 200, { ok: true, name: kept });
+  if (body.syncProvider !== true || kept === null) return send(res, 200, { ok: true, name: kept });
+  const sync = await syncProviderName(renameProvider, provider, sessionId, kept, retry);
+  return send(res, 200, sync.synced
+    ? { ok: true, name: kept, providerSynced: true }
+    : { ok: true, name: kept, providerSynced: false, reason: sync.reason });
 }
