@@ -32,6 +32,9 @@ export interface RemoteMachine {
   /** When that deck last answered. */
   at: number;
   sessions: RemoteSession[];
+  /** Whether that deck takes commands for its sessions from this one
+   *  (src/server/lan-control.mjs). It still checks every one itself. */
+  control: boolean;
 }
 
 const STATES: readonly RemoteState[] = ["waiting", "working", "idle", "ended", "failed"];
@@ -75,6 +78,7 @@ export function readRemoteMachines(v: unknown): RemoteMachine[] | null {
       via: r.via === "tailscale" ? "tailscale" : "lan",
       at: num(r.at) ?? 0,
       sessions,
+      control: r.control === true,
     });
   }
   return out;

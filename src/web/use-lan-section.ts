@@ -74,6 +74,8 @@ const ACTION_HEADS: Record<string, string> = {
   "keep the login this deck is using here": "lan.act.keepInUse",
   "send the login this deck is using": "lan.act.sendInUse",
   "share this deck's sessions": "lan.act.shareSessions",
+  "take commands from paired decks": "lan.act.acceptControl",
+  "stop taking commands from paired decks": "lan.act.unacceptControl",
   "stop sharing this deck's sessions": "lan.act.unshareSessions",
   "let decks pair on their own again": "lan.act.pairAuto",
   "pair new decks only by invite": "lan.act.pairInvite",

@@ -1,13 +1,15 @@
 // The sessions paired decks share with this one, as rows at the foot of the
 // Sessions list, one group per machine under the name the Local network panel
-// gives it — READ-ONLY. Nothing here is a control: no row opens a terminal,
-// sends, stops or selects anything, because the session is on another machine
-// and this deck has no line to it. Each row says what that machine shared and
+// gives it. READ-ONLY unless that machine takes commands from this deck
+// (`control`, src/server/lan-control.mjs): then each live row gets the fixed
+// set of commands under it (RemoteSessionControl). No row opens a terminal or
+// selects anything here: the session is on another machine. Each row says what that machine shared and
 // nothing more (src/server/lan-sessions.mjs): a name, a project folder, a
 // state and its age. Items of the list's own <ul>, so they scroll with it.
 import { useT } from "../i18n";
 import { ageShort } from "../elapsed-short";
 import { orderRemote, type RemoteMachine, type RemoteSession } from "../remote-sessions";
+import RemoteSessionControl from "./RemoteSessionControl";
 
 const STATE_KEYS: Record<RemoteSession["state"], string> = {
   waiting: "lan.remote.state.waiting",
@@ -55,6 +57,7 @@ export default function RemoteSessionRows({ machines, now }: { machines: readonl
           <span className="sl-line2">{line}</span>
         </li>,
       );
+      if (m.control) out.push(<RemoteSessionControl key={`remote-control-${m.fp}-${s.id}`} fp={m.fp} session={s} />);
     }
     if (ended > 0) {
       out.push(<li key={`remote-ended-${m.fp}`} className="sl-remote-ended">{t("lan.remote.ended", { count: ended })}</li>);

@@ -136,6 +136,10 @@ export interface LanStatus {
    *  saying no (AGENTS_DECK_NO_LAN_SESSIONS=1) whatever the switch says. */
   shareSessions?: boolean;
   sessionsVetoed?: boolean;
+  /** Whether paired decks may send commands to this deck's sessions, and
+   *  whether the machine said they may not (AGENTS_DECK_NO_LAN_CONTROL=1). */
+  acceptControl?: boolean;
+  controlVetoed?: boolean;
   tailscale?: LanTailscale | null;
   fp: string | null;
   port: number | null;

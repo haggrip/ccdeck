@@ -472,6 +472,8 @@ export const GUARDED_READS = new Set([
   // What the owner's other machines are working on: their sessions' names,
   // project folders and states, as paired decks share them (lan-sessions.mjs).
   "/api/lan/remote-sessions",
+  // Which commands paired decks sent to this deck's sessions, from where (lan-control.mjs).
+  "/api/lan/control-log",
   "/api/prefs",
   // Per-account, per-project token spend — the user's own work, the same class
   // of secret as the accounts list it hangs off.

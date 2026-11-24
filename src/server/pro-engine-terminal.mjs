@@ -147,6 +147,9 @@ export function engineTerminals(client) {
   return Object.freeze({
     get enabled() { return client.enabled === true; },
     attach: (handle, socket) => attachThroughEngine(client, handle, socket),
+    // A paired deck's command typed into a session (lan-control-local.mjs):
+    // the same attach the panel makes, with the command's frames for input.
+    type: (handle, frames) => typeThroughEngine(client, handle, frames),
     route: (method, body) => routeThroughEngine(client, method, body),
     forgetTmux: () => forgetTmuxInEngine(client),
   });
@@ -221,6 +224,40 @@ function isAnswer(a) {
   if (a.handle !== undefined && (typeof a.handle !== "string" || !HANDLE.test(a.handle) || !object || a.body.ticket !== null)) return false;
   if (a.fixable !== undefined && (typeof a.fixable !== "boolean" || !object || !a.body.tmux || typeof a.body.tmux !== "object")) return false;
   return a.log === undefined || typeof a.log === "string";
+}
+
+/** How long a typed command's attach stays open after its last frame, so the
+ *  engine has handed the input to the pane before the stream closes. */
+const TYPE_SETTLE_MS = 150;
+
+/**
+ * Type `frames` into the session `handle` names, as the panel's own socket
+ * would: attach, send each frame — `{ type: "binary" | "text", data }`, a
+ * text frame being the panel protocol's JSON (`{ t: "paste", text }`), or
+ * `{ wait: ms }` — and close. What the pane draws meanwhile is not read.
+ * `{ ok: true }`, or `{ ok: false, why }`; never throws.
+ */
+export async function typeThroughEngine(client, handle, frames, { sleep = ms => new Promise(r => setTimeout(r, ms)) } = {}) {
+  let stream;
+  try {
+    stream = await client.attachTerminal(handle);
+  } catch (error) {
+    return { ok: false, why: REFUSED.has(error?.code) ? "engine refused" : "engine unavailable" };
+  }
+  try {
+    stream.start({ binary() {}, text() {}, close() {}, lost() {}, buffered: () => 0, resume() {} });
+    for (const f of frames) {
+      if (Number.isFinite(f?.wait)) { await sleep(f.wait); continue; }
+      if (f?.type !== "binary" && f?.type !== "text") continue;
+      stream.send(f.type, Buffer.from(String(f.data), "utf8"));
+    }
+    await sleep(TYPE_SETTLE_MS);
+    return { ok: true };
+  } catch {
+    return { ok: false, why: "engine refused" };
+  } finally {
+    try { stream.close(); } catch { /* already closed */ }
+  }
 }
 
 /**

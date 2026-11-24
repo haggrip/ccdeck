@@ -58,6 +58,7 @@ import { createHearing } from "./lan-hearing.mjs";
 import { anotherMachine, createInbound } from "./lan-inbound.mjs";
 import { createServe } from "./lan-serve.mjs";
 import { createRemoteSessions } from "./lan-sessions.mjs";
+import { checkCommand, createControlLog, createRateLimit } from "./lan-control.mjs";
 import { createDials, MAX_AUTO_PEERS } from "./lan-dials.mjs";
 import { createManifests } from "./lan-manifest.mjs";
 import { asksOn, createRequests, saysYesOn } from "./lan-requests.mjs";
@@ -323,6 +324,15 @@ export function createEngine({
   sessions = null,
   /** Called when the sessions paired decks share with this one change. */
   onRemoteSessions = null,
+  /** Carries out a paired deck's command on one of this deck's sessions
+   *  (lan-control-local.mjs), or null on a deck that never takes commands. */
+  control = null,
+  /** Hears every command a paired deck sent, run or refused (the log entry). */
+  onControl = null,
+  /** Whether a command may come from an address: by default only one that
+   *  Tailscale places as one of the owner's own machines. The suite's two
+   *  engines on loopback pass their own. */
+  controlFrom = null,
 } = {}) {
   let cfg = {
     // `onward`: which of `shared` an arrival ticked rather than a person — see
@@ -349,6 +359,11 @@ export function createEngine({
     // AGENTS_DECK_NO_LAN_SESSIONS=1 (`sessionsVetoed`). See lan-sessions.mjs.
     shareSessions: false,
     sessionsVetoed: false,
+    // COMMANDS FOR THIS DECK'S SESSIONS FROM A PAIRED DECK — off until the owner
+    // turns it on (lan.acceptControl), held off by AGENTS_DECK_NO_LAN_CONTROL=1
+    // (`controlVetoed`). See lan-control.mjs.
+    acceptControl: false,
+    controlVetoed: false,
   };
   // Bumped by every stop, a restart included: anything started before it
   // belongs to a listener that is gone.
@@ -492,6 +507,10 @@ export function createEngine({
    *  keeps of the one it hears — a paired deck's card and the logins it offers,
    *  kept apart from lastRound — and what a row reads of that — see
    *  lan-manifest.mjs. */
+  /** Commands from paired decks: the per-peer rate and the log of every one,
+   *  where the session runs — see lan-control.mjs. */
+  const controlLimit = createRateLimit({ now });
+  const controlLog = createControlLog({ now, onEntry: onControl });
   const { manifestFrame, keepManifest, heardOf } = createManifests({
     about, now, myFp: () => identity.fp, settings: () => cfg, usage,
   });
@@ -572,6 +591,10 @@ export function createEngine({
     localCodex, exportCodex: codex ? (id, key) => codex.exportAccount(id, key) : null,
     localSessions: typeof sessions === "function" ? async () => sessions() : null,
     mayTalkTo,
+    localControl: typeof control === "function" ? control : null,
+    controlFrom: typeof controlFrom === "function" ? controlFrom : (addr => routeTo(addr)?.own === true),
+    controlLimit,
+    controlLog,
   });
 
   /** What each paired deck that shares its sessions said last, in memory and
@@ -590,7 +613,7 @@ export function createEngine({
     let reply;
     try { reply = await ask({ t: "sessions" }); } catch { return; }
     if (!stillPaired()) return;
-    if (reply?.t === "sessions" && Array.isArray(reply.rows)) remote.keep(fp, reply.rows);
+    if (reply?.t === "sessions" && Array.isArray(reply.rows)) remote.keep(fp, reply.rows, { control: theirs?.control === 1 || theirs?.control === true });
     else remote.drop(fp);
   };
 
@@ -1592,6 +1615,9 @@ export function createEngine({
         // whether the machine said they may not whatever the switch says.
         shareSessions: cfg.shareSessions === true && cfg.sessionsVetoed !== true,
         sessionsVetoed: cfg.sessionsVetoed === true,
+        // Whether paired decks may send commands to this deck's sessions.
+        acceptControl: cfg.acceptControl === true && cfg.controlVetoed !== true,
+        controlVetoed: cfg.controlVetoed === true,
         // Discovery over Tailscale: whether this machine has it at all, which
         // decides whether the dialog shows the switch, and what it can see.
         tailscale: tailnet ? tailnetStatus() : null,
@@ -1652,9 +1678,45 @@ export function createEngine({
           via: lastGood.get(m.fp)?.via ?? (from ? viaAt(from) : "lan"),
           at: m.at,
           sessions: m.sessions,
+          // Whether that deck said it takes commands for its sessions.
+          control: m.control === true,
         };
       });
     },
+    /**
+     * SEND ONE COMMAND to a session of a paired deck (lan-control.mjs): dialled
+     * fresh at the address that deck last answered from, against its pinned
+     * key, and asked once. `{ ok, why? }`, the far deck's own answer or why it
+     * never got there. The command is checked here first as well, so a page
+     * cannot make this deck send what the far deck would refuse.
+     */
+    async controlPeer(fp, raw) {
+      const checked = checkCommand(raw);
+      if (!checked.ok) return { ok: false, why: checked.why };
+      if (!cfg.enabled || !server) return { ok: false, why: "lan off" };
+      const pin = trustedPeer(cfg.trusted, fp);
+      if (!pin) return { ok: false, why: "not paired" };
+      const at = lastGood.get(fp);
+      if (!at) return { ok: false, why: "not reached yet" };
+      let conn = null;
+      try {
+        conn = await dialPeer({
+          host: at.addr, port: at.port, timeoutMs: ROUND_MS,
+          fp: identity.fp, pub: identity.pub, secret: identity.secret, name: cfg.name,
+          myPort: server?.port() ?? null, expectPub: pin.pub, ask: false, sealFrames, ephemeral,
+        });
+        if (conn.peerFp !== fp || !trustedPeer(cfg.trusted, fp)) return { ok: false, why: "not paired" };
+        const reply = await askOver(conn, { t: "control", command: checked.command });
+        if (reply?.t !== "control") return { ok: false, why: reply?.why ? String(reply.why).slice(0, 80) : "no answer" };
+        return reply.ok ? { ok: true } : { ok: false, why: String(reply.why ?? "refused").slice(0, 80) };
+      } catch (err) {
+        return { ok: false, why: err?.code === "TAILSCALE_ONLY" ? "tailnet only" : "unreachable" };
+      } finally {
+        conn?.sock?.destroy();
+      }
+    },
+    /** Every command paired decks sent to this deck's sessions, newest last. */
+    controlLog() { return controlLog.list(); },
     stop(restarting = false) {
       generation++;
       if (!restarting) { session++; remote.clear(); }

@@ -105,9 +105,9 @@ export function createRemoteSessions({ now = Date.now, staleMs, onChange = null 
   const byFp = new Map();
   const changed = () => { try { onChange?.(); } catch { /* a listener's failure is not the store's */ } };
   return {
-    keep(fp, rows) {
+    keep(fp, rows, { control = false } = {}) {
       if (typeof fp !== "string" || !fp) return;
-      byFp.set(fp, { at: now(), rows: heardRows(rows) });
+      byFp.set(fp, { at: now(), rows: heardRows(rows), control: control === true });
       changed();
     },
     drop(fp) {
@@ -125,7 +125,7 @@ export function createRemoteSessions({ now = Date.now, staleMs, onChange = null 
       const t = now();
       for (const [fp, got] of byFp) {
         if (!isPaired(fp) || t - got.at > staleMs) { byFp.delete(fp); continue; }
-        out.push({ fp, at: got.at, sessions: got.rows });
+        out.push({ fp, at: got.at, sessions: got.rows, control: got.control === true });
       }
       return out;
     },

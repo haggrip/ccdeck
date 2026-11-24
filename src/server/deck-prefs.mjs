@@ -233,6 +233,12 @@ export const DEFAULTS = Object.freeze({
     // somebody here accepted. AGENTS_DECK_NO_LAN_SESSIONS=1 keeps it off
     // whatever this says — see lanSessionsVetoed.
     shareSessions: false,
+    // COMMANDS FOR THIS DECK'S SESSIONS FROM A PAIRED DECK — send a prompt,
+    // answer a permission or a question, interrupt or stop — off until the
+    // owner turns it on, and only for sessions this deck's Command Panel started
+    // (lan-control.mjs). AGENTS_DECK_NO_LAN_CONTROL=1 keeps it off whatever
+    // this says — see lanControlVetoed.
+    acceptControl: false,
     // What somebody HERE calls another deck, keyed by its fingerprint. The name
     // a deck gives itself is its owner's to choose; this is the other half.
     aliases: Object.freeze({}),
@@ -379,6 +385,8 @@ function normaliseLan(raw) {
     tailscaleAccept: flagOr(src.tailscaleAccept, DEFAULTS.lan.tailscaleAccept),
     // Sharing sessions with paired decks: off unless a real true was stored.
     shareSessions: flagOr(src.shareSessions, DEFAULTS.lan.shareSessions),
+    // Commands from paired decks: off unless a real true was stored.
+    acceptControl: flagOr(src.acceptControl, DEFAULTS.lan.acceptControl),
   };
 }
 
@@ -796,7 +804,7 @@ export const PAGE_FIELDS = Object.freeze({
   ]),
   lan: Object.freeze([
     "enabled", "name", "shared", "manual", "shareActive", "sendInUse", "pairingMode",
-    "autoAsk", "autoAccept", "tailscale", "tailscaleAsk", "tailscaleAccept", "shareSessions",
+    "autoAsk", "autoAccept", "tailscale", "tailscaleAsk", "tailscaleAccept", "shareSessions", "acceptControl",
   ]),
 });
 
@@ -878,6 +886,15 @@ export function lanTailscaleOnly(env = process.env) {
  * claim about the machine, like AGENTS_DECK_NO_LAN, so nothing a page posts
  * can lift it. Only ever a narrowing: no variable turns sharing on.
  */
+/**
+ * Did the machine rule out commands from paired decks for this deck's
+ * sessions? AGENTS_DECK_NO_LAN_CONTROL=1 does, whatever `lan.acceptControl`
+ * says, and nothing a page posts can lift it. Only ever a narrowing.
+ */
+export function lanControlVetoed(env = process.env) {
+  return env.AGENTS_DECK_NO_LAN_CONTROL === "1";
+}
+
 export function lanSessionsVetoed(env = process.env) {
   return env.AGENTS_DECK_NO_LAN_SESSIONS === "1";
 }

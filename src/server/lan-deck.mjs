@@ -18,7 +18,8 @@
 import { readFile } from "node:fs/promises";
 import { networkInterfaces } from "node:os";
 import { PRODUCT } from "./brand.mjs";
-import { lanEnabled, lanSessionsVetoed, lanTailscaleOnly, withManualEntry, withShared } from "./deck-prefs.mjs";
+import { lanControlVetoed, lanEnabled, lanSessionsVetoed, lanTailscaleOnly, terminalOn, withManualEntry, withShared } from "./deck-prefs.mjs";
+import { createLocalControl } from "./lan-control-local.mjs";
 import { eventsSince } from "./event-ring.mjs";
 import { summarizeSessions } from "./session-summary.mjs";
 import { sseClients, trayClients, writeSse } from "./sse-clients.mjs";
@@ -72,6 +73,14 @@ function activeVerdictArrived() {
  *  sessions paired decks share with this one, one entry per deck. */
 export function remoteSessionsView() {
   return { now: Date.now(), machines: lanEngine.remoteSessions() };
+}
+
+/** A command a paired deck sent to one of this deck's sessions, to the open
+ *  pages as an `event: lan-control` frame, so it is seen where it runs. */
+function broadcastControl(entry) {
+  if (sseClients.size === 0) return;
+  const frame = `event: lan-control\ndata: ${JSON.stringify(entry)}\n\n`;
+  for (const client of sseClients) if (!trayClients.has(client)) writeSse(client, frame);
 }
 
 /** The pages' frames, never the desktop app's tray connections — the way
@@ -331,6 +340,21 @@ export const lanEngine = createEngine({
   // What paired decks share with this one changed: the open pages hear it as
   // an `event: lan-sessions` frame (use-remote-sessions.ts listens).
   onRemoteSessions: () => broadcastRemoteSessions(),
+  // Commands from paired decks for this deck's own sessions, carried out on
+  // the panes of its own tmux (lan-control-local.mjs), and every one of them
+  // — run or refused — said in the deck's log and to the open pages.
+  control: createLocalControl({
+    rows: () => summarizeSessions(eventsSince(0)),
+    // The Command Panel's engine, imported when a command first arrives so a
+    // deck that never takes one never loads it (and only while the panel is
+    // switched on: off, there is no panel to type through).
+    engine: async () => (terminalOn(heldPrefs.current())
+      ? (await import("./command-panel-engine.mjs")).commandPanel : null),
+  }),
+  onControl: entry => {
+    console.log(`${PRODUCT}: command from paired deck ${entry.from || entry.fp} (${entry.addr}): ${entry.action} on ${entry.sid.slice(0, 8)} — ${entry.ok ? "done" : `refused: ${entry.why}`}`);
+    broadcastControl(entry);
+  },
   onError: (what, err) => {
     // Reported, never thrown. A machine with no route, a firewall that refuses
     // the bind, an interface that comes and goes with a VPN — none of them is a
@@ -387,6 +411,10 @@ export function lanApplyFields(prefs, { load = false, env = process.env } = {}) 
     // veto beside it — see lanSessionsVetoed.
     shareSessions: lan.shareSessions === true,
     sessionsVetoed: lanSessionsVetoed(env),
+    // Commands from paired decks for this deck's sessions: the owner's switch,
+    // off unless a real true was stored, and the machine's veto beside it.
+    acceptControl: lan.acceptControl === true,
+    controlVetoed: lanControlVetoed(env),
     name: lan.name || defaultName(),
     shared: Array.isArray(lan.shared) ? lan.shared : [],
     // Which of those an arrival ticked, so a deck the accept switch paired is

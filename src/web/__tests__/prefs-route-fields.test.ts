@@ -190,6 +190,7 @@ const WRITES: [string, unknown, (p: any) => unknown, unknown][] = [
   ["lan.tailscaleAsk", { lan: { tailscaleAsk: false } }, p => p.lan.tailscaleAsk, false],
   ["lan.tailscaleAccept", { lan: { tailscaleAccept: false } }, p => p.lan.tailscaleAccept, false],
   ["lan.shareSessions", { lan: { shareSessions: true } }, p => p.lan.shareSessions, true],
+  ["lan.acceptControl", { lan: { acceptControl: true } }, p => p.lan.acceptControl, true],
 ];
 
 describe("POST /api/prefs and the fields the page edits", () => {
@@ -272,6 +273,7 @@ describe("the fields a page may write", () => {
         // CHANGED ON PURPOSE: the Local network dialog's "Share my sessions
         // with paired decks" switch, the owner's to press (lan-sessions.mjs).
         "shareSessions",
+        "acceptControl",
       ],
     });
   });

@@ -258,6 +258,12 @@ export function commandPanelEngine({
       // A ticket outlives nothing: with no engine there is nothing it names.
       return held ? held.terminals.attach(handle, socket) : { ok: false, status: 503 };
     },
+    /** A paired deck's command typed into a session by a handle `route("open")`
+     *  just gave (lan-control-local.mjs): the attach above, with the
+     *  command's frames for input. No engine, nothing to type into. */
+    async type(handle, frames) {
+      return held ? held.terminals.type(handle, frames) : { ok: false, why: "engine unavailable" };
+    },
     /** The deck's own tmux has landed (terminal-routes.mjs): the engine
      *  running now forgets the miss it remembered. One being made, or the
      *  next, looks afresh; nothing is started for this. Never rejects. */

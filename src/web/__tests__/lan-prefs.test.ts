@@ -193,6 +193,7 @@ describe("the shape on disk", () => {
       tailscale: false, tailscaleAsk: true, tailscaleAccept: true,
       // Sharing sessions with paired decks is off until somebody turns it on.
       shareSessions: false,
+      acceptControl: false,
     });
     // Absent is the default; only a real boolean overrides it, because a
     // truthy string from a hand-edited file is not an answer.
@@ -221,7 +222,7 @@ describe("the shape on disk", () => {
     expect(saved.lan).toEqual({
       enabled: true, name: "", secret: "kept", shared: ["a@@1"], onward: [], manual: [], trusted: [], unpaired: [], port: 0,
       autoAsk: true, autoAccept: true, pairingMode: "automatic", aliases: {}, shareActive: true,
-      sendInUse: true, sendInUseSet: false, tailscale: false, tailscaleAsk: true, tailscaleAccept: true, shareSessions: false,
+      sendInUse: true, sendInUseSet: false, tailscale: false, tailscaleAsk: true, tailscaleAccept: true, shareSessions: false, acceptControl: false,
     });
   });
 
