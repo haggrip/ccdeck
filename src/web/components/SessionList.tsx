@@ -303,13 +303,17 @@ interface Props {
    *  --list-w (LeftColumn). Absent on a phone, where the list is the
    *  screen's width. */
   edge?: ReactNode;
+  /** The sessions paired decks share with this one, as list items of their
+   *  own after this deck's groups (RemoteSessionRows.tsx): read-only, and
+   *  outside the rail's order, folds and motion. */
+  remote?: ReactNode;
 }
 
 /** A row that has left the list, kept drawn until its fade and its closing space are done. */
 interface Ghost { row: Row; group: RailGroup; after: string | null; until: number }
 interface Entry { id: string; row: Row; ghost: boolean }
 
-export default function SessionList({ state, now, historyReady = true, selectedIds, onSelect, onClose, removedIds, onBringBackAll, leaving = false, landed = null, watching, openPanes, onOpenKeys, onOpenBeside, onNewSession, offline = null, emptyNotice = null, edge = null }: Props) {
+export default function SessionList({ state, now, historyReady = true, selectedIds, onSelect, onClose, removedIds, onBringBackAll, leaving = false, landed = null, watching, openPanes, onOpenKeys, onOpenBeside, onNewSession, offline = null, emptyNotice = null, edge = null, remote = null }: Props) {
   const t = useT();
   const singleKeys = useSingleKeyShortcuts();
   // `state.revision`, not `state.lastSeq`: the prop is `stateRef.current` and
@@ -555,6 +559,7 @@ export default function SessionList({ state, now, historyReady = true, selectedI
       {offline}
       <ul className="sl-rows" ref={list} aria-busy={!historyReady || undefined}>
         {nodes}
+        {remote}
       </ul>
       {/* The person's Remote Control sessions on their other machines, as
           links out (RemoteControlList): nothing at all while that is off. */}

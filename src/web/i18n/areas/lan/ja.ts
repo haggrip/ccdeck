@@ -519,6 +519,29 @@ const catalog: Catalog = {
   "lan.ew.pressA": "どこでも A を押すと、アカウントパネルの表示／非表示を切り替えます",
   "lan.ew.pressB": "どこでも B を押すと、Browser Watch を開閉します",
   "lan.ew.open": "開く",
+
+  // Sessions shared by paired decks, read-only (lan-sessions.mjs).
+  "lan.act.shareSessions": "この ccdeck のセッションを共有できませんでした",
+  "lan.act.unshareSessions": "この ccdeck のセッションの共有を停止できませんでした",
+  "lan.setup.sessionsH": "セッション",
+  "lan.setup.shareSessions": "ペアリング済みの ccdeck と自分のセッションを共有",
+  "lan.setup.shareSessionsDetail": "ペアリング済みの ccdeck には各セッションの名前、プロジェクトフォルダ、状態が表示されます。プロンプト、質問、ツールの入力、パスは送られません。",
+  "lan.setup.shareSessionsVetoed": "このマシンではオフです：AGENTS_DECK_NO_LAN_SESSIONS=1 で起動されました。",
+  "lan.setup.shareSessionsOn": "この ccdeck のセッションをペアリング済みの ccdeck に表示しないようにします。",
+  "lan.setup.shareSessionsOff": "この ccdeck のセッションを、ペアリング済みの ccdeck に読み取り専用で表示します：名前、プロジェクトフォルダ、状態のみ。",
+  "lan.remote.tag": "別のマシン",
+  "lan.remote.headTitle": "{name} のセッション（その ccdeck が共有）。読み取り専用。",
+  "lan.remote.untitled": "無題のセッション",
+  "lan.remote.rowAria": "{title}、{state}、{machine} 上",
+  "lan.remote.ended": "終了 {count} 件",
+  "lan.remote.state.waiting": "待機中",
+  "lan.remote.state.working": "作業中",
+  "lan.remote.state.idle": "アイドル",
+  "lan.remote.state.ended": "終了",
+  "lan.remote.state.failed": "失敗",
+  "lan.remote.wait.permission": "許可待ち",
+  "lan.remote.wait.asked": "質問中",
+  "lan.remote.wait.idle": "あなたの番",
 };
 
 export default catalog;

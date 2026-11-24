@@ -519,6 +519,29 @@ const catalog: Catalog = {
   "lan.ew.pressA": "Pulsa A en cualquier parte para mostrar u ocultar el panel de cuentas",
   "lan.ew.pressB": "Pulsa B en cualquier parte para abrir o cerrar Browser Watch",
   "lan.ew.open": "Abrir",
+
+  // Sessions shared by paired decks, read-only (lan-sessions.mjs).
+  "lan.act.shareSessions": "No se pudieron compartir las sesiones de este ccdeck",
+  "lan.act.unshareSessions": "No se pudo dejar de compartir las sesiones de este ccdeck",
+  "lan.setup.sessionsH": "Sesiones",
+  "lan.setup.shareSessions": "Compartir mis sesiones con los ccdeck emparejados",
+  "lan.setup.shareSessionsDetail": "Los ccdeck emparejados ven el nombre, la carpeta del proyecto y el estado de cada sesión: nunca un prompt, una pregunta, la entrada de una herramienta ni una ruta.",
+  "lan.setup.shareSessionsVetoed": "Desactivado en esta máquina: se inició con AGENTS_DECK_NO_LAN_SESSIONS=1.",
+  "lan.setup.shareSessionsOn": "Dejar de mostrar las sesiones de este ccdeck en los ccdeck emparejados.",
+  "lan.setup.shareSessionsOff": "Mostrar las sesiones de este ccdeck, solo lectura, en los ccdeck emparejados: solo nombres, carpetas de proyecto y estados.",
+  "lan.remote.tag": "otra máquina",
+  "lan.remote.headTitle": "Sesiones en {name}, compartidas por su ccdeck. Solo lectura.",
+  "lan.remote.untitled": "sesión sin título",
+  "lan.remote.rowAria": "{title}, {state}, en {machine}",
+  "lan.remote.ended": "{count} terminadas",
+  "lan.remote.state.waiting": "esperando",
+  "lan.remote.state.working": "trabajando",
+  "lan.remote.state.idle": "inactiva",
+  "lan.remote.state.ended": "terminada",
+  "lan.remote.state.failed": "fallida",
+  "lan.remote.wait.permission": "esperando permiso",
+  "lan.remote.wait.asked": "hizo una pregunta",
+  "lan.remote.wait.idle": "tu turno",
 };
 
 export default catalog;

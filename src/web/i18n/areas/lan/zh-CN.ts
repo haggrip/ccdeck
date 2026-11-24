@@ -519,6 +519,29 @@ const catalog: Catalog = {
   "lan.ew.pressA": "在任何地方按 A 即可显示或隐藏账号面板",
   "lan.ew.pressB": "在任何地方按 B 即可打开或关闭 Browser Watch",
   "lan.ew.open": "打开",
+
+  // Sessions shared by paired decks, read-only (lan-sessions.mjs).
+  "lan.act.shareSessions": "无法分享本 ccdeck 的会话",
+  "lan.act.unshareSessions": "无法停止分享本 ccdeck 的会话",
+  "lan.setup.sessionsH": "会话",
+  "lan.setup.shareSessions": "与已配对的 ccdeck 分享我的会话",
+  "lan.setup.shareSessionsDetail": "已配对的 ccdeck 只能看到每个会话的名称、项目文件夹和状态——绝不包括提示词、问题、工具输入或路径。",
+  "lan.setup.shareSessionsVetoed": "本机已关闭：启动时设置了 AGENTS_DECK_NO_LAN_SESSIONS=1。",
+  "lan.setup.shareSessionsOn": "不再在已配对的 ccdeck 上显示本 ccdeck 的会话。",
+  "lan.setup.shareSessionsOff": "在已配对的 ccdeck 上以只读方式显示本 ccdeck 的会话：仅名称、项目文件夹和状态。",
+  "lan.remote.tag": "其他机器",
+  "lan.remote.headTitle": "{name} 上的会话，由其 ccdeck 分享。只读。",
+  "lan.remote.untitled": "未命名会话",
+  "lan.remote.rowAria": "{title}，{state}，在 {machine}",
+  "lan.remote.ended": "已结束 {count} 个",
+  "lan.remote.state.waiting": "等待中",
+  "lan.remote.state.working": "工作中",
+  "lan.remote.state.idle": "空闲",
+  "lan.remote.state.ended": "已结束",
+  "lan.remote.state.failed": "失败",
+  "lan.remote.wait.permission": "等待授权",
+  "lan.remote.wait.asked": "提出了问题",
+  "lan.remote.wait.idle": "轮到你了",
 };
 
 export default catalog;

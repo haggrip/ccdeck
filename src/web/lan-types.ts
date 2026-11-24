@@ -131,6 +131,11 @@ export interface LanStatus {
   /** Whether the account this deck is on may be sent to a paired deck that
    *  asks (#2192). Absent is off, which is what the engine does. */
   sendInUse?: boolean;
+  /** Whether paired decks may see this deck's sessions, read-only. Absent is
+   *  off, which is what the engine does; `sessionsVetoed` is the machine
+   *  saying no (AGENTS_DECK_NO_LAN_SESSIONS=1) whatever the switch says. */
+  shareSessions?: boolean;
+  sessionsVetoed?: boolean;
   tailscale?: LanTailscale | null;
   fp: string | null;
   port: number | null;

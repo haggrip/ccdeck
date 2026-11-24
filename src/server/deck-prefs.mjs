@@ -227,6 +227,12 @@ export const DEFAULTS = Object.freeze({
     tailscale: false,
     tailscaleAsk: true,
     tailscaleAccept: true,
+    // THIS DECK'S SESSIONS, READ-ONLY, ON A PAIRED DECK'S BOARD, off until the
+    // owner turns it on: which sessions exist, their names, project folders and
+    // states, and nothing they said (lan-sessions.mjs). Asked only by a deck
+    // somebody here accepted. AGENTS_DECK_NO_LAN_SESSIONS=1 keeps it off
+    // whatever this says — see lanSessionsVetoed.
+    shareSessions: false,
     // What somebody HERE calls another deck, keyed by its fingerprint. The name
     // a deck gives itself is its owner's to choose; this is the other half.
     aliases: Object.freeze({}),
@@ -371,6 +377,8 @@ function normaliseLan(raw) {
     tailscale: flagOr(src.tailscale, DEFAULTS.lan.tailscale),
     tailscaleAsk: flagOr(src.tailscaleAsk, DEFAULTS.lan.tailscaleAsk),
     tailscaleAccept: flagOr(src.tailscaleAccept, DEFAULTS.lan.tailscaleAccept),
+    // Sharing sessions with paired decks: off unless a real true was stored.
+    shareSessions: flagOr(src.shareSessions, DEFAULTS.lan.shareSessions),
   };
 }
 
@@ -788,7 +796,7 @@ export const PAGE_FIELDS = Object.freeze({
   ]),
   lan: Object.freeze([
     "enabled", "name", "shared", "manual", "shareActive", "sendInUse", "pairingMode",
-    "autoAsk", "autoAccept", "tailscale", "tailscaleAsk", "tailscaleAccept",
+    "autoAsk", "autoAccept", "tailscale", "tailscaleAsk", "tailscaleAccept", "shareSessions",
   ]),
 });
 
@@ -862,6 +870,16 @@ export function lanEnabled(prefs, env = process.env) {
  */
 export function lanTailscaleOnly(env = process.env) {
   return env.AGENTS_DECK_LAN_TAILSCALE_ONLY === "1";
+}
+
+/**
+ * Did the machine rule out sharing this deck's sessions with paired decks?
+ * AGENTS_DECK_NO_LAN_SESSIONS=1 does, whatever `lan.shareSessions` says — a
+ * claim about the machine, like AGENTS_DECK_NO_LAN, so nothing a page posts
+ * can lift it. Only ever a narrowing: no variable turns sharing on.
+ */
+export function lanSessionsVetoed(env = process.env) {
+  return env.AGENTS_DECK_NO_LAN_SESSIONS === "1";
 }
 
 /**

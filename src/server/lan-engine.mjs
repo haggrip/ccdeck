@@ -57,6 +57,7 @@ import { createTailnetPoll } from "./lan-tailnet-poll.mjs";
 import { createHearing } from "./lan-hearing.mjs";
 import { anotherMachine, createInbound } from "./lan-inbound.mjs";
 import { createServe } from "./lan-serve.mjs";
+import { createRemoteSessions } from "./lan-sessions.mjs";
 import { createDials, MAX_AUTO_PEERS } from "./lan-dials.mjs";
 import { createManifests } from "./lan-manifest.mjs";
 import { asksOn, createRequests, saysYesOn } from "./lan-requests.mjs";
@@ -77,6 +78,11 @@ export const BIND_RETRY_MS = 30_000;
  *  round trip on a local network; anything past this is a peer that is not
  *  going to answer, and holding the attempt open would stall the next round. */
 const ROUND_MS = 10_000;
+
+/** How long a paired deck's shared sessions stay on this deck's board after
+ *  its last answer: three rounds and one round's patience. A deck that went to
+ *  sleep, or stopped answering, is not left saying its last word. */
+export const REMOTE_SESSIONS_STALE_MS = 3 * SYNC_MS + ROUND_MS;
 
 /** The most addresses `autoAsk` may put on the dial list on its own — see
  *  lan-dials.mjs, which keeps the list and the cap. */
@@ -310,6 +316,13 @@ export function createEngine({
    *  function is called with what only the engine knows: `{ now, myFp,
    *  peerName }`. */
   usage: usageOption = null,
+  /** This deck's sessions as summarizeSessions rows (session-summary.mjs), for
+   *  a paired deck that asks while `shareSessions` is on — or nothing, which
+   *  is a deck that never shares them. Whatever it returns is whitelisted in
+   *  lan-sessions.mjs before it leaves. */
+  sessions = null,
+  /** Called when the sessions paired decks share with this one change. */
+  onRemoteSessions = null,
 } = {}) {
   let cfg = {
     // `onward`: which of `shared` an arrival ticked rather than a person — see
@@ -331,6 +344,11 @@ export function createEngine({
     // in deck-prefs.mjs): no broadcast, and no address outside the tailnet is
     // heard, dialled or answered. Off, every route behaves as it always has.
     tailscaleOnly: false,
+    // THIS DECK'S SESSIONS, READ-ONLY, to a paired deck that asks — off until
+    // the owner turns it on (lan.shareSessions), and held off by
+    // AGENTS_DECK_NO_LAN_SESSIONS=1 (`sessionsVetoed`). See lan-sessions.mjs.
+    shareSessions: false,
+    sessionsVetoed: false,
   };
   // Bumped by every stop, a restart included: anything started before it
   // belongs to a listener that is gone.
@@ -552,7 +570,29 @@ export function createEngine({
     settings: () => cfg, serverNow: () => server, myFp: () => identity.fp,
     inbound, learnCaller, keepManifest, manifestFrame, localAccounts, liveLogin, exportAccount, onError,
     localCodex, exportCodex: codex ? (id, key) => codex.exportAccount(id, key) : null,
+    localSessions: typeof sessions === "function" ? async () => sessions() : null,
+    mayTalkTo,
   });
+
+  /** What each paired deck that shares its sessions said last, in memory and
+   *  for REMOTE_SESSIONS_STALE_MS — see lan-sessions.mjs. */
+  const remote = createRemoteSessions({ now, staleMs: REMOTE_SESSIONS_STALE_MS, onChange: onRemoteSessions });
+
+  /**
+   * ASK A PAIRED DECK FOR ITS SESSIONS, on the round's own connection and right
+   * after its manifest, when that manifest said it shares them. A manifest that
+   * no longer says so is a deck that stopped sharing, and its rows go at once.
+   * A deck that does not answer keeps its last rows until they are stale; a
+   * refusal drops them. Never a reason for the round itself to fail.
+   */
+  const askSessions = async (theirs, fp, ask, stillPaired) => {
+    if (theirs?.sessions !== 1 && theirs?.sessions !== true) { remote.drop(fp); return; }
+    let reply;
+    try { reply = await ask({ t: "sessions" }); } catch { return; }
+    if (!stillPaired()) return;
+    if (reply?.t === "sessions" && Array.isArray(reply.rows)) remote.keep(fp, reply.rows);
+    else remote.drop(fp);
+  };
 
   /**
    * Dial a deck just paired with from now on, and keep the address: in the
@@ -783,6 +823,10 @@ export function createEngine({
       if (!stillPaired()) throw new Error("peer no longer paired");
       if (theirs?.t !== "manifest" || !Array.isArray(theirs.accounts)) throw new Error("no manifest");
       const list = keepManifest(conn.key, theirs, conn.peerFp);
+      // Its sessions, when it shares them, before any login moves: the
+      // transfers below can take the rest of the round.
+      await askSessions(theirs, conn.peerFp, ask, stillPaired);
+      if (!stillPaired()) throw new Error("peer no longer paired");
       // FROM ANY PAIRED DECK, NEITHER AN ADD NOR A HEAL NEEDS MY TICK. Adding
       // is the case the owner asked for by name: an account that appears among
       // the decks I paired with appears on all of them, which is the whole of
@@ -1443,6 +1487,7 @@ export function createEngine({
       if (list.length === cfg.trusted.length) return false;
       cfg = { ...cfg, trusted: list };
       lastGood.delete(fp);
+      remote.drop(fp);
       markUnpaired(fp, true);
       onTrust?.(list);
       onChange?.();
@@ -1543,6 +1588,10 @@ export function createEngine({
         shareActive: cfg.shareActive !== false,
         // Whether the account this deck is on may be sent to one (#2192).
         sendInUse: cfg.sendInUse === true,
+        // Whether paired decks may see this deck's sessions, read-only, and
+        // whether the machine said they may not whatever the switch says.
+        shareSessions: cfg.shareSessions === true && cfg.sessionsVetoed !== true,
+        sessionsVetoed: cfg.sessionsVetoed === true,
         // Discovery over Tailscale: whether this machine has it at all, which
         // decides whether the dialog shows the switch, and what it can see.
         tailscale: tailnet ? tailnetStatus() : null,
@@ -1583,9 +1632,32 @@ export function createEngine({
         peers: beacon ? deckRows() : [],
       };
     },
+    /**
+     * The sessions paired decks share with this one, one entry per deck that
+     * still does: its fingerprint, the name the panel gives it (an alias
+     * somebody here chose, else the name it gave itself), how it is reached,
+     * when it last answered, and its rows as lan-sessions.mjs cut them. A deck
+     * no longer paired, or silent past REMOTE_SESSIONS_STALE_MS, is not listed.
+     * Nothing while LAN is off.
+     */
+    remoteSessions() {
+      if (!cfg.enabled) return [];
+      return remote.list({ isPaired: fp => !!trustedPeer(cfg.trusted, fp) }).map(m => {
+        const pin = trustedPeer(cfg.trusted, m.fp);
+        const alias = typeof cfg.aliases?.[m.fp] === "string" ? cfg.aliases[m.fp].trim() : "";
+        const from = inbound.spokeFrom(m.fp) ?? lastGood.get(m.fp)?.addr ?? null;
+        return {
+          fp: m.fp,
+          name: alias || pin?.name || m.fp.slice(0, 12),
+          via: lastGood.get(m.fp)?.via ?? (from ? viaAt(from) : "lan"),
+          at: m.at,
+          sessions: m.sessions,
+        };
+      });
+    },
     stop(restarting = false) {
       generation++;
-      if (!restarting) session++;
+      if (!restarting) { session++; remote.clear(); }
       roundTimer.stop();
       tailPoll.stop();
       hearing.forget();

@@ -520,6 +520,29 @@ const catalog: Catalog = {
   "lan.ew.pressA": "Press A anywhere to show or hide the accounts panel",
   "lan.ew.pressB": "Press B anywhere to open or close Browser Watch",
   "lan.ew.open": "Open",
+
+  // Sessions shared by paired decks, read-only (lan-sessions.mjs).
+  "lan.act.shareSessions": "Could not share this deck's sessions",
+  "lan.act.unshareSessions": "Could not stop sharing this deck's sessions",
+  "lan.setup.sessionsH": "Sessions",
+  "lan.setup.shareSessions": "Share my sessions with paired decks",
+  "lan.setup.shareSessionsDetail": "Paired decks see each session's name, project folder and state — never a prompt, a question, a tool's input or a path.",
+  "lan.setup.shareSessionsVetoed": "Off on this machine: it was started with AGENTS_DECK_NO_LAN_SESSIONS=1.",
+  "lan.setup.shareSessionsOn": "Stop showing this deck's sessions on paired decks.",
+  "lan.setup.shareSessionsOff": "Show this deck's sessions, read-only, on the decks it is paired with: names, project folders and states only.",
+  "lan.remote.tag": "other machine",
+  "lan.remote.headTitle": "Sessions on {name}, shared by its deck. Read-only.",
+  "lan.remote.untitled": "untitled session",
+  "lan.remote.rowAria": "{title}, {state}, on {machine}",
+  "lan.remote.ended": "{count} ended",
+  "lan.remote.state.waiting": "waiting",
+  "lan.remote.state.working": "working",
+  "lan.remote.state.idle": "idle",
+  "lan.remote.state.ended": "ended",
+  "lan.remote.state.failed": "failed",
+  "lan.remote.wait.permission": "waiting for permission",
+  "lan.remote.wait.asked": "asked a question",
+  "lan.remote.wait.idle": "your turn",
 };
 
 export default catalog;

@@ -18,7 +18,10 @@
 import { readFile } from "node:fs/promises";
 import { networkInterfaces } from "node:os";
 import { PRODUCT } from "./brand.mjs";
-import { lanEnabled, lanTailscaleOnly, withManualEntry, withShared } from "./deck-prefs.mjs";
+import { lanEnabled, lanSessionsVetoed, lanTailscaleOnly, withManualEntry, withShared } from "./deck-prefs.mjs";
+import { eventsSince } from "./event-ring.mjs";
+import { summarizeSessions } from "./session-summary.mjs";
+import { sseClients, trayClients, writeSse } from "./sse-clients.mjs";
 import { heldPrefs } from "./prefs-state.mjs";
 import { createEngine, defaultName } from "./lan-engine.mjs";
 import { createTailnet } from "./tailscale.mjs";
@@ -63,6 +66,20 @@ function refreshActiveVerdict() {
 function activeVerdictArrived() {
   activeVerdictRetryMs = ACTIVE_VERDICT_FIRST_RETRY_MS;
   activeVerdictNextAt = 0;
+}
+
+/** What GET /api/lan/remote-sessions answers, and what the frame carries: the
+ *  sessions paired decks share with this one, one entry per deck. */
+export function remoteSessionsView() {
+  return { now: Date.now(), machines: lanEngine.remoteSessions() };
+}
+
+/** The pages' frames, never the desktop app's tray connections — the way
+ *  broadcastTodo in status-todo-routes.mjs sends its own. */
+function broadcastRemoteSessions() {
+  if (sseClients.size === 0) return;
+  const frame = `event: lan-sessions\ndata: ${JSON.stringify(remoteSessionsView())}\n\n`;
+  for (const client of sseClients) if (!trayClients.has(client)) writeSse(client, frame);
 }
 
 export const lanEngine = createEngine({
@@ -307,6 +324,13 @@ export const lanEngine = createEngine({
       await applyLanPrefs({ secret });
     } catch { /* the next start picks it up; a shared id is the cost until then */ }
   },
+  // This deck's sessions, read-only, for a paired deck that asks while the
+  // owner shares them — the ring folded by summarizeSessions, then cut to the
+  // whitelist in lan-sessions.mjs before anything leaves.
+  sessions: () => summarizeSessions(eventsSince(0)),
+  // What paired decks share with this one changed: the open pages hear it as
+  // an `event: lan-sessions` frame (use-remote-sessions.ts listens).
+  onRemoteSessions: () => broadcastRemoteSessions(),
   onError: (what, err) => {
     // Reported, never thrown. A machine with no route, a firewall that refuses
     // the bind, an interface that comes and goes with a VPN — none of them is a
@@ -358,6 +382,11 @@ export function lanApplyFields(prefs, { load = false, env = process.env } = {}) 
     // On the network, but only the tailnet part of it: the machine's word as
     // well, read the same way — see lanTailscaleOnly.
     tailscaleOnly: lanTailscaleOnly(env),
+    // This deck's sessions, read-only, to the decks it is paired with: the
+    // owner's switch, off unless a real true was stored, and the machine's
+    // veto beside it — see lanSessionsVetoed.
+    shareSessions: lan.shareSessions === true,
+    sessionsVetoed: lanSessionsVetoed(env),
     name: lan.name || defaultName(),
     shared: Array.isArray(lan.shared) ? lan.shared : [],
     // Which of those an arrival ticked, so a deck the accept switch paired is

@@ -519,6 +519,29 @@ const catalog: Catalog = {
   "lan.ew.pressA": "어디서나 A를 누르면 계정 패널을 표시하거나 숨깁니다",
   "lan.ew.pressB": "어디서나 B를 누르면 Browser Watch를 열거나 닫습니다",
   "lan.ew.open": "열기",
+
+  // Sessions shared by paired decks, read-only (lan-sessions.mjs).
+  "lan.act.shareSessions": "이 ccdeck의 세션을 공유하지 못했습니다",
+  "lan.act.unshareSessions": "이 ccdeck의 세션 공유를 중지하지 못했습니다",
+  "lan.setup.sessionsH": "세션",
+  "lan.setup.shareSessions": "페어링된 ccdeck과 내 세션 공유",
+  "lan.setup.shareSessionsDetail": "페어링된 ccdeck에는 각 세션의 이름, 프로젝트 폴더, 상태만 표시됩니다. 프롬프트, 질문, 도구 입력, 경로는 보내지 않습니다.",
+  "lan.setup.shareSessionsVetoed": "이 컴퓨터에서는 꺼져 있습니다: AGENTS_DECK_NO_LAN_SESSIONS=1로 시작되었습니다.",
+  "lan.setup.shareSessionsOn": "페어링된 ccdeck에 이 ccdeck의 세션을 더 이상 표시하지 않습니다.",
+  "lan.setup.shareSessionsOff": "페어링된 ccdeck에 이 ccdeck의 세션을 읽기 전용으로 표시합니다: 이름, 프로젝트 폴더, 상태만.",
+  "lan.remote.tag": "다른 컴퓨터",
+  "lan.remote.headTitle": "{name}의 세션(해당 ccdeck이 공유). 읽기 전용.",
+  "lan.remote.untitled": "제목 없는 세션",
+  "lan.remote.rowAria": "{title}, {state}, {machine}에서",
+  "lan.remote.ended": "종료됨 {count}개",
+  "lan.remote.state.waiting": "대기 중",
+  "lan.remote.state.working": "작업 중",
+  "lan.remote.state.idle": "유휴",
+  "lan.remote.state.ended": "종료됨",
+  "lan.remote.state.failed": "실패",
+  "lan.remote.wait.permission": "권한 대기 중",
+  "lan.remote.wait.asked": "질문함",
+  "lan.remote.wait.idle": "내 차례",
 };
 
 export default catalog;

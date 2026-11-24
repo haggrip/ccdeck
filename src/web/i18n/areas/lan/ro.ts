@@ -538,6 +538,29 @@ const catalog: Catalog = {
   "lan.ew.pressA": "Apasă A oriunde ca să arăți sau să ascunzi panoul de conturi",
   "lan.ew.pressB": "Apasă B oriunde ca să deschizi sau să închizi Browser Watch",
   "lan.ew.open": "Deschide",
+
+  // Sessions shared by paired decks, read-only (lan-sessions.mjs).
+  "lan.act.shareSessions": "Nu s-au putut partaja sesiunile acestui ccdeck",
+  "lan.act.unshareSessions": "Nu s-a putut opri partajarea sesiunilor acestui ccdeck",
+  "lan.setup.sessionsH": "Sesiuni",
+  "lan.setup.shareSessions": "Partajează sesiunile mele cu ccdeck-urile asociate",
+  "lan.setup.shareSessionsDetail": "Ccdeck-urile asociate văd numele, folderul proiectului și starea fiecărei sesiuni — niciodată un prompt, o întrebare, intrarea unui instrument sau o cale.",
+  "lan.setup.shareSessionsVetoed": "Oprit pe acest calculator: a fost pornit cu AGENTS_DECK_NO_LAN_SESSIONS=1.",
+  "lan.setup.shareSessionsOn": "Nu mai arăta sesiunile acestui ccdeck pe ccdeck-urile asociate.",
+  "lan.setup.shareSessionsOff": "Arată sesiunile acestui ccdeck, doar pentru citire, pe ccdeck-urile asociate: doar nume, foldere de proiect și stări.",
+  "lan.remote.tag": "alt calculator",
+  "lan.remote.headTitle": "Sesiuni pe {name}, partajate de ccdeck-ul de acolo. Doar pentru citire.",
+  "lan.remote.untitled": "sesiune fără titlu",
+  "lan.remote.rowAria": "{title}, {state}, pe {machine}",
+  "lan.remote.ended": "încheiate: {count}",
+  "lan.remote.state.waiting": "așteaptă",
+  "lan.remote.state.working": "lucrează",
+  "lan.remote.state.idle": "inactivă",
+  "lan.remote.state.ended": "încheiată",
+  "lan.remote.state.failed": "eșuată",
+  "lan.remote.wait.permission": "așteaptă permisiunea",
+  "lan.remote.wait.asked": "a pus o întrebare",
+  "lan.remote.wait.idle": "rândul tău",
 };
 
 export default catalog;

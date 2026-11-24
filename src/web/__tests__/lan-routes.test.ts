@@ -96,6 +96,21 @@ function call(method: string, path: string, body?: unknown, headers: Record<stri
 }
 const post = (path: string, body?: unknown) => call("POST", path, body);
 
+describe("GET /api/lan/remote-sessions", () => {
+  it("is a guarded read: a plain loopback client is refused before the handler runs", async () => {
+    const r = await call("GET", "/api/lan/remote-sessions", undefined, { Host: `127.0.0.1:${port}` });
+    expect(r.status).toBe(401);
+    expect(r.raw).not.toContain("machines");
+  });
+
+  it("answers the deck's own page with the machines that share, none while LAN is off", async () => {
+    const r = await call("GET", "/api/lan/remote-sessions");
+    expect(r.status).toBe(200);
+    expect(r.body).toMatchObject({ ok: true, machines: [] });
+    expect(typeof r.body.now).toBe("number");
+  });
+});
+
 describe("POST /api/lan/invite", () => {
   it("says the engine is not running rather than handing out an invite nobody can use", async () => {
     // An invite names this deck's listener; with the engine off there is none.
