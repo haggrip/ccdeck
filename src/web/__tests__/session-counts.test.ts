@@ -110,3 +110,21 @@ describe("the bound", () => {
     // the page would draw it; the rest are nothing.
   });
 });
+
+describe("a resumed session", () => {
+  it("is not running until a prompt, unlike a fresh start", () => {
+    const c = ready();
+    c.note(ev("a", "SessionStart", { source: "resume" }), T0);
+    c.note(ev("b", "SessionStart", { source: "startup" }), T0);
+    expect(counts(c, T0 + 1).running).toBe(1);
+    c.note(ev("a", "UserPromptSubmit"), T0 + 2);
+    expect(counts(c, T0 + 3).running).toBe(2);
+  });
+
+  it("keeps running when its prompt landed before the resume's hook", () => {
+    const c = ready();
+    c.note(ev("a", "UserPromptSubmit"), T0 + 5);
+    c.note(ev("a", "SessionStart", { source: "resume" }), T0 + 5);
+    expect(counts(c, T0 + 6).running).toBe(1);
+  });
+});
