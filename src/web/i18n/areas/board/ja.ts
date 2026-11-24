@@ -363,6 +363,7 @@ const catalog: Catalog = {
   "board.rename.field": "セッション名",
   "board.rename.reset": "既定の名前を使う",
   "board.rename.failed": "保存されませんでした。もう一度お試しください。",
+  "board.rename.deckOnly": "deck に保存しました。Claude 側のタイトルは更新されていません。",
   "board.rail.unread": "{label} · 未読{n}件",
   "board.rail.unreadCount": "未読{n}件",
   "board.rail.watch.on": "監視中 — ccdeck が履歴の独自コピーを保持します",

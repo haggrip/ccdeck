@@ -6,7 +6,7 @@
 // Scratch HOME, CCDECK_HOME, CLAUDE_CONFIG_DIR and CODEX_HOME: nothing here
 // reads or writes a real deck's names or a provider's files.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, linkSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { request, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -51,7 +51,7 @@ afterAll(async () => {
   rmTempDir(DIR);
 });
 
-type Reply = { status: number; body: { ok?: boolean; name?: string | null; reason?: string } | null };
+type Reply = { status: number; body: { ok?: boolean; name?: string | null; reason?: string; providerSynced?: boolean } | null };
 function post(path: string, body: unknown, headers: Record<string, string> = { "x-ccdeck-token": token }): Promise<Reply> {
   return new Promise((resolve, reject) => {
     const data = JSON.stringify(body);
@@ -110,18 +110,66 @@ describe("naming a session through the deck (internal #101)", () => {
     const transcript = join(project, sid + ".jsonl");
     writeFileSync(transcript, "{}\n");
     const result = await post("/api/session-name", { provider: "claude", sessionId: sid, name: "Planning", syncProvider: true });
-    expect(result).toEqual({ status: 200, body: { ok: true, name: "Planning" } });
+    expect(result).toEqual({ status: 200, body: { ok: true, name: "Planning", providerSynced: true } });
     expect(JSON.parse(readFileSync(transcript, "utf8").trim().split("\n").at(-1)!)).toEqual({ type: "custom-title", customTitle: "Planning", sessionId: sid });
     expect(names.deckNameFor("claude", sid)).toBe("Planning");
     await post("/api/session-name", { provider: "claude", sessionId: sid, name: null });
   });
 
-  it("does not announce or save a local success when the provider rename fails", async () => {
-    const sid = "5d1c0f6e-2b3a-4c5d-9e8f-101101101103";
-    const result = await post("/api/session-name", { provider: "claude", sessionId: sid, name: "Missing", syncProvider: true });
-    expect(result).toEqual({ status: 409, body: { ok: false, reason: "provider_name_not_saved" } });
-    expect(names.deckNameFor("claude", sid)).toBeUndefined();
-    expect(await told(sid)).toEqual([]);
+  // THE DECK'S NAME ALWAYS STICKS. A provider refusal used to answer 409 with
+  // nothing kept, so a session with no transcript yet (or one Claude Code was
+  // writing to) could not be named. Every guard below now keeps the deck's
+  // name, tells the pages, and says why Claude's own title was not written.
+  const project = () => { const d = join(DIR, "claude", "projects", "guards"); mkdirSync(d, { recursive: true }); return d; };
+  const guarded = async (sid: string, name: string, reason: string) => {
+    const result = await post("/api/session-name", { provider: "claude", sessionId: sid, name, syncProvider: true });
+    expect(result).toEqual({ status: 200, body: { ok: true, name, providerSynced: false, reason } });
+    expect(names.deckNameFor("claude", sid)).toBe(name);
+    await until(async () => (await told(sid)).includes(name), `${name} told`);
+    await post("/api/session-name", { provider: "claude", sessionId: sid, name: null });
+  };
+
+  it("keeps the deck's name when the session has no transcript yet", async () => {
+    await guarded("5d1c0f6e-2b3a-4c5d-9e8f-101101101103", "Missing", "no_transcript");
+  });
+
+  it("keeps the deck's name when two projects hold the transcript", async () => {
+    const sid = "5d1c0f6e-2b3a-4c5d-9e8f-101101101104";
+    for (const dir of ["twin-a", "twin-b"]) {
+      const d = join(DIR, "claude", "projects", dir);
+      mkdirSync(d, { recursive: true });
+      writeFileSync(join(d, sid + ".jsonl"), "{}\n");
+    }
+    await guarded(sid, "Twice", "ambiguous");
+  });
+
+  it("keeps the deck's name when the transcript is hard-linked, and leaves the file alone", async () => {
+    const sid = "5d1c0f6e-2b3a-4c5d-9e8f-101101101105";
+    const file = join(project(), sid + ".jsonl");
+    writeFileSync(file, "{}\n");
+    linkSync(file, join(DIR, "elsewhere-" + sid));
+    await guarded(sid, "Linked", "no_transcript");
+    expect(readFileSync(file, "utf8")).toBe("{}\n");
+  });
+
+  it("keeps the deck's name when Claude Code is mid-line, after asking twice more", async () => {
+    const sid = "5d1c0f6e-2b3a-4c5d-9e8f-101101101106";
+    const file = join(project(), sid + ".jsonl");
+    writeFileSync(file, '{"type":"assistant","partial":');
+    await guarded(sid, "Busy", "mid_write");
+    expect(readFileSync(file, "utf8")).toBe('{"type":"assistant","partial":');
+  });
+
+  it("writes Claude's title too once a mid-line write finishes inside the retries", async () => {
+    const sid = "5d1c0f6e-2b3a-4c5d-9e8f-101101101107";
+    const file = join(project(), sid + ".jsonl");
+    writeFileSync(file, '{"type":"assistant","partial":');
+    setTimeout(() => appendFileSync(file, 'true}\n'), 60);
+    const result = await post("/api/session-name", { provider: "claude", sessionId: sid, name: "Settled", syncProvider: true });
+    expect(result).toEqual({ status: 200, body: { ok: true, name: "Settled", providerSynced: true } });
+    expect(JSON.parse(readFileSync(file, "utf8").trim().split("\n").at(-1)!)).toEqual({ type: "custom-title", customTitle: "Settled", sessionId: sid });
+    expect(names.deckNameFor("claude", sid)).toBe("Settled");
+    await post("/api/session-name", { provider: "claude", sessionId: sid, name: null });
   });
 
   it("keeps the name, answers it as kept, and tells every page", async () => {

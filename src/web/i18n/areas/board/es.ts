@@ -363,6 +363,7 @@ const catalog: Catalog = {
   "board.rename.field": "Nombre de la sesión",
   "board.rename.reset": "Usar el nombre predeterminado",
   "board.rename.failed": "No se guardó. Inténtalo de nuevo.",
+  "board.rename.deckOnly": "Guardado en el deck; el título propio de Claude no se actualizó.",
   "board.rail.unread": "{label} · {n} sin leer",
   "board.rail.unreadCount": "{n} sin leer",
   "board.rail.watch.on": "Vigilando: ccdeck guarda su propia copia del historial",

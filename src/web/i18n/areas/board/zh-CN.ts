@@ -363,6 +363,7 @@ const catalog: Catalog = {
   "board.rename.field": "会话名称",
   "board.rename.reset": "使用默认名称",
   "board.rename.failed": "未保存。请重试。",
+  "board.rename.deckOnly": "已保存在 deck 中；Claude 自己的标题未更新。",
   "board.rail.unread": "{label} · {n} 条未读",
   "board.rail.unreadCount": "{n} 条未读",
   "board.rail.watch.on": "监视中——ccdeck 会保留自己的历史副本",

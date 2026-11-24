@@ -92,7 +92,10 @@ export function isRenameKey(e: { key: string; altKey?: boolean; ctrlKey?: boolea
   return e.key === "F2" && !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey;
 }
 
-export type SaveResult = { ok: true; name: string | null } | { ok: false };
+/** `providerSynced: false` when the deck kept the name but the provider's own
+ *  title (Claude's custom-title) was not written — no transcript yet, or one
+ *  being written to: the name stands in the deck all the same. */
+export type SaveResult = { ok: true; name: string | null; providerSynced?: boolean } | { ok: false };
 
 /** Asks the deck to keep `name` for the session (null clears it). The deck
  *  announces it to every page itself, this one included; the answer only says
@@ -109,9 +112,10 @@ export async function saveSessionName(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ provider: facts.provider, sessionId: facts.sessionId, name, syncProvider: true }),
     });
-    const body = await res.json().catch(() => null) as { ok?: unknown; name?: unknown } | null;
+    const body = await res.json().catch(() => null) as { ok?: unknown; name?: unknown; providerSynced?: unknown } | null;
     if (!res.ok || !body || body.ok !== true) return { ok: false };
-    return { ok: true, name: typeof body.name === "string" ? body.name : null };
+    const kept = typeof body.name === "string" ? body.name : null;
+    return typeof body.providerSynced === "boolean" ? { ok: true, name: kept, providerSynced: body.providerSynced } : { ok: true, name: kept };
   } catch {
     return { ok: false };
   }

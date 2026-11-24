@@ -363,6 +363,7 @@ const catalog: Catalog = {
   "board.rename.field": "세션 이름",
   "board.rename.reset": "기본 이름 사용",
   "board.rename.failed": "저장되지 않았습니다. 다시 시도하세요.",
+  "board.rename.deckOnly": "deck에 저장했습니다. Claude 자체 제목은 바뀌지 않았습니다.",
   "board.rail.unread": "{label} · 읽지 않음 {n}",
   "board.rail.unreadCount": "읽지 않음 {n}",
   "board.rail.watch.on": "감시 중 — ccdeck이 기록의 자체 사본을 보관합니다",

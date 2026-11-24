@@ -363,6 +363,7 @@ const catalog: Catalog = {
   "board.rename.field": "Sitzungsname",
   "board.rename.reset": "Standardnamen verwenden",
   "board.rename.failed": "Nicht gespeichert. Bitte erneut versuchen.",
+  "board.rename.deckOnly": "Im Deck gespeichert; Claudes eigener Titel nicht geändert.",
   "board.rail.unread": "{label} · {n} ungelesen",
   "board.rail.unreadCount": "{n} ungelesen",
   "board.rail.watch.on": "Beobachtung läuft – das ccdeck führt eine eigene Kopie des Verlaufs",

@@ -380,6 +380,7 @@ const catalog: Catalog = {
   "board.rename.field": "Numele sesiunii",
   "board.rename.reset": "Folosește numele implicit",
   "board.rename.failed": "Nu s-a salvat. Încearcă din nou.",
+  "board.rename.deckOnly": "Salvat în deck; titlul propriu al lui Claude nu a fost actualizat.",
   "board.rail.unread": "{label} · {n} necitite",
   "board.rail.unreadCount": "{n} necitite",
   "board.rail.watch.on": "Urmărește — ccdeck își păstrează propria copie a istoricului",

@@ -31,6 +31,15 @@
 }
 .sn-field .sn-input[aria-busy="true"] { cursor: progress; }
 .sn-field .sn-reset { flex: none; }
+/* Saved in the deck, Claude's own title not written: a remark, not an error. */
+.sn-note {
+  flex: 1 0 100%;
+  min-width: 0;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  color: var(--muted);
+}
+.sn-field[data-place="header"] .sn-note { flex: 0 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sn-error {
   flex: 1 0 100%;
   min-width: 0;
