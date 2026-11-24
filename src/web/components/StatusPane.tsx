@@ -15,8 +15,15 @@
 // with its time: GitHub, Slack and Jira through read-only connector tools. Each
 // item opens its PR, message or ticket in the browser. Nothing here posts,
 // sends or changes anything anywhere: the only writes are the pane's own
-// settings and the people pinned or hidden, in the deck's own file.
-import { useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+// settings, the people pinned or hidden, and what you dismissed, in the deck's
+// own files.
+//
+// DISMISSED STAYS DISMISSED. Any brief item, and any item on the list, has an
+// × with a short Undo. The deck remembers it by its page (status-todo.mjs
+// dismissKeyOf), drops it from later briefs, tells the brief to leave it out,
+// and brings it back only when its source shows new activity. "N dismissed"
+// under Talk to brings one back by hand.
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useT, type TFunction } from "../i18n";
 import { KitIcon } from "./kit-icons";
 import { ExternalLinkGlyph, RefreshGlyph } from "./action-glyphs";
@@ -32,6 +39,7 @@ import {
 } from "../status-brief";
 import { useStatusBrief, type StatusBriefHandle } from "../use-status-brief";
 import { useStatusTodo, type StatusTodoHandle } from "../use-status-todo";
+import type { Dismissal } from "../status-todo";
 import StatusTodo from "./StatusTodo";
 import type { Row } from "./SessionList";
 
@@ -69,7 +77,7 @@ function metaLine(view: BriefView, now: number, t: TFunction): string | null {
   });
 }
 
-function ItemRow({ item, onOpenSession, t }: { item: BriefItem; onOpenSession: (id: string) => void; t: TFunction }) {
+function ItemRow({ item, onOpenSession, onDismiss, t }: { item: BriefItem; onOpenSession: (id: string) => void; onDismiss?: (item: BriefItem) => void; t: TFunction }) {
   const href = safeHref(item.url);
   const source = item.source === "session" ? t("brief.source.session") : SOURCE_NAMES[item.source];
   const label = (
@@ -90,18 +98,22 @@ function ItemRow({ item, onOpenSession, t }: { item: BriefItem; onOpenSession: (
           {label}<span className="stp-src">{source}</span>
         </button>
       ) : null}
+      {onDismiss && !item.local && (
+        <button type="button" className="glyph-btn stp-dismiss" onClick={() => onDismiss(item)}
+          aria-label={t("brief.dismiss", { title: item.title })} title={t("brief.dismiss", { title: item.title })}><KitIcon name="close" /></button>
+      )}
     </li>
   );
 }
 
-function Section({ title, id, items, empty, onOpenSession, t }: {
-  title: string; id: string; items: BriefItem[]; empty: string; onOpenSession: (id: string) => void; t: TFunction;
+function Section({ title, id, items, empty, onOpenSession, onDismiss, t }: {
+  title: string; id: string; items: BriefItem[]; empty: string; onOpenSession: (id: string) => void; onDismiss?: (item: BriefItem) => void; t: TFunction;
 }) {
   return (
     <section className="stp-section" aria-labelledby={id}>
       <h3 className="stp-h" id={id}>{title}{items.length > 0 && <span className="stp-n">{items.length}</span>}</h3>
       {items.length ? (
-        <ul className="stp-list">{items.map((it, i) => <ItemRow key={`${it.kind}:${it.sessionId ?? it.url ?? ""}:${i}`} item={it} onOpenSession={onOpenSession} t={t} />)}</ul>
+        <ul className="stp-list">{items.map((it, i) => <ItemRow key={`${it.kind}:${it.sessionId ?? it.url ?? ""}:${i}`} item={it} onOpenSession={onOpenSession} onDismiss={onDismiss} t={t} />)}</ul>
       ) : <p className="stp-empty">{empty}</p>}
     </section>
   );
@@ -144,6 +156,43 @@ function People({ people, onPerson, t }: {
         </ul>
       ) : <p className="stp-empty">{t("brief.people.none")}</p>}
     </section>
+  );
+}
+
+/** The last dismiss, for a few seconds: what went, and Undo. Focus moves to
+ *  Undo, since the row whose × was pressed is gone. */
+function UndoLine({ undo, onUndo, t }: { undo: { key: string; title: string } | null | undefined; onUndo: (key: string) => void; t: TFunction }) {
+  const ref = useRef<HTMLButtonElement>(null);
+  const key = undo?.key ?? null;
+  useEffect(() => { if (key) ref.current?.focus({ preventScroll: true }); }, [key]);
+  return (
+    <p className="stp-undo" role="status" aria-live="polite">
+      {undo && (
+        <>
+          <span className="stp-undo-text">{t("brief.dismissed.one", { title: undo.title })}</span>
+          <button ref={ref} type="button" className="stp-chip stp-undo-btn" onClick={() => onUndo(undo.key)}>{t("brief.undo")}</button>
+        </>
+      )}
+    </p>
+  );
+}
+
+/** "N dismissed · show": what you dismissed, each with a way back. */
+function Dismissed({ list, onRestore, t }: { list: Dismissal[]; onRestore: (key: string) => void; t: TFunction }) {
+  if (!list.length) return null;
+  return (
+    <details className="stp-closed stp-dismissed">
+      <summary className="stp-h">{t("brief.dismissed.summary", { n: list.length })}</summary>
+      <ul className="stp-list">
+        {list.map(d => (
+          <li key={d.key} className="stp-item stp-todo-item" data-closed="">
+            <span className="stp-link"><span className="stp-title">{d.title}</span></span>
+            <button type="button" className="stp-chip stp-restore" onClick={() => onRestore(d.key)}
+              aria-label={t("brief.dismissed.restoreTitle", { title: d.title })}>{t("brief.dismissed.restore")}</button>
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }
 
@@ -255,7 +304,12 @@ export function StatusPaneView({ rows, now, brief, todo, pinned, onTogglePin, be
   // the deck already lists live is said once, by the live row.
   // Waiting on you and To do are the live Todo list now (StatusTodo.tsx), which
   // the deck keeps from its sessions, the brief, your words and other sessions.
-  const talkTo = liveItems(b?.talkTo ?? [], sessions);
+  // What you dismissed is left out here too, the moment you dismiss it.
+  const dismissed = todo.view?.dismissed ?? [];
+  const gone = new Set(dismissed.map(d => d.key));
+  const talkTo = liveItems(b?.talkTo ?? [], sessions).filter(it => !it.dkey || !gone.has(it.dkey));
+  const dismissItem = todo.dismiss ? (item: BriefItem) => todo.dismiss!({ item }) : undefined;
+  const restore = (key: string) => todo.restore?.(key);
   const people = view ? peopleShown(b?.people ?? [], view.people) : [];
 
   let state: ReactNode = null;
@@ -291,6 +345,7 @@ export function StatusPaneView({ rows, now, brief, todo, pinned, onTogglePin, be
       {!folded && (
         <div className="stp-body">
           <p className="stp-counts">{counts}</p>
+          <UndoLine undo={todo.undo} onUndo={restore} t={t} />
           {settingsOpen && view && <Settings view={view} handle={brief} t={t} />}
           <section className="stp-summary" aria-label={t("brief.section.summary")}>
             {b?.summary && <p className="stp-summary-text">{b.summary}</p>}
@@ -299,7 +354,8 @@ export function StatusPaneView({ rows, now, brief, todo, pinned, onTogglePin, be
             {failed && <p className="stp-flag">{t("brief.failed", { message: failed.message || failed.code })}</p>}
           </section>
           <StatusTodo todo={todo} now={now} sessions={sessions} onOpenSession={onOpenSession} t={t} />
-          <Section title={t("brief.section.talk")} id="stp-talk" items={talkTo} empty={t("brief.section.empty")} onOpenSession={onOpenSession} t={t} />
+          <Section title={t("brief.section.talk")} id="stp-talk" items={talkTo} empty={t("brief.section.empty")} onOpenSession={onOpenSession} onDismiss={dismissItem} t={t} />
+          <Dismissed list={dismissed} onRestore={restore} t={t} />
           <People people={people} onPerson={brief.person} t={t} />
         </div>
       )}

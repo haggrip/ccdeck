@@ -90,6 +90,14 @@ export async function handleStatusTodo(req, res, url) {
     const r = await t.act(body);
     return send(res, r.ok ? 200 : r.reason === "not_found" ? 404 : 400, { ...(await t.view()), ...r });
   }
+  if (path === `${STATUS_TODO_ROUTE}/dismiss`) {
+    const r = await t.dismissBriefItem(body.item);
+    return send(res, r.ok ? 200 : 400, { ...(await t.view()), ...r });
+  }
+  if (path === `${STATUS_TODO_ROUTE}/restore`) {
+    const r = await t.restore(body.key);
+    return send(res, r.ok ? 200 : 400, { ...(await t.view()), ...r });
+  }
   if (path === `${STATUS_TODO_ROUTE}/post`) {
     const r = await t.post({ title: body.title, sessionId: body.sessionId, cwd: body.cwd });
     if (!r.ok) return send(res, r.reason === "too_many" ? 429 : 400, r);

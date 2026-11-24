@@ -30,6 +30,10 @@ export interface BriefItem {
   url?: string;
   sessionId?: string;
   person?: string;
+  /** When its source last moved, as the brief read it. */
+  activityAt?: number;
+  /** What the deck dismisses it by (status-todo.mjs dismissKeyOf). */
+  dkey?: string;
   /** Drawn from the deck's own state this render, not from the brief. */
   local?: true;
 }

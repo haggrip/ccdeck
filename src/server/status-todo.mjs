@@ -60,6 +60,10 @@ export const MAX_OPS = 12;
 export const MAX_CLOSES = 5;
 /** The most items one session may post in a minute. */
 export const POSTS_PER_MINUTE = 6;
+/** How many dismissals are kept; past it, the oldest is forgotten. */
+export const MAX_DISMISSED = 300;
+/** The reason a dismissed item closes with, and what reopens with its undo. */
+export const DISMISSED_REASON = "Dismissed";
 
 export const ORIGINS = Object.freeze(["deck", "brief", "hagai", "session"]);
 export const KINDS = Object.freeze(["answer", "failed", "approve", "merge", "review", "reply", "decide", "todo", "fix", "follow-up", "note"]);
@@ -107,6 +111,34 @@ function urlKey(url) {
 }
 
 const shortHash = s => createHash("sha256").update(String(s)).digest("hex").slice(0, 16);
+
+/**
+ * What a dismissal is known by. An item with a page is its page, whatever kind
+ * of ask it is, so dismissing a Slack thread under Talk to also dismisses the
+ * reply it mirrors on the Todo list. Without a page: the key its list gives it
+ * (a session's wait, a brief's session item), else nothing.
+ */
+export function dismissKeyOf({ url, sessionId, kind, key } = {}) {
+  const u = safeUrl(url);
+  if (u) return `url:${urlKey(u)}`;
+  if (typeof key === "string" && key && key.length <= 600) return key;
+  const sid = sessionIdOf(sessionId);
+  if (sid && typeof kind === "string" && /^[a-z-]{1,20}$/.test(kind)) return `session:${sid}:brief:${kind}`;
+  return null;
+}
+const itemDismissKey = i => dismissKeyOf({ url: i.link?.url, key: i.key });
+
+function normaliseDismissal(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const key = typeof raw.key === "string" && raw.key && raw.key.length <= 600 ? raw.key : null;
+  const title = text(raw.title, MAX_TITLE);
+  if (!key || !title || !(Number.isFinite(raw.at) && raw.at > 0)) return null;
+  const out = { key, at: raw.at, title };
+  const url = safeUrl(raw.url);
+  if (url) out.url = url;
+  if (["github", "slack", "jira", "session", "deck"].includes(raw.source)) out.source = raw.source;
+  return out;
+}
 
 /** Where an item leads: its session's card, its PR or ticket or message, or at
  *  least its project. Null when none of those is known. */
@@ -165,9 +197,18 @@ export function normaliseStore(raw) {
     ids.add(it.id);
     items.push(it);
   }
+  const dismissed = [];
+  const keys = new Set();
+  for (const x of Array.isArray(r.dismissed) ? r.dismissed : []) {
+    const d = normaliseDismissal(x);
+    if (!d || keys.has(d.key)) continue;
+    keys.add(d.key);
+    dismissed.push(d);
+  }
   return {
     v: 1,
     items,
+    dismissed: dismissed.sort((a, b) => a.at - b.at).slice(-MAX_DISMISSED),
     keeper: {
       lastRunAt: Number.isFinite(r.keeper?.lastRunAt) ? r.keeper.lastRunAt : null,
       lastCostUsd: Number.isFinite(r.keeper?.lastCostUsd) ? r.keeper.lastCostUsd : null,
@@ -190,6 +231,8 @@ export function addItem(store, fields, now) {
   const title = text(fields.title, MAX_TITLE);
   if (!title || !ORIGINS.includes(fields.origin)) return null;
   if (fields.key && byKey(store, fields.key)) return null;
+  // Something the user dismissed is not added again, from any source.
+  if (isDismissed(store, dismissKeyOf({ url: fields.link?.url, key: fields.key }))) return null;
   const item = normaliseItem({
     ...fields, id: newId(), title, state: "open", createdAt: now, updatedAt: now,
   });
@@ -215,6 +258,59 @@ export function reopenItem(item, now) {
   delete item.closedAt; delete item.closedBy; delete item.closedReason;
   item.updatedAt = now;
   return true;
+}
+
+// ── dismissals ───────────────────────────────────────────────────────────────
+
+export const isDismissed = (store, key) => !!key && (store.dismissed ?? []).some(d => d.key === key);
+
+/**
+ * Dismiss: remember the key (the newest MAX_DISMISSED are kept), and close
+ * every open item it names with DISMISSED_REASON, so the brief's item and its
+ * mirror on the list go together. Returns the dismissal, or null.
+ */
+export function dismiss(store, { key, title, url, source }, now) {
+  const d = normaliseDismissal({ key, title, url, source, at: now });
+  if (!d) return null;
+  store.dismissed = (store.dismissed ?? []).filter(x => x.key !== d.key);
+  store.dismissed.push(d);
+  if (store.dismissed.length > MAX_DISMISSED) store.dismissed.splice(0, store.dismissed.length - MAX_DISMISSED);
+  for (const i of store.items) {
+    if (i.state === "open" && itemDismissKey(i) === d.key) closeItem(i, { by: "hagai", reason: DISMISSED_REASON, now });
+  }
+  return d;
+}
+
+/** Undo a dismissal: forget the key, and reopen what it closed. Returns
+ *  whether anything changed. */
+export function restore(store, key, now) {
+  const before = (store.dismissed ?? []).length;
+  store.dismissed = (store.dismissed ?? []).filter(d => d.key !== key);
+  let changed = store.dismissed.length !== before;
+  for (const i of store.items) {
+    if (i.state === "closed" && i.closedReason === DISMISSED_REASON && itemDismissKey(i) === key) changed = reopenItem(i, now) || changed;
+  }
+  return changed;
+}
+
+/**
+ * A new brief's items: one the user dismissed comes back only when its
+ * source shows activity newer than the dismissal (the brief's `activityAt`).
+ * Returns the keys brought back.
+ */
+export function reviveOnActivity(store, brief, now) {
+  const back = [];
+  for (const it of [...(brief?.waiting ?? []), ...(brief?.todo ?? []), ...(brief?.talkTo ?? [])]) {
+    const key = dismissKeyOf(it);
+    const d = key && (store.dismissed ?? []).find(x => x.key === key);
+    if (d && Number.isFinite(it.activityAt) && it.activityAt > d.at) { restore(store, key, now); back.push(key); }
+  }
+  return back;
+}
+
+/** What the brief is told the user dismissed, newest first. */
+export function dismissedForPrompt(store, max = 40) {
+  return [...(store.dismissed ?? [])].reverse().slice(0, max).map(d => ({ key: d.key, url: d.url ?? null, title: d.title, at: d.at }));
 }
 
 /** Forget what has been closed for longer than KEEP_CLOSED_MS, and the oldest
@@ -567,7 +663,8 @@ export function sortOpen(items, now) {
 export function todoView(store, now, extra = {}) {
   const open = sortOpen(store.items.filter(i => i.state === "open"), now);
   const closed = store.items.filter(i => i.state === "closed" && now - i.closedAt < RECENT_MS).sort((a, b) => b.closedAt - a.closedAt);
-  return { ok: true, now, open, closed, keeper: store.keeper, ...extra };
+  const dismissed = [...(store.dismissed ?? [])].reverse();
+  return { ok: true, now, open, closed, dismissed, keeper: store.keeper, ...extra };
 }
 
 // ── the runtime ──────────────────────────────────────────────────────────────
@@ -769,11 +866,12 @@ export function createStatusTodo({
     async brief(brief) {
       await load();
       const t = now();
+      const revived = reviveOnActivity(store, brief, t);
       const added = ingestBrief(store, brief, t);
       const closed = applyLinkStates(store, brief?.linkStates, t);
       if (added.length) { queue.briefs.push(added.map(i => ({ id: i.id, title: i.title, detail: i.detail }))); schedule(); }
-      if (added.length || closed) await commit();
-      return { added: added.length, closed };
+      if (added.length || closed || revived.length) await commit();
+      return { added: added.length, closed, revived };
     },
     /** The pane's own buttons: close, reopen, snooze, unsnooze. */
     async act({ action, id, until }) {
@@ -783,7 +881,17 @@ export function createStatusTodo({
       const t = now();
       let did = false;
       if (action === "close") did = closeItem(item, { by: "hagai", reason: "Closed by you", now: t });
-      else if (action === "reopen") did = reopenItem(item, t);
+      else if (action === "dismiss") {
+        const key = itemDismissKey(item);
+        if (key) {
+          const d = dismiss(store, { key, title: item.title, url: item.link?.url, source: item.origin === "deck" ? "deck" : undefined }, t);
+          if (d) { await commit(); return { ok: true, changed: true, dismissed: { key: d.key, title: d.title } }; }
+        }
+        // Nothing to remember it by (an item of your own): it just closes.
+        did = closeItem(item, { by: "hagai", reason: DISMISSED_REASON, now: t });
+      } else if (action === "reopen") {
+        did = item.closedReason === DISMISSED_REASON && itemDismissKey(item) ? restore(store, itemDismissKey(item), t) : reopenItem(item, t);
+      }
       else if (action === "snooze") {
         const u = Number(until);
         if (Number.isFinite(u) && u > t && u < t + 60 * 24 * 3600_000 && item.state === "open") { item.snoozedUntil = u; item.updatedAt = t; did = true; }
@@ -792,6 +900,28 @@ export function createStatusTodo({
       if (did) await commit();
       return { ok: true, changed: did };
     },
+    /** A brief item the pane dismissed (Talk to, or any it draws): its key is
+     *  worked out here from its own link, never taken from the page. */
+    async dismissBriefItem(raw) {
+      await load();
+      const key = dismissKeyOf({ url: raw?.url, sessionId: raw?.sessionId, kind: raw?.kind });
+      const title = text(raw?.person ? `${raw.person} · ${raw?.title ?? ""}` : raw?.title, MAX_TITLE);
+      if (!key || !title) return { ok: false, reason: "no_key" };
+      const d = dismiss(store, { key, title, url: raw?.url, source: raw?.source }, now());
+      if (!d) return { ok: false, reason: "no_key" };
+      await commit();
+      return { ok: true, dismissed: { key: d.key, title: d.title } };
+    },
+    /** Undo, or "show" in the dismissed list: the item comes back. */
+    async restore(key) {
+      await load();
+      if (typeof key !== "string" || !key) return { ok: false, reason: "no_key" };
+      const did = restore(store, key, now());
+      if (did) await commit();
+      return { ok: true, changed: did };
+    },
+    /** For the brief: what the user dismissed, so the model leaves it out. */
+    async dismissed() { await load(); return dismissedForPrompt(store); },
     /** For the brief: the open PRs and tickets whose state it should read. */
     async watched() { await load(); return watchedLinks(store); },
     settled: () => Promise.all([running, writing]),

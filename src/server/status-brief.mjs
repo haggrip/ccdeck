@@ -35,7 +35,7 @@
 import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { writeFileAtomic } from "./atomic-write.mjs";
-import { LINK_STATES } from "./status-todo.mjs";
+import { LINK_STATES, dismissKeyOf } from "./status-todo.mjs";
 
 export const BRIEF_FILE = "status-brief.json";
 export const MODELS = Object.freeze(["haiku", "sonnet", "opus"]);
@@ -192,6 +192,12 @@ function item(raw, kinds, fallbackKind) {
   if (sessionId) out.sessionId = sessionId;
   const person = text(raw.person, 80);
   if (person) out.person = person;
+  // When its source last moved: what brings back an item the user dismissed.
+  const activityAt = typeof raw.activityAt === "number" ? raw.activityAt : Date.parse(String(raw.activityAt ?? ""));
+  if (Number.isFinite(activityAt) && activityAt > 0) out.activityAt = activityAt;
+  // What the pane dismisses it by (status-todo.mjs dismissKeyOf).
+  const dkey = dismissKeyOf({ url, sessionId, kind });
+  if (dkey) out.dkey = dkey;
   return out;
 }
 
@@ -345,7 +351,7 @@ export function sessionDigest(rows, envelopes, { now = Date.now(), maxRows = 30,
 const clock = at => (Number.isFinite(at) ? new Date(at).toISOString() : "never");
 
 /** What the model is asked. Pure, so the suite can read it. */
-export function buildPrompt({ sessions, reach, tools = [], since, now = Date.now(), hidden = [], watch = [] }) {
+export function buildPrompt({ sessions, reach, tools = [], since, now = Date.now(), hidden = [], watch = [], dismissed = [] }) {
   // Named in full, so the model never reaches for one it was not given: a
   // call outside the run's list ends the run (claude-agent.mjs).
   const given = [...new Set((Array.isArray(tools) ? tools : []).filter(t => typeof t === "string"))].sort();
@@ -373,6 +379,10 @@ export function buildPrompt({ sessions, reach, tools = [], since, now = Date.now
     "- Every item must link to its source: \"url\" (an https link to the PR, Slack message, or ticket) or \"sessionId\" (one of the ids in brackets below).",
     "- Keep titles under 120 characters. Prefer fewer, sharper items. Do not invent anything you did not see.",
     ...(hidden.length ? [`- Leave these people out entirely: ${hidden.map(h => JSON.stringify(h)).join(", ")}.`] : []),
+    ...(dismissed.length ? [
+      "- The developer dismissed the items below. Leave each out, unless its source shows activity (a new message, comment, review, commit or status change) after the time it was dismissed; then include it with \"activityAt\" set to that activity's time.",
+      ...dismissed.map(d => `  - ${d.url ?? d.key} · ${JSON.stringify(d.title)} · dismissed ${clock(d.at)}`),
+    ] : []),
     "",
     `NOW: ${clock(now)}`,
     "",
@@ -395,9 +405,9 @@ export function buildPrompt({ sessions, reach, tools = [], since, now = Date.now
     "JSON SHAPE:",
     "{",
     '  "summary": "two or three plain sentences on what is going on across the sessions and sources",',
-    '  "waiting": [{ "kind": "approve|merge|review|reply|decide", "title": "...", "detail": "...", "source": "github|slack|jira|session", "url": "https://...", "sessionId": "...", "person": "..." }],',
-    '  "todo": [{ "kind": "todo|fix|follow-up", "title": "...", "detail": "...", "source": "...", "url": "...", "sessionId": "..." }],',
-    '  "talkTo": [{ "kind": "feedback|talk", "person": "name", "title": "what about", "source": "...", "url": "..." }],',
+    '  "waiting": [{ "kind": "approve|merge|review|reply|decide", "title": "...", "detail": "...", "source": "github|slack|jira|session", "url": "https://...", "sessionId": "...", "person": "...", "activityAt": "ISO time of the newest activity you saw on its source" }],',
+    '  "todo": [{ "kind": "todo|fix|follow-up", "title": "...", "detail": "...", "source": "...", "url": "...", "sessionId": "...", "activityAt": "..." }],',
+    '  "talkTo": [{ "kind": "feedback|talk", "person": "name", "title": "what about", "source": "...", "url": "...", "activityAt": "..." }],',
     '  "people": [{ "name": "...", "handle": "...", "why": "reviews, DMs or mentions that make them worth watching", "source": "github|slack|jira", "url": "https://..." }],',
     '  "linkStates": [{ "url": "https://...", "state": "open|approved|merged|closed|green|done|answered" }]',
     "}",
@@ -502,12 +512,16 @@ export function createStatusBrief({ dir, agent, sessions, todo = null, now = () 
     // The open Todo items' PRs and tickets, for the brief to read the state of.
     let watch = [];
     try { watch = (await todo?.watched?.()) ?? []; } catch (err) { log(`status brief: the todo list could not be read (${err?.message ?? err})`); }
+    // What the user dismissed, so the model spends nothing on it.
+    let dismissed = [];
+    try { dismissed = (await todo?.dismissed?.()) ?? []; } catch (err) { log(`status brief: the dismissed list could not be read (${err?.message ?? err})`); }
     const prompt = buildPrompt({
       sessions: digest, reach, tools, now: startedAt, watch,
       // Since the last brief, and never less than a day back: a DM that was
       // waiting at the last brief is still waiting until it is answered.
       since: Math.min(s.brief?.at ?? startedAt, startedAt - 24 * 3600_000),
       hidden: s.people.hidden,
+      dismissed,
     });
     let result;
     try {
