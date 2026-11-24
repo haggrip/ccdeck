@@ -348,7 +348,8 @@ describe("the board after /resume inside a terminal", () => {
     resetTwins({ counts: twinsFrom({ ok: true, twins: [{ sessionId: PICKED, count: 2 }] }) });
     const html = card();
     expect(html).toContain("twin-row");
-    expect(html).toContain("Open in 2 terminals");
+    expect(html).toContain("In 2 terminals");
+    expect(html).toContain("Close older");
     expect(html).toContain("Close the older terminal");
     // The question is asked first: no dialog is drawn until the button is pressed.
     expect(html).not.toContain("role=\"dialog\"");

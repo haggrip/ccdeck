@@ -31,8 +31,10 @@ export function TwinTerminalsRow({ data }: { data: Bearing }) {
         type="button"
         className="twin-close"
         aria-busy={closing || undefined}
+        aria-label={t("board.twins.close")}
+        title={t("board.twins.close")}
         onClick={e => { e.stopPropagation(); if (!closing) setAsking(true); }}
-      >{closing ? t("board.twins.closing") : t("board.twins.close")}</button>
+      >{closing ? t("board.twins.closing") : t("board.twins.closeShort")}</button>
       {asking && (
         <TwinCloseConfirm
           onCancel={() => setAsking(false)}
