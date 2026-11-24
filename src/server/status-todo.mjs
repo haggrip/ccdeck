@@ -885,7 +885,9 @@ export function createStatusTodo({
         const key = itemDismissKey(item);
         if (key) {
           const d = dismiss(store, { key, title: item.title, url: item.link?.url, source: item.origin === "deck" ? "deck" : undefined }, t);
-          if (d) { await commit(); return { ok: true, changed: true, dismissed: { key: d.key, title: d.title } }; }
+          // `undo`, not `dismissed`: a route answers with the view spread under it,
+          // and the view's own `dismissed` is the list.
+          if (d) { await commit(); return { ok: true, changed: true, undo: { key: d.key, title: d.title } }; }
         }
         // Nothing to remember it by (an item of your own): it just closes.
         did = closeItem(item, { by: "hagai", reason: DISMISSED_REASON, now: t });
@@ -910,7 +912,7 @@ export function createStatusTodo({
       const d = dismiss(store, { key, title, url: raw?.url, source: raw?.source }, now());
       if (!d) return { ok: false, reason: "no_key" };
       await commit();
-      return { ok: true, dismissed: { key: d.key, title: d.title } };
+      return { ok: true, undo: { key: d.key, title: d.title } };
     },
     /** Undo, or "show" in the dismissed list: the item comes back. */
     async restore(key) {

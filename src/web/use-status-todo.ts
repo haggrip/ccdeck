@@ -37,15 +37,15 @@ export function useStatusTodo(fetchFn: Fetch = (...a) => fetch(...a)): StatusTod
     const next = v as TodoView | null;
     if (alive.current && next?.ok && Array.isArray(next.open)) setView(next);
   }, []);
-  const call = useCallback((path: string, body?: unknown, then?: (v: { dismissed?: { key: string; title: string } }) => void) => {
+  const call = useCallback((path: string, body?: unknown, then?: (v: { undo?: { key: string; title: string } }) => void) => {
     fetchRef.current(path, body === undefined ? undefined : {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
     }).then(r => r.json()).then(v => { take(v); if (alive.current) then?.(v); }, () => {});
   }, [take]);
-  const offerUndo = useCallback((v: { dismissed?: { key: string; title: string } }) => {
-    if (!v?.dismissed?.key) return;
+  const offerUndo = useCallback((v: { undo?: { key: string; title: string } }) => {
+    if (!v?.undo?.key) return;
     if (undoTimer.current) clearTimeout(undoTimer.current);
-    setUndo(v.dismissed);
+    setUndo(v.undo);
     undoTimer.current = setTimeout(() => setUndo(null), UNDO_MS);
   }, []);
 

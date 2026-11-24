@@ -181,7 +181,18 @@
    dismissed folded under Talk to, each with a way back. */
 .stp-dismiss { flex: none; }
 .stp-item > .stp-dismiss { margin-top: 2px; }
-.stp-undo { display: flex; align-items: center; gap: 6px; min-height: 0; margin: 0; color: var(--muted); }
+.stp-undo {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 -12px -12px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--line-soft);
+  background: var(--panel);
+  color: var(--muted);
+}
 .stp-undo:empty { display: none; }
 .stp-undo-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .stp-undo-btn, .stp-restore { flex: none; margin-top: 2px; }

@@ -159,12 +159,13 @@ function People({ people, onPerson, t }: {
   );
 }
 
-/** The last dismiss, for a few seconds: what went, and Undo. Focus moves to
- *  Undo, since the row whose × was pressed is gone. */
+/** The last dismiss, for a few seconds: what went, and Undo. It sticks to the
+ *  bottom of the pane, so it is in view wherever the dismissed row was, and
+ *  focus moves to Undo, since the row whose × was pressed is gone. */
 function UndoLine({ undo, onUndo, t }: { undo: { key: string; title: string } | null | undefined; onUndo: (key: string) => void; t: TFunction }) {
   const ref = useRef<HTMLButtonElement>(null);
   const key = undo?.key ?? null;
-  useEffect(() => { if (key) ref.current?.focus({ preventScroll: true }); }, [key]);
+  useEffect(() => { if (key) ref.current?.focus(); }, [key]);
   return (
     <p className="stp-undo" role="status" aria-live="polite">
       {undo && (
@@ -345,7 +346,6 @@ export function StatusPaneView({ rows, now, brief, todo, pinned, onTogglePin, be
       {!folded && (
         <div className="stp-body">
           <p className="stp-counts">{counts}</p>
-          <UndoLine undo={todo.undo} onUndo={restore} t={t} />
           {settingsOpen && view && <Settings view={view} handle={brief} t={t} />}
           <section className="stp-summary" aria-label={t("brief.section.summary")}>
             {b?.summary && <p className="stp-summary-text">{b.summary}</p>}
@@ -357,6 +357,7 @@ export function StatusPaneView({ rows, now, brief, todo, pinned, onTogglePin, be
           <Section title={t("brief.section.talk")} id="stp-talk" items={talkTo} empty={t("brief.section.empty")} onOpenSession={onOpenSession} onDismiss={dismissItem} t={t} />
           <Dismissed list={dismissed} onRestore={restore} t={t} />
           <People people={people} onPerson={brief.person} t={t} />
+          <UndoLine undo={todo.undo} onUndo={restore} t={t} />
         </div>
       )}
     </aside>

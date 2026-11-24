@@ -103,10 +103,10 @@ describe("the runner and its routes", () => {
     const t1 = createStatusTodo({ dir, agent: async () => null, sessions, broadcast: v => frames.push(v as TodoView), now: () => 1000 });
     await t1.brief(normaliseBrief(BRIEF));
     const r = await t1.dismissBriefItem(BRIEF.talkTo[0]);
-    expect(r).toEqual({ ok: true, dismissed: { key: `url:${THREAD}`, title: "Tomer · LGTM gate on PR #18361" } });
+    expect(r).toEqual({ ok: true, undo: { key: `url:${THREAD}`, title: "Tomer · LGTM gate on PR #18361" } });
     // A list item dismissed by id is remembered by its page too.
     const id = (await t1.view()).open[0].id;
-    expect((await t1.act({ action: "dismiss", id })).dismissed).toEqual({ key: `url:${PR}`, title: "LGTM gate on PR #18361" });
+    expect((await t1.act({ action: "dismiss", id })).undo).toEqual({ key: `url:${PR}`, title: "LGTM gate on PR #18361" });
     await t1.settled();
     expect(statSync(join(dir, TODO_DIR)).mode & 0o777).toBe(0o700);
     expect(JSON.parse(readFileSync(join(dir, TODO_DIR, TODO_FILE), "utf8")).dismissed.map((d: { key: string }) => d.key)).toEqual([`url:${THREAD}`, `url:${PR}`]);
@@ -131,7 +131,9 @@ describe("the runner and its routes", () => {
     };
     const ok = await request("/api/status-todo/dismiss", { item: { ...BRIEF.talkTo[0], dkey: "url:https://evil.example/" }, key: "anything" });
     expect(ok.status).toBe(200);
-    expect(ok.json.dismissed.key).toBe(`url:${THREAD}`);
+    expect(ok.json.undo.key).toBe(`url:${THREAD}`);
+    // The reply is the view, whose own `dismissed` stays the list the page draws.
+    expect(ok.json.dismissed.map((d: { key: string }) => d.key)).toEqual([`url:${THREAD}`]);
     expect((await request("/api/status-todo/dismiss", { item: { kind: "talk", title: "nowhere" } })).status).toBe(400);
     const back = await request("/api/status-todo/restore", { key: `url:${THREAD}` });
     expect(back.status).toBe(200);
