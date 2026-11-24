@@ -244,6 +244,14 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
   // And the opposite for the fourth (#2192): absent is off, which is what the
   // engine does with a missing setting — the login this deck is on stays here.
   const sends = status.sendInUse === true;
+  // And the fifth: absent is off, as the engine reads it, and a machine that
+  // vetoed it at launch holds it off whatever the file says.
+  const sessionsVetoed = status.sessionsVetoed === true;
+  const sharesSessions = status.shareSessions === true && !sessionsVetoed;
+  const sessionsPress = (() => {
+    const p = pressProps("share-sessions");
+    return { ...p, disabled: p.disabled || sessionsVetoed };
+  })();
   const ts = status.tailscale ?? null;
   const tsOn = !!ts?.on;
   const tsAsks = ts?.ask !== false;
@@ -426,6 +434,44 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                 </div>
               </div>
             )}
+          </div>
+
+          {/* THIS DECK'S SESSIONS, READ-ONLY, ON A PAIRED DECK'S BOARD — off
+              until somebody turns it on, and its own section because it shares
+              no login: names, project folders and states, never what a session
+              said (lan-sessions.mjs). Held off, and not pressable, while the
+              machine vetoed it at launch. */}
+          <div className="modal-section">
+            <h3 className="lan-h">{t("lan.setup.sessionsH")}</h3>
+            <div className="lan-switches">
+              <div className="lan-switch">
+                <span className="lan-switch-what">
+                  {t("lan.setup.shareSessions")}
+                  {(sharesSessions || sessionsVetoed) && (
+                    <span id="lan-share-sessions-detail" className="lan-switch-detail">
+                      {sessionsVetoed ? t("lan.setup.shareSessionsVetoed") : t("lan.setup.shareSessionsDetail")}
+                    </span>
+                  )}
+                </span>
+                <button
+                  type="button"
+                  className="switch ap-auto-state"
+                  role="switch"
+                  aria-checked={sharesSessions}
+                  aria-label={t("lan.setup.shareSessions")}
+                  aria-describedby={sharesSessions || sessionsVetoed ? "lan-share-sessions-detail" : undefined}
+                  {...sessionsPress}
+                  onClick={() => void write(
+                    { shareSessions: !sharesSessions },
+                    sharesSessions ? "stop sharing this deck's sessions" : "share this deck's sessions",
+                    "share-sessions",
+                  )}
+                  title={sharesSessions ? t("lan.setup.shareSessionsOn") : t("lan.setup.shareSessionsOff")}
+                >
+                  <span className="switch-knob" />
+                </button>
+              </div>
+            </div>
           </div>
 
           <div className="modal-section">

@@ -65,7 +65,9 @@ describe("every switch is the one switch (#886)", () => {
     // by one `role="switch"` from each connector's list.
     // CHANGED ON PURPOSE: twenty-five with Settings › General's goal titles
     // switch (SessionRecoverySettings.tsx GoalTitlesRow).
-    expect(switches, "the twenty-five switches in the source").toBe(25);
+    // CHANGED ON PURPOSE: twenty-six with the Local network dialog's "Share my
+    // sessions with paired decks" switch (LanSetupModal.tsx).
+    expect(switches, "the twenty-six switches in the source").toBe(26);
     expect(count(/className="switch(?: ap-auto-state)?"/g)).toBe(switches);
     expect(count(/<span className="switch-knob" \/>/g)).toBe(switches);
   });

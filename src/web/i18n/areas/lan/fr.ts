@@ -519,6 +519,29 @@ const catalog: Catalog = {
   "lan.ew.pressA": "Appuyez sur A n’importe où pour afficher ou masquer le panneau des comptes",
   "lan.ew.pressB": "Appuyez sur B n’importe où pour ouvrir ou fermer Browser Watch",
   "lan.ew.open": "Ouvrir",
+
+  // Sessions shared by paired decks, read-only (lan-sessions.mjs).
+  "lan.act.shareSessions": "Impossible de partager les sessions de ce ccdeck",
+  "lan.act.unshareSessions": "Impossible d’arrêter de partager les sessions de ce ccdeck",
+  "lan.setup.sessionsH": "Sessions",
+  "lan.setup.shareSessions": "Partager mes sessions avec les ccdeck associés",
+  "lan.setup.shareSessionsDetail": "Les ccdeck associés voient le nom, le dossier du projet et l’état de chaque session — jamais un prompt, une question, l’entrée d’un outil ni un chemin.",
+  "lan.setup.shareSessionsVetoed": "Désactivé sur cette machine : elle a été lancée avec AGENTS_DECK_NO_LAN_SESSIONS=1.",
+  "lan.setup.shareSessionsOn": "Ne plus afficher les sessions de ce ccdeck sur les ccdeck associés.",
+  "lan.setup.shareSessionsOff": "Afficher les sessions de ce ccdeck, en lecture seule, sur les ccdeck associés : noms, dossiers de projet et états uniquement.",
+  "lan.remote.tag": "autre machine",
+  "lan.remote.headTitle": "Sessions sur {name}, partagées par son ccdeck. Lecture seule.",
+  "lan.remote.untitled": "session sans titre",
+  "lan.remote.rowAria": "{title}, {state}, sur {machine}",
+  "lan.remote.ended": "{count} terminées",
+  "lan.remote.state.waiting": "en attente",
+  "lan.remote.state.working": "au travail",
+  "lan.remote.state.idle": "inactive",
+  "lan.remote.state.ended": "terminée",
+  "lan.remote.state.failed": "en échec",
+  "lan.remote.wait.permission": "attend une autorisation",
+  "lan.remote.wait.asked": "a posé une question",
+  "lan.remote.wait.idle": "à vous",
 };
 
 export default catalog;

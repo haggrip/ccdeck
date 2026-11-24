@@ -9,7 +9,7 @@
 // are asked in is written down.
 import { cleanAlias, isAliasKey, lanEnabled, withAlias, withManualEntry } from "./deck-prefs.mjs";
 import { heldPrefs } from "./prefs-state.mjs";
-import { lanEngine, lastReach, refreshReach, tailnet } from "./lan-deck.mjs";
+import { lanEngine, lastReach, refreshReach, remoteSessionsView, tailnet } from "./lan-deck.mjs";
 import { servedReach } from "./lan-reach.mjs";
 import { IDLE_MS as TAILNET_IDLE_MS } from "./tailscale.mjs";
 import { readBody, send } from "./http-io.mjs";
@@ -25,6 +25,13 @@ export function handleLanStatus(req, res) {
   // Read against what has got in since it was taken — see servedReach.
   const status = lanEngine.status();
   return send(res, 200, { ok: true, ...status, reach: servedReach(lastReach(), status.inboundAt) });
+}
+
+/** The sessions paired decks share with this one, read-only: one entry per
+ *  deck, each row cut to lan-sessions.mjs's whitelist. A guarded read
+ *  (request-gates.mjs): it says what the owner's other machines are doing. */
+export function handleLanRemoteSessions(req, res) {
+  return send(res, 200, { ok: true, ...remoteSessionsView() });
 }
 
 /**

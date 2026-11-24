@@ -519,6 +519,29 @@ const catalog: Catalog = {
   "lan.ew.pressA": "Drücke überall A, um das Konten-Panel ein- oder auszublenden",
   "lan.ew.pressB": "Drücke überall B, um Browser Watch zu öffnen oder zu schließen",
   "lan.ew.open": "Öffnen",
+
+  // Sessions shared by paired decks, read-only (lan-sessions.mjs).
+  "lan.act.shareSessions": "Die Sitzungen dieses ccdeck konnten nicht geteilt werden",
+  "lan.act.unshareSessions": "Das Teilen der Sitzungen dieses ccdeck konnte nicht beendet werden",
+  "lan.setup.sessionsH": "Sitzungen",
+  "lan.setup.shareSessions": "Meine Sitzungen mit gekoppelten ccdecks teilen",
+  "lan.setup.shareSessionsDetail": "Gekoppelte ccdecks sehen Name, Projektordner und Zustand jeder Sitzung – nie einen Prompt, eine Frage, die Eingabe eines Werkzeugs oder einen Pfad.",
+  "lan.setup.shareSessionsVetoed": "Auf diesem Rechner aus: Er wurde mit AGENTS_DECK_NO_LAN_SESSIONS=1 gestartet.",
+  "lan.setup.shareSessionsOn": "Die Sitzungen dieses ccdeck nicht mehr auf gekoppelten ccdecks zeigen.",
+  "lan.setup.shareSessionsOff": "Die Sitzungen dieses ccdeck schreibgeschützt auf gekoppelten ccdecks zeigen: nur Namen, Projektordner und Zustände.",
+  "lan.remote.tag": "anderer Rechner",
+  "lan.remote.headTitle": "Sitzungen auf {name}, von dessen ccdeck geteilt. Schreibgeschützt.",
+  "lan.remote.untitled": "Sitzung ohne Titel",
+  "lan.remote.rowAria": "{title}, {state}, auf {machine}",
+  "lan.remote.ended": "{count} beendet",
+  "lan.remote.state.waiting": "wartet",
+  "lan.remote.state.working": "arbeitet",
+  "lan.remote.state.idle": "untätig",
+  "lan.remote.state.ended": "beendet",
+  "lan.remote.state.failed": "fehlgeschlagen",
+  "lan.remote.wait.permission": "wartet auf Erlaubnis",
+  "lan.remote.wait.asked": "hat eine Frage gestellt",
+  "lan.remote.wait.idle": "du bist dran",
 };
 
 export default catalog;

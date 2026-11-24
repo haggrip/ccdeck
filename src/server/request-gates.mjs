@@ -469,6 +469,9 @@ export const GUARDED_READS = new Set([
   "/api/claude-accounts/login",
   "/api/browser-watch",
   "/api/lan",
+  // What the owner's other machines are working on: their sessions' names,
+  // project folders and states, as paired decks share them (lan-sessions.mjs).
+  "/api/lan/remote-sessions",
   "/api/prefs",
   // Per-account, per-project token spend — the user's own work, the same class
   // of secret as the accounts list it hangs off.
