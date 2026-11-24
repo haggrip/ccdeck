@@ -28,6 +28,7 @@ const catalog: Catalog = {
   "connectors.runs.tools": "도구 호출: {count}",
   "connectors.runs.ok": "응답함",
   "connectors.runs.failed": "실패: {code}",
+  "connectors.runs.refused": "거부됨(허용 안 됨): {tools}",
   "connectors.tool.writes": "변경할 수 있음",
 };
 

@@ -28,6 +28,7 @@ const catalog: Catalog = {
   "connectors.runs.tools": "工具呼叫：{count}",
   "connectors.runs.ok": "已回答",
   "connectors.runs.failed": "失敗：{code}",
+  "connectors.runs.refused": "已拒絕（未授予）：{tools}",
   "connectors.tool.writes": "可修改內容",
 };
 

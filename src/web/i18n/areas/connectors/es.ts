@@ -28,6 +28,7 @@ const catalog: Catalog = {
   "connectors.runs.tools": "llamadas a herramientas: {count}",
   "connectors.runs.ok": "respondida",
   "connectors.runs.failed": "falló: {code}",
+  "connectors.runs.refused": "rechazadas, no concedidas: {tools}",
   "connectors.tool.writes": "Puede cambiar cosas",
 };
 

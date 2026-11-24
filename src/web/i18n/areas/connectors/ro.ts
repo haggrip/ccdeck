@@ -28,6 +28,7 @@ const catalog: Catalog = {
   "connectors.runs.tools": "apeluri de unelte: {count}",
   "connectors.runs.ok": "a răspuns",
   "connectors.runs.failed": "a eșuat: {code}",
+  "connectors.runs.refused": "refuzate, neacordate: {tools}",
   "connectors.tool.writes": "Poate schimba lucruri",
 };
 

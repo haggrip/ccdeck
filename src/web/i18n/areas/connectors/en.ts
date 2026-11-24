@@ -28,6 +28,7 @@ const catalog: Catalog = {
   "connectors.runs.tools": "tool calls: {count}",
   "connectors.runs.ok": "answered",
   "connectors.runs.failed": "failed: {code}",
+  "connectors.runs.refused": "refused, not given: {tools}",
   "connectors.tool.writes": "Can change things",
 };
 
