@@ -156,6 +156,24 @@ export function normaliseLink(raw) {
   return out.kind ? out : null;
 }
 
+const SESSION_STATES = Object.freeze(["waiting", "working", "idle", "ended"]);
+/** A session as the brief read it: its state, and since when. */
+function seenOf(raw) {
+  return raw && SESSION_STATES.includes(raw.state) && Number.isFinite(raw.since) && raw.since > 0 ? { state: raw.state, since: raw.since } : null;
+}
+
+/**
+ * Whether a session moved on from what the brief said of it: its state or
+ * since when it has been in it changed (`seen`, as the brief read it), or, for
+ * an item from before the brief said, its state began after the item did.
+ */
+export function movedOn(item, r) {
+  if (!r) return false;
+  const seen = seenOf(item?.seen);
+  if (seen) return r.state !== seen.state || r.since !== seen.since;
+  return Number.isFinite(r.since) && Number.isFinite(item?.createdAt) && r.since > item.createdAt;
+}
+
 function normaliseItem(raw) {
   if (!raw || typeof raw !== "object") return null;
   const id = typeof raw.id === "string" && /^t_[a-z0-9]{6,24}$/.test(raw.id) ? raw.id : null;
@@ -182,6 +200,8 @@ function normaliseItem(raw) {
   // answer after it settles (ingestActivity).
   if (at(raw.activityAt)) item.activityAt = raw.activityAt;
   if (at(raw.snoozedUntil)) item.snoozedUntil = raw.snoozedUntil;
+  const seen = seenOf(raw.seen);
+  if (seen) item.seen = seen;
   if (item.state === "closed") {
     item.closedAt = at(raw.closedAt) ?? item.updatedAt;
     item.closedBy = ["deck", "brief", "hagai", "keeper"].includes(raw.closedBy) ? raw.closedBy : "hagai";
@@ -392,6 +412,8 @@ export function reconcileDeck(store, rows, digest, now, { archived = null } = {}
       else if (!failed.has(sid)) changed = closeItem(item, { by: "deck", reason: "A new turn started after the failure", now }) || changed;
     } else if (item.origin === "brief" && r && r.state === "ended") {
       changed = closeItem(item, { by: "deck", reason: "The session ended", now }) || changed;
+    } else if (item.origin === "brief" && !item.link?.url && movedOn(item, r)) {
+      changed = closeItem(item, { by: "deck", reason: "The session moved on", now }) || changed;
     }
   }
   return changed;
@@ -408,20 +430,27 @@ export function briefKey(item) {
 
 /**
  * Add a new brief's Waiting on you and To do items. Returns the items added.
- * A session item the deck already lists as waiting is said once, by the deck.
+ * A session item the deck already lists as waiting is said once, by the deck,
+ * and one about a session that moved on since the brief read it (`rows`, the
+ * sessions now) is not said at all: the model takes minutes, and the person
+ * may have answered in them.
  */
-export function ingestBrief(store, brief, now) {
+export function ingestBrief(store, brief, now, { rows = [] } = {}) {
   const added = [];
+  const byId = new Map((Array.isArray(rows) ? rows : []).map(r => [r.id, r]));
   for (const raw of [...(brief?.waiting ?? []), ...(brief?.todo ?? [])]) {
     const key = briefKey(raw);
     if (!key) continue;
     if (raw.sessionId && !raw.url && store.items.some(i => i.state === "open" && i.origin === "deck" && i.link?.sessionId === raw.sessionId)) continue;
+    const seen = raw.sessionId && !raw.url ? seenOf(raw.seen) : null;
+    if (seen && movedOn({ seen }, byId.get(raw.sessionId))) continue;
     // GitHub activity already put this ask about this PR on the list.
     if (raw.url && store.items.some(i => i.state === "open" && i.key?.startsWith("gh:") && sameAsk(i.kind, raw.kind) && urlKey(i.link?.url ?? "") === urlKey(raw.url))) continue;
     const item = addItem(store, {
       key, origin: "brief", kind: KINDS.includes(raw.kind) ? raw.kind : "todo",
       title: raw.person ? `${raw.person} · ${raw.title}` : raw.title, detail: raw.detail,
       link: normaliseLink({ url: raw.url, sessionId: raw.sessionId }),
+      ...(seen ? { seen } : {}),
     }, now);
     if (item) added.push(item);
   }
@@ -524,8 +553,8 @@ export function ingestActivity(store, activity, now) {
 
 /** The states of a linked page that settle each kind of ask. */
 const SETTLES = Object.freeze({
-  review: ["approved", "merged", "closed"],
-  approve: ["approved", "merged", "closed"],
+  review: ["approved", "reviewed", "draft", "merged", "closed"],
+  approve: ["approved", "reviewed", "draft", "merged", "closed"],
   merge: ["merged", "closed"],
   fix: ["green", "merged", "closed"],
   reply: ["answered"],
@@ -535,6 +564,7 @@ const SETTLES = Object.freeze({
 });
 const STATE_WORDS = Object.freeze({
   approved: "Approved", merged: "Merged", closed: "Closed on its side", green: "Checks went green", done: "Done on its side", answered: "Answered",
+  reviewed: "You reviewed it", draft: "A draft: not up for review",
 });
 export const LINK_STATES = Object.freeze(Object.keys(STATE_WORDS).concat(["open"]));
 
@@ -982,7 +1012,10 @@ export function createStatusTodo({
       // ask is said once, by it.
       const gh = ingestActivity(store, brief?.activity, t);
       revived.push(...gh.revived);
-      const added = [...gh.added, ...ingestBrief(store, brief, t)];
+      // The sessions now, against the ones the brief read minutes ago.
+      let rows = [];
+      try { ({ rows = [] } = await sessions()); } catch (err) { log(`status todo: sessions unreadable (${err?.message ?? err})`); }
+      const added = [...gh.added, ...ingestBrief(store, brief, t, { rows })];
       const closed = applyLinkStates(store, brief?.linkStates, t);
       if (added.length) { queue.briefs.push(added.map(i => ({ id: i.id, title: i.title, detail: i.detail }))); schedule(); }
       if (added.length || closed || revived.length || gh.changed) await commit();

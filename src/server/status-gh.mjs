@@ -67,23 +67,45 @@ export function prUrlOf(url) {
   return PR_URL.test(pr) ? pr : null;
 }
 
+const loginOf = who => String(who?.login ?? "").toLowerCase();
+
 /**
- * Whether a PR someone asked for a review of (in a Slack channel, say) still
- * waits on me, as gh reads it (REVIEW_VIEW): open, not approved, not mine,
- * and not already approved or sent back by me. A PR gh could not read (`v`
- * null: no access, a typo) stands as it was asked: it is not ruled out on a
- * guess.
+ * Why a PR someone asked me to review no longer waits on me, as gh reads it
+ * (REVIEW_VIEW), or null while it still does:
+ *
+ *   merged, closed   it is done with
+ *   draft            it is not up for review
+ *   approved         GitHub's decision says so, or, unless gh names me among
+ *                    its requested reviewers, anyone but its author approved
+ *                    it and no one's changes are standing: a review asked of
+ *                    a channel is answered by the first approval, one asked
+ *                    of me by name is not
+ *   mine             I wrote it
+ *   reviewed         I approved it or sent it back, and was not asked again
+ *
+ * A PR gh could not read (`v` null: no access, a typo) stands as it was
+ * asked: it is not ruled out on a guess. All but "mine" are link states the
+ * Todo list closes a review on (status-todo.mjs LINK_STATES).
  */
-export function waitsOnMyReview(v, account) {
-  if (!v || typeof v !== "object") return true;
-  if (v.state === "MERGED" || v.mergedAt || v.state === "CLOSED") return false;
-  if (v.reviewDecision === "APPROVED") return false;
+export function reviewSettledBy(v, account) {
+  if (!v || typeof v !== "object") return null;
+  if (v.state === "MERGED" || v.mergedAt) return "merged";
+  if (v.state === "CLOSED") return "closed";
+  if (v.isDraft === true) return "draft";
   const me = typeof account === "string" ? account.toLowerCase() : "";
-  if (!me) return true;
-  if (String(v.author?.login ?? "").toLowerCase() === me) return false;
-  const mine = (Array.isArray(v.latestReviews) ? v.latestReviews : []).find(r => String(r?.author?.login ?? "").toLowerCase() === me);
-  return !(mine && (mine.state === "APPROVED" || mine.state === "CHANGES_REQUESTED"));
+  const author = loginOf(v.author);
+  const asked = !!me && (Array.isArray(v.reviewRequests) ? v.reviewRequests : []).some(r => loginOf(r) === me);
+  const reviews = Array.isArray(v.latestReviews) ? v.latestReviews : [];
+  if (v.reviewDecision === "APPROVED") return "approved";
+  if (!asked && v.reviewDecision !== "CHANGES_REQUESTED" && reviews.some(r => r?.state === "APPROVED" && loginOf(r.author) !== author)) return "approved";
+  if (!me) return null;
+  if (author === me) return "mine";
+  const mine = reviews.find(r => loginOf(r?.author) === me);
+  return !asked && mine && (mine.state === "APPROVED" || mine.state === "CHANGES_REQUESTED") ? "reviewed" : null;
 }
+
+/** Whether a PR someone asked me to review still waits on me (reviewSettledBy). */
+export const waitsOnMyReview = (v, account) => reviewSettledBy(v, account) === null;
 
 /** A PR's API address, as notifications name it. */
 const API_PR = /^https:\/\/api\.github\.com\/repos\/([A-Za-z0-9][A-Za-z0-9_.-]{0,99})\/([A-Za-z0-9_.-]{1,100})\/pulls\/(\d{1,9})$/;
@@ -193,8 +215,8 @@ const ACTIVITY_VIEW = "title,state,mergedAt,closedAt,author,reviewDecision,revie
 const VIEW_JQ = "{title, state, mergedAt, closedAt, author: .author.login, reviewDecision, updatedAt,"
   + " requests: [(.reviewRequests // [])[] | (.login // .name // .slug // \"\")],"
   + " commits: [(.commits // [])[-3:][] | {at: .committedDate}]}";
-/** What waitsOnMyReview reads of a PR. */
-const REVIEW_VIEW = "state,mergedAt,reviewDecision,author,latestReviews";
+/** What reviewSettledBy reads of a PR. */
+const REVIEW_VIEW = "state,mergedAt,isDraft,reviewDecision,reviewRequests,author,latestReviews";
 const REVIEWS_JQ = "[.[] | {user: {login: .user.login, type: .user.type}, state, submitted_at, body: ((.body // \"\")[0:600])}]";
 const COMMENTS_JQ = "[.[] | {user: {login: .user.login, type: .user.type}, created_at, body: ((.body // \"\")[0:600])}]";
 
