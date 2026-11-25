@@ -248,6 +248,7 @@ const catalog: Catalog = {
   "board.list.liveCount": "실행 {n}",
   "board.list.hideSidebar": "사이드바 숨기기",
   "board.list.hide": "세션 목록 숨기기",
+  "board.list.openDesktop": "Claude Desktop에서 열기",
   "board.list.empty": "아직 세션이 없습니다.",
   "board.list.bring": "{label}을(를) 보드로 되돌리기",
   "board.list.focus": "{label}에 포커스",

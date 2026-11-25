@@ -8,6 +8,7 @@
 // The order is held while you aim at it: nothing moves under a pointer that is
 // over the rail or a focus that is inside it, and every row travels once to
 // its new place when both have left (rail-model.ts holdOrder, rail-motion.ts).
+import { inDesktop, type DesktopLinks } from "../desktop-links";
 import { useEffect, useMemo, useReducer, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { isAlarming } from "../ambient-counts";
 import { useT } from "../i18n";
@@ -288,6 +289,10 @@ interface Props {
   /** WORKSPACE (internal #102): ⇧↵ on a row, or the row dragged onto a pane,
    *  opens the session beside the pane in focus. Absent on the Board. */
   onOpenBeside?: (sessionId: string) => void;
+  /** Which sessions the Claude desktop app runs (desktop-links.ts): those rows
+   *  carry "Open in Claude Desktop". */
+  desktop?: DesktopLinks;
+  onOpenDesktop?: (sessionId: string) => void;
   /** New session, the Plus in the header: the Command Panel's own launch
    *  (use-stage.ts newSessionFrom), given the button as the popover's anchor.
    *  Absent where that launch does not exist, and the Plus with it. */
@@ -313,7 +318,7 @@ interface Props {
 interface Ghost { row: Row; group: RailGroup; after: string | null; until: number }
 interface Entry { id: string; row: Row; ghost: boolean }
 
-export default function SessionList({ state, now, historyReady = true, selectedIds, onSelect, onClose, removedIds, onBringBackAll, leaving = false, landed = null, watching, openPanes, onOpenKeys, onOpenBeside, onNewSession, offline = null, emptyNotice = null, edge = null, remote = null }: Props) {
+export default function SessionList({ state, now, historyReady = true, selectedIds, onSelect, onClose, removedIds, onBringBackAll, leaving = false, landed = null, watching, openPanes, onOpenKeys, onOpenBeside, onNewSession, offline = null, emptyNotice = null, edge = null, remote = null, desktop, onOpenDesktop }: Props) {
   const t = useT();
   const singleKeys = useSingleKeyShortcuts();
   // `state.revision`, not `state.lastSeq`: the prop is `stateRef.current` and
@@ -477,6 +482,7 @@ export default function SessionList({ state, now, historyReady = true, selectedI
       selected={selectedIds.has(e.id)} removed={removedIds?.has(e.id) ?? false}
       landNonce={landing?.id === e.id ? landing.nonce : null} onSelect={press} onOpenKeys={e.ghost ? undefined : onOpenKeys}
       onOpenBeside={e.ghost ? undefined : onOpenBeside}
+      onOpenDesktop={!e.ghost && onOpenDesktop && inDesktop(e.row.sessionId, desktop) ? onOpenDesktop : undefined}
       compact
       context={contexts.get(e.row.sessionId)}
       pane={openPanes?.get(e.row.sessionId)}

@@ -23,6 +23,7 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { run as execRun } from "./exec.mjs";
 
 export const DESKTOP_LINKS_VETO_ENV = "AGENTS_DECK_NO_DESKTOP_LINKS";
 export const LIST_TTL_MS = 15_000;
@@ -122,4 +123,35 @@ export async function desktopSessionsState(env = process.env) {
   if (desktopLinksVetoed(env)) return { off: true, links: {} };
   shared ??= createDesktopSessions({ env });
   return { off: false, links: await shared.links() };
+}
+
+/** The desktop app's link for a local id, or null for any other shape. */
+export function desktopUrl(localId) {
+  return typeof localId === "string" && LOCAL_ID.test(localId) ? `claude://code/continue?session=${localId}` : null;
+}
+
+/** The OS's own opener, with the link as its one argument (no shell). */
+export function openerFor(platform = process.platform) {
+  if (platform === "darwin") return ["open", []];
+  if (platform === "win32") return ["explorer.exe", []];
+  return ["xdg-open", []];
+}
+
+/**
+ * Opens a session in the Claude desktop app, by the Claude Code session id the
+ * page names. The page never hands the deck a link: the deck looks the id up in
+ * the app's own files and builds the link itself, so the only thing a press
+ * can open is a session the app already runs.
+ */
+export async function openInDesktop(sessionId, { env = process.env, platform = process.platform, run, links } = {}) {
+  if (desktopLinksVetoed(env)) return { ok: false, error: "off" };
+  if (typeof sessionId !== "string" || !CLI_ID.test(sessionId)) return { ok: false, error: "bad-session" };
+  const map = links ?? (await desktopSessionsState(env)).links;
+  const url = Object.hasOwn(map, sessionId) ? desktopUrl(map[sessionId]) : null;
+  if (!url) return { ok: false, error: "not-in-app" };
+  const [cmd, pre] = openerFor(platform);
+  const exec = run ?? execRun;
+  const r = await exec(cmd, [...pre, url], { timeout: 10_000 });
+  // explorer.exe exits 1 even when it opened the link.
+  return r.ok || platform === "win32" ? { ok: true } : { ok: false, error: "open-failed" };
 }

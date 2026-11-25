@@ -39,10 +39,8 @@ import {
 } from "../status-brief";
 import { useStatusBrief, type StatusBriefHandle } from "../use-status-brief";
 import { useStatusTodo, type StatusTodoHandle } from "../use-status-todo";
-import { useDesktopLinks } from "../use-desktop-links";
 import type { Dismissal } from "../status-todo";
 import StatusTodo from "./StatusTodo";
-import type { DesktopLinks } from "../desktop-links";
 import type { Row } from "./SessionList";
 
 export const STATUS_PANE_ID = "status-pane";
@@ -68,7 +66,7 @@ export function countsLine(counts: LocalBrief["counts"], t: TFunction): string {
 
 /** What the brief's line under the summary says: when, which model, and the
  *  sources it read. */
-function metaLine(view: BriefView, now: number, t: TFunction): string | null {
+export function metaLine(view: BriefView, now: number, t: TFunction): string | null {
   const b = view.brief;
   if (!b) return null;
   const read = (Object.keys(SOURCE_NAMES) as (keyof typeof SOURCE_NAMES)[]).filter(s => b.reach?.[s] === "on").map(s => SOURCE_NAMES[s]);
@@ -124,7 +122,7 @@ function Section({ title, id, items, empty, onOpenSession, onDismiss, t }: {
 /** Since the last brief: what moved on my PRs and the ones I review, newest
  *  first, each opening its PR. Read by the deck with gh; the excerpt is
  *  someone else's words, drawn as text. */
-function Since({ activity, t }: { activity: BriefActivity; t: TFunction }) {
+export function Since({ activity, t }: { activity: BriefActivity; t: TFunction }) {
   const items = activity.items;
   return (
     <section className="stp-section" aria-labelledby="stp-since">
@@ -159,7 +157,7 @@ function Since({ activity, t }: { activity: BriefActivity; t: TFunction }) {
   );
 }
 
-function People({ people, onPerson, t }: {
+export function People({ people, onPerson, t }: {
   people: (BriefPerson & { pinned: boolean })[];
   onPerson: (action: "pin" | "hide" | "clear", p: BriefPerson) => void;
   t: TFunction;
@@ -202,7 +200,7 @@ function People({ people, onPerson, t }: {
 /** The last dismiss, for a few seconds: what went, and Undo. It sticks to the
  *  bottom of the pane, so it is in view wherever the dismissed row was, and
  *  focus moves to Undo, since the row whose × was pressed is gone. */
-function UndoLine({ undo, onUndo, t }: { undo: { key: string; title: string } | null | undefined; onUndo: (key: string) => void; t: TFunction }) {
+export function UndoLine({ undo, onUndo, t }: { undo: { key: string; title: string } | null | undefined; onUndo: (key: string) => void; t: TFunction }) {
   const ref = useRef<HTMLButtonElement>(null);
   const key = undo?.key ?? null;
   useEffect(() => { if (key) ref.current?.focus(); }, [key]);
@@ -219,7 +217,7 @@ function UndoLine({ undo, onUndo, t }: { undo: { key: string; title: string } | 
 }
 
 /** "N dismissed · show": what you dismissed, each with a way back. */
-function Dismissed({ list, onRestore, t }: { list: Dismissal[]; onRestore: (key: string) => void; t: TFunction }) {
+export function Dismissed({ list, onRestore, t }: { list: Dismissal[]; onRestore: (key: string) => void; t: TFunction }) {
   if (!list.length) return null;
   return (
     <details className="stp-closed stp-dismissed">
@@ -257,7 +255,7 @@ export function StatusGlyph() {
   );
 }
 
-function Settings({ view, handle, t }: { view: BriefView; handle: StatusBriefHandle; t: TFunction }) {
+export function Settings({ view, handle, t }: { view: BriefView; handle: StatusBriefHandle; t: TFunction }) {
   const s: BriefSettings = view.settings;
   const reach = view.brief?.reach;
   return (
@@ -305,11 +303,10 @@ function Settings({ view, handle, t }: { view: BriefView; handle: StatusBriefHan
 
 /** The pane as App mounts it: its line to the deck lives as long as it does,
  *  so a closed pane reads and runs nothing. */
-export default function StatusPane(props: Omit<StatusPaneProps, "brief" | "todo" | "desktop">) {
+export default function StatusPane(props: Omit<StatusPaneProps, "brief" | "todo">) {
   const brief = useStatusBrief();
   const todo = useStatusTodo();
-  const desktop = useDesktopLinks();
-  return <StatusPaneView {...props} brief={brief} todo={todo} desktop={desktop} />;
+  return <StatusPaneView {...props} brief={brief} todo={todo} />;
 }
 
 export interface StatusPaneProps {
@@ -327,16 +324,9 @@ export interface StatusPaneProps {
   sideWidth?: number;
   onOpenSession: (sessionId: string) => void;
   onClose: () => void;
-  /** "mission": the Mission view's main page (MissionView.tsx), with no pin,
-   *  close or fold, the Todo list in a column of its own and the brief beside
-   *  it. The pane otherwise. */
-  variant?: "pane" | "mission";
-  /** Which sessions the Claude desktop app runs (desktop-links.ts). */
-  desktop?: DesktopLinks;
 }
 
-export function StatusPaneView({ rows, now, brief, todo, pinned, onTogglePin, besideInspector, sideWidth = 0, onOpenSession, onClose, variant = "pane", desktop }: StatusPaneProps) {
-  const mission = variant === "mission";
+export function StatusPaneView({ rows, now, brief, todo, pinned, onTogglePin, besideInspector, sideWidth = 0, onOpenSession, onClose }: StatusPaneProps) {
   const t = useT();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [unfolded, setUnfolded] = useState(false);
@@ -344,7 +334,7 @@ export function StatusPaneView({ rows, now, brief, todo, pinned, onTogglePin, be
   const sessions = useMemo(() => new Set(rows.map(r => r.sessionId)), [rows]);
   const view = brief.view;
   const b = view?.brief ?? null;
-  const folded = !mission && besideInspector && !pinned && !unfolded;
+  const folded = besideInspector && !pinned && !unfolded;
   const counts = countsLine(local.counts, t);
   // A brief being written leaves the refresh enabled (#620: a press never
   // disables its own control); the handler refuses the second press instead,
@@ -372,53 +362,6 @@ export function StatusPaneView({ rows, now, brief, todo, pinned, onTogglePin, be
   else if (!b) state = <p className="stp-state">{t("brief.none")}</p>;
   const failed = view?.error && (!b || view.error.at >= b.at) ? view.error : null;
 
-  const summary = (
-    <section className="stp-summary" aria-label={t("brief.section.summary")}>
-      {b?.summary && <p className="stp-summary-text">{b.summary}</p>}
-      {view && b && <p className="stp-meta">{metaLine(view, now, t)}</p>}
-      {state}
-      {failed && <p className="stp-flag">{t("brief.failed", { message: failed.message || failed.code })}</p>}
-    </section>
-  );
-  const since = b?.activity && b.reach?.github === "on" ? <Since activity={b.activity} t={t} /> : null;
-  const todoList = <StatusTodo todo={todo} now={now} sessions={sessions} desktop={desktop} onOpenSession={onOpenSession} t={t} />;
-  const talk = <Section title={t("brief.section.talk")} id="stp-talk" items={talkTo} empty={t("brief.section.empty")} onOpenSession={onOpenSession} onDismiss={dismissItem} t={t} />;
-  const tools = (
-    <>
-      <button type="button" className="glyph-btn stp-refresh" onClick={refresh}
-        {...selfPressProps(view?.running === true, !view || view.agent === "off")}
-        aria-label={t("brief.refresh")} title={t("brief.refresh")}><RefreshGlyph /></button>
-      <button type="button" className="glyph-btn stp-settings-btn" aria-expanded={settingsOpen} aria-controls={settingsOpen ? "stp-settings" : undefined}
-        onClick={() => setSettingsOpen(o => !o)} aria-label={t("brief.settings")} title={t("brief.settings")}><KitIcon name="settings" /></button>
-    </>
-  );
-
-  if (mission) {
-    return (
-      <section className="status-pane mission" id={STATUS_PANE_ID} aria-labelledby="stp-title" data-variant="mission">
-        <div className="stp-head">
-          <h2 className="stp-heading" id="stp-title">{t("brief.title")}</h2>
-          <p className="stp-counts">{counts}</p>
-          {tools}
-        </div>
-        <div className="stp-body">
-          {settingsOpen && view && <Settings view={view} handle={brief} t={t} />}
-          {summary}
-          <div className="mission-cols">
-            <div className="mission-main">{todoList}</div>
-            <div className="mission-side">
-              {since}
-              {talk}
-              <Dismissed list={dismissed} onRestore={restore} t={t} />
-              <People people={people} onPerson={brief.person} t={t} />
-            </div>
-          </div>
-          <UndoLine undo={todo.undo} onUndo={restore} t={t} />
-        </div>
-      </section>
-    );
-  }
-
   return (
     <aside className="status-pane" id={STATUS_PANE_ID} aria-labelledby="stp-title"
       data-pinned={pinned ? "" : undefined} data-fold={folded ? "inspector" : undefined}
@@ -429,7 +372,15 @@ export function StatusPaneView({ rows, now, brief, todo, pinned, onTogglePin, be
           <PanelFoldHead title={t("brief.title")} titleId="stp-title" headingClass="stp-heading" summary={counts}
             open={unfolded} onToggle={() => setUnfolded(u => !u)} />
         ) : <h2 className="stp-heading" id="stp-title">{t("brief.title")}</h2>}
-        {!folded && tools}
+        {!folded && (
+          <>
+            <button type="button" className="glyph-btn stp-refresh" onClick={refresh}
+              {...selfPressProps(view?.running === true, !view || view.agent === "off")}
+              aria-label={t("brief.refresh")} title={t("brief.refresh")}><RefreshGlyph /></button>
+            <button type="button" className="glyph-btn stp-settings-btn" aria-expanded={settingsOpen} aria-controls={settingsOpen ? "stp-settings" : undefined}
+              onClick={() => setSettingsOpen(o => !o)} aria-label={t("brief.settings")} title={t("brief.settings")}><KitIcon name="settings" /></button>
+          </>
+        )}
         <button type="button" className="glyph-btn stp-pin" aria-pressed={pinned} onClick={onTogglePin}
           aria-label={t(pinned ? "brief.unpin" : "brief.pin")} title={t(pinned ? "brief.unpin" : "brief.pin")}><PinGlyph /></button>
         <button type="button" className="glyph-btn stp-close" onClick={onClose} aria-label={t("brief.close")} title={t("brief.close")}><KitIcon name="close" /></button>
@@ -438,10 +389,15 @@ export function StatusPaneView({ rows, now, brief, todo, pinned, onTogglePin, be
         <div className="stp-body">
           <p className="stp-counts">{counts}</p>
           {settingsOpen && view && <Settings view={view} handle={brief} t={t} />}
-          {summary}
-          {since}
-          {todoList}
-          {talk}
+          <section className="stp-summary" aria-label={t("brief.section.summary")}>
+            {b?.summary && <p className="stp-summary-text">{b.summary}</p>}
+            {view && b && <p className="stp-meta">{metaLine(view, now, t)}</p>}
+            {state}
+            {failed && <p className="stp-flag">{t("brief.failed", { message: failed.message || failed.code })}</p>}
+          </section>
+          {b?.activity && b.reach?.github === "on" && <Since activity={b.activity} t={t} />}
+          <StatusTodo todo={todo} now={now} sessions={sessions} onOpenSession={onOpenSession} t={t} />
+          <Section title={t("brief.section.talk")} id="stp-talk" items={talkTo} empty={t("brief.section.empty")} onOpenSession={onOpenSession} onDismiss={dismissItem} t={t} />
           <Dismissed list={dismissed} onRestore={restore} t={t} />
           <People people={people} onPerson={brief.person} t={t} />
           <UndoLine undo={todo.undo} onUndo={restore} t={t} />

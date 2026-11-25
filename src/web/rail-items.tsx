@@ -25,6 +25,7 @@
 //          (no foot)
 //
 // Every door keeps its key: only the place moved. The phone keeps its dock.
+import { withoutRemoved } from "./focused-deck";
 import { providerText } from "./integrations/provider-text";
 import type { Dispatch, SetStateAction } from "react";
 import type { Providers } from "./providers";
@@ -134,7 +135,7 @@ export function railItems({
   providers, sessionListOpen, toggleSessionList, accountsPanelOpen, toggleAccountsPanel, accountsPanelId = "accounts-panel", codexPanelOpen = false, toggleCodexPanel = () => {},
   usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen, setUsageHistoryOpen,
   watchOn, watchUnseen, setBrowserWatchOpen, setTrafficRadarOpen, setRadioOpen, openToolActivity, openSettings, onFeedback, toggles,
-  openCapacity, integrations = [], openExploreIntegrations, openQuickOpen, feedbackUnread = 0, openFeedbackConversations,
+  openCapacity, integrations = [], openExploreIntegrations, openQuickOpen, feedbackUnread = 0, openFeedbackConversations, focused = false,
   inspectorOpen = false, toggleInspector = () => {},
   statusPaneOpen = false, toggleStatusPane,
 }: {
@@ -187,6 +188,8 @@ export function railItems({
   /** Open the feedback dialog on Your conversations: Feedback's press while a
    *  reply is unread. */
   openFeedbackConversations?: () => void;
+  /** The focused deck (focused-deck.ts): leave out the surfaces it removed. */
+  focused?: boolean;
 }): RailItems {
   const settingsCap = settingsChordLabel(platformName());
   const apple = isApplePlatform(platformName());
@@ -344,7 +347,7 @@ export function railItems({
     key: provider.shortcut ? { cap: provider.shortcut.toUpperCase(), aria: provider.shortcut.toUpperCase(), single: true } : undefined,
     glyph: <provider.Glyph />, kind: "dialog", onPress,
   }));
-  return {
+  const rails: RailItems = {
     // Accounts first, at the top of the stripe and the start of the dock: the
     // owner's call (2026-10-08), the panel read before choosing where to start
     // a session.
@@ -386,6 +389,7 @@ export function railItems({
     explore,
     integrations: trackers,
   };
+  return focused ? trimRails(rails) : rails;
 }
 
 /**
@@ -404,4 +408,18 @@ export function commandPanelMore(open: ((opener: Element | null) => void) | unde
     glyph: <KitIcon name="terminal" />, kind: "panel",
     onPress: () => open(typeof document === "undefined" ? null : document.getElementById(DOCK_MORE_ID)),
   }];
+}
+
+/** The rails without the surfaces the focused deck removed (focused-deck.ts):
+ *  every list and group, and a group left empty is dropped. */
+function trimRails(r: RailItems): RailItems {
+  const groups = (gs: RailItem[][]) => gs.map(g => withoutRemoved(g)).filter(g => g.length > 0);
+  return {
+    ...r,
+    left: withoutRemoved(r.left), codexDoor: withoutRemoved(r.codexDoor ?? []),
+    leftStripe: groups(r.leftStripe), leftFoot: withoutRemoved(r.leftFoot),
+    rightStripe: groups(r.rightStripe), capacity: withoutRemoved(r.capacity),
+    right: groups(r.right), utilities: withoutRemoved(r.utilities),
+    explore: withoutRemoved(r.explore), integrations: withoutRemoved(r.integrations),
+  };
 }

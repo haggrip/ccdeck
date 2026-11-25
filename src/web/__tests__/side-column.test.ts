@@ -347,7 +347,8 @@ describe("App's wiring", () => {
     // so the Board's side-by-side room rule does not hold This machine.
     // CHANGED ON PURPOSE (internal #103): the column's width is the list's own,
     // which its edge drags (rail-width-103.test.ts).
-    expect(app).toContain('useRightPanels(leftColumnWidth(leftPanel, railWidth, listWidth), readView() === "workspace")');
+    // CHANGED ON PURPOSE (the focused deck, focused-deck.ts): a third argument.
+    expect(app).toContain('useRightPanels(leftColumnWidth(leftPanel, railWidth, listWidth), readView() === "workspace", FOCUSED_DECK)');
     // CHANGED ON PURPOSE (owner, 2026-11-11 critique): each dock goes through
     // withInspectorFold, which hands Workspace's on as it is and carries the
     // Inspector's fold on the Board (inspector-fold.test.ts).

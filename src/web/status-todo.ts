@@ -79,7 +79,9 @@ export const isOverdue = (i: TodoItem, now: number) => !!i.due && i.due < now;
 export function openerOf(i: TodoItem, sessions: ReadonlySet<string>, desktop?: DesktopLinks | null): { session?: string; href?: string; desktop?: string; project?: string } {
   const href = safeHref(i.link?.url ?? null) ?? undefined;
   const session = i.link?.sessionId && sessions.has(i.link.sessionId) ? i.link.sessionId : undefined;
-  const app = desktopHref(i.link?.sessionId, desktop) ?? undefined;
+  // The Claude Code session the desktop app runs: the deck opens it there
+  // (desktop-links.ts openInDesktop).
+  const app = desktopHref(i.link?.sessionId, desktop) ? i.link!.sessionId : undefined;
   return { ...(session ? { session } : {}), ...(href ? { href } : {}), ...(app ? { desktop: app } : {}), ...(i.link?.project ? { project: i.link.project } : {}) };
 }
 

@@ -14,16 +14,18 @@ import { rmTempDir } from "./rm-temp-dir";
 import { readMission, writeMission, MISSION_KEY } from "../use-mission";
 import { desktopHref } from "../desktop-links";
 import { openerOf, type TodoItem, type TodoView } from "../status-todo";
-import StatusTodo from "../components/StatusTodo";
-import { StatusPaneView } from "../components/StatusPane";
+import { MissionPage, liveState, sourceOf, toneOf } from "../components/MissionView";
 import ViewSwitch from "../components/ViewSwitch";
 import type { StatusTodoHandle } from "../use-status-todo";
 import type { StatusBriefHandle } from "../use-status-brief";
+import type { Row } from "../components/SessionList";
 import { resetLanguageForTest, t } from "../i18n";
-import { createDesktopSessions, desktopSessionsRoot, linkOf, desktopLinksVetoed } from "../../server/desktop-sessions.mjs";
+import { createDesktopSessions, desktopSessionsRoot, linkOf, desktopLinksVetoed, openInDesktop } from "../../server/desktop-sessions.mjs";
 import { GUARDED_READS } from "../../server/request-gates.mjs";
 import { SETTING_VARS } from "../../server/login-service.mjs";
 import { navigationFor, claudeSessionLink } from "../../../desktop/nav.mjs";
+import { railItems } from "../rail-items";
+import { REMOVED_SURFACES } from "../focused-deck";
 
 afterEach(() => resetLanguageForTest());
 
@@ -64,48 +66,55 @@ describe("a session's link into the desktop app", () => {
     expect(desktopHref(null, { [CLI]: LOCAL })).toBeNull();
   });
 
-  it("comes first on a Todo item, with the card still offered while the board has it", () => {
+  it("marks a Todo item whose session the app runs, by the session, whether or not the board has it", () => {
     const it1 = item({ link: { kind: "session", sessionId: CLI, project: "api" } });
-    expect(openerOf(it1, new Set([CLI]), { [CLI]: LOCAL })).toEqual({ session: CLI, desktop: `claude://code/continue?session=${LOCAL}`, project: "api" });
-    // Off the board, the app still opens it.
-    expect(openerOf(it1, new Set(), { [CLI]: LOCAL })).toEqual({ desktop: `claude://code/continue?session=${LOCAL}`, project: "api" });
-    // Not the app's: the card, as before.
+    expect(openerOf(it1, new Set([CLI]), { [CLI]: LOCAL })).toEqual({ session: CLI, desktop: CLI, project: "api" });
+    expect(openerOf(it1, new Set(), { [CLI]: LOCAL })).toEqual({ desktop: CLI, project: "api" });
     expect(openerOf(it1, new Set([CLI]), {})).toEqual({ session: CLI, project: "api" });
   });
 
-  it("is drawn as a plain link with no new tab, and a board button beside it", () => {
-    const view: TodoView = { ok: true, now: NOW, closed: [], keeper: { lastRunAt: null, lastCostUsd: null, error: null },
-      open: [item({ title: "Which schema?", kind: "answer", origin: "deck", link: { kind: "session", sessionId: CLI, project: "api" } })] };
-    const todo: StatusTodoHandle = { view, say() {}, act() {} };
-    const html = renderToStaticMarkup(createElement(StatusTodo, { todo, now: NOW, sessions: new Set([CLI]), desktop: { [CLI]: LOCAL }, onOpenSession() {}, t }));
-    const a = html.match(/<a class="stp-link"[^>]*>/)?.[0] ?? "";
-    expect(a).toContain(`href="claude://code/continue?session=${LOCAL}"`);
-    expect(a).not.toMatch(/target=/);
-    expect(html).toContain("Claude app");
-    expect(html).toMatch(/class="glyph-btn stp-todo-card"/);
-  });
 });
 
 describe("the Mission page", () => {
+  const row = (over: Partial<Row>): Row => ({ sessionId: "s", label: "session", state: "active", waiting: null, toolCount: 0, cost: 0, startedAt: 0, lastActivity: 0, plan: null, planTitle: "", ...over }) as Row;
   const brief: StatusBriefHandle = { view: null, unreachable: false, refresh() {}, setSettings() {}, person() {} };
-  const todo: StatusTodoHandle = { view: { ok: true, now: NOW, open: [], closed: [], keeper: { lastRunAt: null, lastCostUsd: null, error: null } }, say() {}, act() {} };
-  const draw = (variant: "pane" | "mission") => renderToStaticMarkup(createElement(StatusPaneView, {
-    rows: [], now: NOW, brief, todo, pinned: false, onTogglePin() {}, besideInspector: true, onOpenSession() {}, onClose() {}, variant,
+  const view: TodoView = { ok: true, now: NOW, closed: [], keeper: { lastRunAt: null, lastCostUsd: null, error: null }, open: [
+    item({ id: "t_000001", title: "Which schema?", kind: "answer", origin: "deck", link: { kind: "session", sessionId: CLI, project: "api" } }),
+    item({ id: "t_000002", title: "Review acme#1", kind: "review", origin: "brief", link: { kind: "pr", url: "https://github.com/acme/x/pull/1" } }),
+    item({ id: "t_000003", title: "Write notes", kind: "todo", origin: "hagai" }),
+  ] };
+  const rows = [row({ sessionId: CLI, label: "schema", waiting: { kind: "asked", message: "Which schema?", since: 1 } }), row({ sessionId: "w", label: "build" })];
+  const opened: string[] = [];
+  const draw = () => renderToStaticMarkup(createElement(MissionPage, {
+    rows, now: NOW, desktop: { [CLI]: LOCAL }, brief, todo: { view, say() {}, act() {} },
+    onOpenSession: (id: string) => opened.push(`card:${id}`), onOpenDesktop: (id: string) => opened.push(`app:${id}`),
   }));
 
-  it("is the pane's contents in two columns, with no pin, close or fold", () => {
-    const html = draw("mission");
-    expect(html).toMatch(/^<section class="status-pane mission"/);
-    expect(html).toContain('class="mission-cols"');
-    expect(html).toMatch(/class="mission-main">.*class="stp-todo"/);
-    expect(html).not.toMatch(/stp-pin|stp-close|fold-row/);
-    expect(html).toContain("stp-refresh");
+  it("colours each task by the kind of ask it is", () => {
+    const html = draw();
+    expect(html).toMatch(/class="mi-task" data-tone="ask"[\s\S]*Which schema\?/);
+    expect(html).toMatch(/class="mi-task" data-tone="review"/);
+    expect(html).toMatch(/class="mi-task" data-tone="do"/);
+    expect([toneOf("failed"), toneOf("reply"), toneOf("note")]).toEqual(["err", "talk", "note"]);
   });
 
-  it("leaves the pane as it was", () => {
-    const html = draw("pane");
-    expect(html).toMatch(/^<aside class="status-pane"/);
-    expect(html).not.toContain("mission-cols");
+  it("offers Open in Claude Desktop on a session the app runs, as a button, never a claude:// link", () => {
+    const html = draw();
+    expect(html).toMatch(/class="mi-desktop"[^>]*title="Open in Claude Desktop"/);
+    expect(html).not.toContain("claude://");
+    // The live list carries it too, beside the session's row.
+    expect(html).toMatch(/data-live="waiting"[\s\S]*?mi-desktop/);
+    expect(sourceOf(view.open[0], true)).toEqual({ key: "claude", name: "Claude Desktop" });
+  });
+
+  it("counts what matters, and lists the live sessions by what they need", () => {
+    const html = draw();
+    // A review waits on you too (status-todo.ts splitOpen).
+    expect(html).toMatch(/data-stat="ask"[^>]*><span class="mi-stat-n">2</);
+    expect(html).toMatch(/data-stat="do"[^>]*><span class="mi-stat-n">1</);
+    expect(liveState(rows[0])).toBe("waiting");
+    expect(liveState(rows[1])).toBe("working");
+    expect(liveState(row({ state: "done", unseen: false, turnEndedAt: 3 }))).toBeNull();
   });
 });
 
@@ -159,6 +168,23 @@ describe("reading the desktop app's session ids", () => {
   });
 });
 
+describe("opening a session in the desktop app", () => {
+  it("builds the app's link itself and hands it to the OS opener, with no shell", async () => {
+    const calls: [string, string[]][] = [];
+    const run = async (cmd: string, args: string[]) => { calls.push([cmd, args]); return { ok: true }; };
+    expect(await openInDesktop(CLI, { env: {}, platform: "darwin", run, links: { [CLI]: LOCAL } })).toEqual({ ok: true });
+    expect(calls).toEqual([["open", [`claude://code/continue?session=${LOCAL}`]]]);
+  });
+
+  it("opens only a session the app runs, and nothing under its off switch", async () => {
+    const run = async () => { throw new Error("never"); };
+    expect(await openInDesktop("other-session-1", { env: {}, platform: "darwin", run, links: { [CLI]: LOCAL } })).toEqual({ ok: false, error: "not-in-app" });
+    expect(await openInDesktop("x; rm -rf /", { env: {}, platform: "darwin", run, links: {} })).toEqual({ ok: false, error: "bad-session" });
+    expect(await openInDesktop(CLI, { env: {}, platform: "darwin", run, links: { [CLI]: "local_x&q=1" } })).toEqual({ ok: false, error: "not-in-app" });
+    expect(await openInDesktop(CLI, { env: { AGENTS_DECK_NO_DESKTOP_LINKS: "1" }, platform: "darwin", run, links: { [CLI]: LOCAL } })).toEqual({ ok: false, error: "off" });
+  });
+});
+
 describe("the wiring", () => {
   const server = (f: string) => readFileSync(fileURLToPath(new URL(`../../server/${f}`, import.meta.url)), "utf8");
   it("is a guarded read for this computer only, whose off switch a login item carries", () => {
@@ -166,6 +192,15 @@ describe("the wiring", () => {
     expect(server("index.mjs")).toMatch(/GET".*\/api\/desktop-sessions".*handleDesktopSessionsRead/);
     expect(server("remote-control-routes.mjs")).toMatch(/handleDesktopSessionsRead[\s\S]*?loopback\(req\)/);
     expect(SETTING_VARS).toContain("AGENTS_DECK_NO_DESKTOP_LINKS");
+    expect(server("index.mjs")).toMatch(/POST".*\/api\/desktop-sessions\/open".*handleDesktopOpen/);
+    expect(server("remote-control-routes.mjs")).toMatch(/handleDesktopOpen[\s\S]*?loopback\(req\)/);
+  });
+
+  it("leaves Mission for the Board when a session is opened, and draws the Status pane on a phone only", () => {
+    const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+    expect(app).toMatch(/const openSession = useCallback\(\(sessionId: string\) => \{\s*leaveMission\(\);/);
+    expect(app).toMatch(/const focusSessionOnView = useCallback\(\(sessionId: string\) => \{\s*leaveMission\(\);/);
+    expect(app).toContain("const statusShown = phone && statusPane.open");
   });
 
   it("lets the desktop shell hand only the deck's two claude:// shapes to the OS", () => {
@@ -176,5 +211,39 @@ describe("the wiring", () => {
       expect(claudeSessionLink(url), url).toBe(false);
       expect(navigationFor(url, origin), url).toBe("block");
     }
+  });
+});
+
+describe("the focused deck", () => {
+  const noop = () => {};
+  const ref = () => ({ current: null });
+  const base = {
+    providers: { kind: "reported" as const, claude: true, codex: false },
+    sessionListOpen: false, toggleSessionList: noop, accountsPanelOpen: false, toggleAccountsPanel: noop,
+    usagePanelOpen: false, setUsagePanelOpen: noop, machinePanelOpen: false, setMachinePanelOpen: noop,
+    setUsageHistoryOpen: noop, watchOn: false, watchUnseen: 0, setBrowserWatchOpen: noop,
+    setTrafficRadarOpen: noop, setRadioOpen: noop, openToolActivity: noop, openCapacity: noop,
+    openSettings: noop, onFeedback: noop, openQuickOpen: noop, openExploreIntegrations: noop, toggleStatusPane: noop,
+    toggles: { sessionList: ref(), usage: ref(), accounts: ref(), machine: ref() },
+  };
+  const every = (r: ReturnType<typeof railItems>) => [
+    ...r.left, ...r.leftStripe.flat(), ...r.leftFoot, ...r.rightStripe.flat(), ...r.capacity, ...r.right.flat(), ...r.utilities,
+  ].map(i => i.id);
+
+  it("draws no door to a removed surface, anywhere the rails are read (Quick Open included)", () => {
+    const all = every(railItems(base as Parameters<typeof railItems>[0]));
+    const focused = every(railItems({ ...base, focused: true } as Parameters<typeof railItems>[0]));
+    for (const id of REMOVED_SURFACES) {
+      expect(all, id).toContain(id);
+      expect(focused, id).not.toContain(id);
+    }
+    expect(new Set(focused)).toEqual(new Set(["accounts", "session-list", "explore-integrations", "settings", "status", "browser-watch", "feedback"]));
+  });
+
+  it("is what this deck runs", () => {
+    const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+    expect(app).toContain("const FOCUSED_DECK = true;");
+    expect(app).toContain('readView() === "workspace", FOCUSED_DECK);');
+    expect(app).toContain("const detailOpen = detailOpenStored && !inspectorGone;");
   });
 });

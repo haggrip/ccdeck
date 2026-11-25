@@ -46,7 +46,9 @@ describe("the header", () => {
     expect(list).not.toMatch(/sl-group-btn|groupBy|toggleGroup/);
   });
   it("keeps the × for the phone drawer: 24 to see, 44 to press, header unchanged", () => {
-    expect(decl(".session-list .sl-close", "display")).toBe("none");
+    // CHANGED ON PURPOSE (owner, 2026-11-25: "an option to hide the sessions
+    // panel"): the × is drawn on every size now, not on the phone alone.
+    expect(decl(".session-list .sl-close", "display")).toBe("flex");
     expect(decl(".session-list .sl-close", "display", "(max-width: 640px)")).toBe("inline-flex");
     // CHANGED ON PURPOSE (the owner's phone layout): 6 above the 24 and 14 below
     // it, so the 44 target is whole (10 above ran past the panel's top edge and

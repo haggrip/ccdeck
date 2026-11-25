@@ -76,9 +76,9 @@
 @media (hover: hover) and (pointer: fine) {
 .session-list .sl-icon-btn:hover { background: var(--ctl-fill); color: var(--text); }
 }
-/* The window is wide enough for L and the Sessions stripe door to close the
-   list, which is all the frame draws; the × is the phone drawer's way out. */
-.session-list .sl-close { display: none; }
+/* The × hides the list on every size (owner, 2026-11-25: "an option to hide
+   the sessions panel"); L and the Sessions stripe door bring it back. */
+.session-list .sl-close { display: flex; }
 
 /* The list: padding 4, and the panel's scroller. The groups are headers and
    rows in one flat list, so a row that changes group is the same element. */
@@ -655,3 +655,32 @@
 .sl-remote-control .rsc-said { flex: 1 1 100%; font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--muted); }
 .sl-remote-control .rsc-said.bad { color: var(--err); }
 .sl-remote-control.sl-remote-start { padding-left: 12px; }
+
+/* "Open in Claude Desktop" on a row whose session the desktop app runs
+   (RailParts.tsx): over the row's right end, shown while the row is hovered
+   or has focus, in the Claude mark's orange. */
+.session-list .sl-row-in { position: relative; }
+.session-list .sl-desktop {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: color-mix(in srgb, var(--usage-orange) 16%, var(--panel));
+  color: var(--usage-orange);
+  opacity: 0;
+  transform: translateY(-50%);
+  transition: opacity var(--dur-fast) var(--ease);
+}
+.session-list .sl-row-in:focus-within .sl-desktop { opacity: 1; }
+@media (hover: hover) and (pointer: fine) {
+  .session-list .sl-row-in:hover .sl-desktop { opacity: 1; }
+  .session-list .sl-desktop:hover { background: color-mix(in srgb, var(--usage-orange) 28%, var(--panel)); }
+}
+@media (hover: none) { .session-list .sl-desktop { opacity: 1; } }

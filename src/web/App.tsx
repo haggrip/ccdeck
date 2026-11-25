@@ -18,6 +18,9 @@ import ToolAuditModal, { type ToolActivityView } from "./components/ToolAuditMod
 import UsagePanel from "./components/UsagePanel";
 import MachinePanel from "./components/MachinePanel";
 import StatusPane from "./components/StatusPane";
+import MissionView from "./components/MissionView";
+import { useDesktopLinks } from "./use-desktop-links";
+import { openInDesktop } from "./desktop-links";
 import { useStatusPane } from "./use-status-pane";
 import AccountsPanel from "./components/AccountsPanel";
 import AccountsSwitch, { type AccountSide } from "./components/AccountsSwitch";
@@ -135,6 +138,7 @@ import ViewSwitch, { type SwitchView } from "./components/ViewSwitch";
 import { EmptyInspector } from "./components/Inspector";
 import { readView, useView, type View } from "./use-view";
 import { useMission } from "./use-mission";
+import { surfaceRemoved } from "./focused-deck";
 import { useSideColumn, type SidePanel } from "./side-column";
 import { useInspectorFold, withInspectorFold } from "./inspector-fold";
 import { useWorkspaceInspector } from "./use-workspace-inspector";
@@ -169,8 +173,11 @@ const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 const AccountBridge = lazy(() => import("./components/AccountBridge"));
 import { useT } from "./i18n";
 
-/** Mission's page has no pin and no close (StatusPane.tsx, variant "mission"). */
-const NOOP = () => {};
+/** This deck is the focused deck (focused-deck.ts): Mission and what serves
+ *  it, without the surfaces the owner removed. */
+const FOCUSED_DECK = true;
+/** H, with Usage history removed: a key that opens nothing. */
+const NO_HISTORY = () => {};
 
 export default function App() {
   return (
@@ -221,8 +228,8 @@ function Inner() {
   // across a refresh — use-right-panels.ts. Called ahead of the selection
   // below, because a plain selection opens the detail panel (#814). A load in
   // Workspace has the two in one side column, not side by side over the board.
-  const { detailOpen, setDetailOpen: setDetailStored, usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen, hold: holdRight }
-    = useRightPanels(leftColumnWidth(leftPanel, railWidth, listWidth), readView() === "workspace");
+  const { detailOpen: detailOpenStored, setDetailOpen: setDetailStored, usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen, hold: holdRight }
+    = useRightPanels(leftColumnWidth(leftPanel, railWidth, listWidth), readView() === "workspace", FOCUSED_DECK);
   // ONE SIDE COLUMN BETWEEN 641 AND 839: the one opened last is drawn, and the
   // other folds to its stripe, its stored flags untouched (one-side-column.ts).
   // Read here, ahead of every panel's presence; the open flags it decides on
@@ -271,6 +278,12 @@ function Inner() {
   // here because Workspace, which the stage hook decides, is never on one, and
   // because a sheet on a phone is held for its own, longer, exit.
   const phone = useMediaQuery(PHONE_QUERY);
+  // The focused deck (focused-deck.ts): off a phone the Inspector is gone, so
+  // a selection opens nothing beside the board and Workspace draws no column
+  // for it. A phone keeps it, as the sheet a tapped card opens, since it has
+  // no Mission.
+  const inspectorGone = FOCUSED_DECK && !phone && surfaceRemoved("inspector");
+  const detailOpen = detailOpenStored && !inspectorGone;
   const railExitMs = useMemo(
     () => phone ? (reducedMotion ? sheetFadeMs() : sheetCloseMs()) : tokenMs(reducedMotion ? "--dur-xfade" : "--dur-fast"),
     [reducedMotion, phone]);
@@ -649,6 +662,9 @@ function Inner() {
    *  the right column is folded (one-side-column.ts): `detailWanted` is the
    *  panel the reader has open, folded or not. With nothing selected it is
    *  the Inspector on nothing, asked for by the door or D. */
+  // The focused deck (focused-deck.ts): off a phone the Inspector is gone, so
+  // a selection opens nothing beside the board. A phone keeps it, as the sheet
+  // a tapped card opens, since it has no Mission.
   const detailWanted = detailOpen && (selected != null || inspectingNothing);
   const detailShown = detailWanted && !sideFold.right;
   const lastSelected = useRef(selected);
@@ -788,7 +804,8 @@ function Inner() {
   useWorkspaceColumn({ active: inWorkspace && stage.enabled, wide: wideWindow, column: leftColumn });
   // The Inspector is a column in Workspace down to 1320px, and the detail sheet
   // (D, the ribbon) under it: workspace.css says why.
-  const inspectorColumn = !useMediaQuery(INSPECTOR_SHEET_QUERY);
+  const inspectorRoom = !useMediaQuery(INSPECTOR_SHEET_QUERY);
+  const inspectorColumn = inspectorRoom && !inspectorGone;
   // From 1100 to 1319 Workspace's Inspector is a sheet over the pane that starts
   // folded: its door on the right stripe (rail-items.tsx) is what the reader sees.
   const inspectorSheet = inspectorIsSheet({ workspace: inWorkspace && stage.enabled, wide: wideWindow, column: inspectorColumn });
@@ -977,6 +994,16 @@ function Inner() {
       setMission(true);
     });
   }, [switchView, leaveWorkspace, setMission]);
+  // Going to a session from Mission (a Sessions row, the waiting pill, a task's
+  // card): the Board, where its card is, so the press lands somewhere visible.
+  const missionRef = useMirroredRef(missionOn);
+  const leaveMission = useCallback(() => {
+    if (missionRef.current) switchView("board", lastInputWasKey() ? "key" : "pointer");
+  }, [missionRef, switchView]);
+  // Which sessions the Claude desktop app runs, and the press that opens one
+  // there (desktop-links.ts): Mission's tasks and the Sessions rows.
+  const desktopLinks = useDesktopLinks();
+  const openDesktop = useCallback((sessionId: string) => { void openInDesktop(sessionId); }, []);
   const switchViewRef = useMirroredRef(switchView);
   const workspaceRef = useMirroredRef(inWorkspace);
   // Ctrl + backtick: read through a ref by the one key listener (use-deck-shortcuts.ts).
@@ -1020,8 +1047,13 @@ function Inner() {
   // hides is out of it, as the Inspector the stage evicts is.
   const inRightCol = (shown: boolean, phase: PanelPhase) => (shown ? isMounted(phase) : phase === "leaving");
   // The Status pane is drawn while it is open and its column is not folded.
-  // In Mission the pane's contents are the page, so the pane itself stays shut.
-  const statusShown = statusPane.open && !sideFold.right && !missionOn;
+  // Status is Mission's page now (use-mission.ts): off a phone the pane is
+  // never drawn, and its door leads to Mission. A phone keeps the pane, as a
+  // sheet, since it has no Mission.
+  const statusShown = phone && statusPane.open && !sideFold.right;
+  // A pane left open by an older build would still hold the right column.
+  const { open: statusOpen, setOpen: setStatusOpen } = statusPane;
+  useEffect(() => { if (!phone && statusOpen) setStatusOpen(false); }, [phone, statusOpen, setStatusOpen]);
   const rightCol = !phone && !inWorkspace
     && (detailShown || statusShown || inRightCol(usageRail.shown, usagePhase) || inRightCol(machineRail.shown, machinePhase));
   // Which side columns the reader has open, folded or not, now that the
@@ -1064,10 +1096,12 @@ function Inner() {
   // N and W — in Workspace puts it on the pane; the board's camera is behind it
   // and has nothing to move. Everywhere else it is the camera's, as it was.
   const focusSessionOnView = useCallback((sessionId: string) => {
+    leaveMission();
     if (workspaceRef.current && stage.enabled) { openInPane(sessionId); markLanded(sessionId); return; }
     focusSession(sessionId);
-  }, [workspaceRef, stage.enabled, openInPane, markLanded, focusSession]);
+  }, [workspaceRef, stage.enabled, openInPane, markLanded, focusSession, leaveMission]);
   const openSession = useCallback((sessionId: string) => {
+    leaveMission();
     // In Workspace a row opens that session in the pane, whatever the stage is
     // doing: a pane still on its way, or the empty one. followSession answers
     // only a stage that is up (the Board's rule), which left a click on a row
@@ -1085,7 +1119,7 @@ function Inner() {
     }
     if (removedAgentIds.has(sessionId)) bringBack([sessionId]);
     focusSession(sessionId);
-  }, [removedAgentIds, bringBack, focusSession, followSession, markLanded, workspaceRef, stage.enabled, openInPane]);
+  }, [removedAgentIds, bringBack, focusSession, followSession, markLanded, workspaceRef, stage.enabled, openInPane, leaveMission]);
   // Enter on a row, in Workspace: the session in the pane, the keys in it.
   const openSessionWithKeys = useCallback((sessionId: string) => {
     if (removedAgentIds.has(sessionId)) bringBack([sessionId]);
@@ -1142,7 +1176,7 @@ function Inner() {
     // Inspector's on nothing: either way the Inspector closes.
     clearSelection: clearInspection, selectAgent, focusAgent, stepAgent, focusSession: focusSessionOnView, requestClear,
     handleRelayout, undoRearrange: rearrangeUndo.undo, handleFit, togglePause, toggleSessionList: pressSessionsKey, toggleAccountsPanel: pressAccounts,
-    setDetailOpen, setUsageHistoryOpen, setUsagePanelOpen: usageRail.set, setMachinePanelOpen: machineRail.set,
+    setDetailOpen, setUsageHistoryOpen: FOCUSED_DECK && surfaceRemoved("history") ? NO_HISTORY : setUsageHistoryOpen, setUsagePanelOpen: usageRail.set, setMachinePanelOpen: machineRail.set,
     setBrowserWatchOpen, setKeyHelpOpen, setTheme, openSettings, openIntegrationRef, openQuickOpen,
   });
 
@@ -1269,12 +1303,12 @@ function Inner() {
     feedbackUnread, openFeedbackConversations,
     inspectorOpen, toggleInspector,
     // A folded right column reads closed, so a press brings it back.
-    statusPaneOpen: statusShown || missionOn,
-    // In Mission the door leads to the pane on the Board.
+    statusPaneOpen: phone ? statusShown : missionOn,
     toggleStatusPane: () => {
-      if (missionOn) { statusPane.setOpen(true); switchTo("board", lastInputWasKey() ? "key" : "pointer"); return; }
+      if (!phone) { if (!missionOn) switchTo("mission", lastInputWasKey() ? "key" : "pointer"); return; }
       if (statusPane.open && sideFold.right) raiseRight(); else statusPane.toggle();
     },
+    focused: FOCUSED_DECK,
   });
   /** A phone opens on Sessions, and a row there opens that session's pane when
    *  the deck has a terminal for it (the Command Panel is on), else the
@@ -1293,11 +1327,6 @@ function Inner() {
     // No terminal: the Inspector opens as a sheet and the list stays under it.
     openSession(sessionId);
   }, [openSession, phone, closeSessionListToCanvas, stage.enabled, openInPane, markLanded, removedAgentIds, bringBack]);
-  /** A Todo item's session card, from Mission: the Board, with its card. */
-  const openFromMission = useCallback((sessionId: string) => {
-    switchView("board", lastInputWasKey() ? "key" : "pointer");
-    pickSession(sessionId);
-  }, [switchView, pickSession]);
   /** A card on the phone's Board opens its session with the Sessions row's own
    *  press, and leaving the pane comes back to the Board, where the tap was. */
   const pickFromBoard = useCallback((sessionId: string) => {
@@ -1595,6 +1624,8 @@ function Inner() {
               offline={phone && everConnected && !live && !restart.restarting ? <OfflineCard lastNewsAt={lastNewsAt} /> : undefined}
               emptyNotice={heroInList ? emptyHero(0) : undefined}
               remote={remoteMachines.length > 0 ? <RemoteSessionRows machines={remoteMachines} now={now} /> : undefined}
+              desktop={phone ? undefined : desktopLinks}
+              onOpenDesktop={openDesktop}
             />
           )}
         </LeftColumn>
@@ -1648,8 +1679,8 @@ function Inner() {
             with the Board kept under it (use-mission.ts). Its line to the deck
             lives while it is up. */}
         {missionOn && (
-          <StatusPane variant="mission" rows={buildRows(stateRef.current, now, watchingSessions)} now={now}
-            pinned onTogglePin={NOOP} besideInspector={false} onOpenSession={openFromMission} onClose={NOOP} />
+          <MissionView rows={buildRows(stateRef.current, now, watchingSessions)} now={now} desktop={desktopLinks}
+            onOpenSession={pickSession} onOpenDesktop={openDesktop} />
         )}
       </CanvasMain>
 
