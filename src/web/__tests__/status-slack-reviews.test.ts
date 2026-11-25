@@ -131,7 +131,11 @@ describe("the brief's Slack ask", () => {
     expect(line).toMatch(/"review" item in "waiting" with "url" set to the pull request's own link \(not the Slack message's\), "source" "slack", "person" who posted it/);
     expect(line).toMatch(/Leave out pull requests I opened/);
     expect(line).toMatch(/Do not judge whether one is approved, merged or closed: the deck checks each with gh/);
-    expect(line).toMatch(/Count them when you say what waits on me/);
+    // The summary is written before gh's check: it neither counts nor
+    // describes them, and says no total, so it cannot say seven where gh
+    // left two, nor that nothing waits.
+    expect(line).toMatch(/in the summary, neither count nor describe these review requests, give no total of what waits on me, and never say that nothing does/);
+    expect(line).not.toMatch(/Count them/);
   });
 
   it("looks further back than three days when the last brief did", () => {
