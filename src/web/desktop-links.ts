@@ -31,6 +31,14 @@ export function openInDesktop(sessionId: string, fetchFn: typeof fetch = (...a) 
   }).then(r => r.ok, () => false);
 }
 
+/** Asks the deck to bring a Remote Control session (its claude.ai id,
+ *  session_…) up in the Claude desktop app. */
+export function openRemoteInDesktop(remoteId: string, fetchFn: typeof fetch = (...a) => fetch(...a)): Promise<boolean> {
+  return fetchFn(DESKTOP_OPEN_ROUTE, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ remote: remoteId }),
+  }).then(r => r.ok, () => false);
+}
+
 /** Whether the desktop app runs this session. */
 export function inDesktop(sessionId: string | undefined | null, links: DesktopLinks | null | undefined): boolean {
   return desktopHref(sessionId, links) != null;

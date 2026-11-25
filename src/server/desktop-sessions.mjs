@@ -1,13 +1,21 @@
 // Which of this computer's Claude Code sessions the Claude desktop app runs,
-// so a Todo item can open its session there rather than on the deck's board.
+// so a Todo item can open its session there rather than on the deck's board,
+// and which ones the person archived there, so the Sessions list and Mission
+// let them go.
 //
 // WHERE IT LOOKS. The desktop app keeps one JSON file per Claude Code session
 // it runs, under <its data folder>/claude-code-sessions/<account>/<org>/
 // local_<id>.json. Each names the app's own id (`sessionId`, `local_…`) and the
 // Claude Code conversation it drives (`cliSessionId`, the id the deck's hook
-// reports, and `lastAssistantCliSessionId` after a resume). The deck reads
-// those three fields and nothing else of the file: no title, prompt or folder
-// leaves this module.
+// reports, and `lastAssistantCliSessionId` after a resume), and whether it is
+// archived (`isArchived`). The deck reads those four fields and nothing else
+// of the file: no title, prompt or folder leaves this module.
+//
+// ARCHIVED. A conversation counts as archived when every app session that
+// names it is archived: one resumed in a live app session is not. And an
+// archived conversation that is working or waiting right now still shows
+// (shownDespiteArchive): archiving puts away what is done, never what needs
+// the person.
 //
 // THE LINK. The desktop app's own menus open a session with
 // claude://code/continue?session=local_<id> (its spotlight and dock entries),
@@ -69,10 +77,14 @@ async function listFiles(root) {
   return out;
 }
 
+const NOTHING = Object.freeze({ links: Object.freeze({}), archived: Object.freeze([]) });
+
 /**
- * A reader with its own cache: `links()` gives { cliSessionId: local_id } for
- * every session the desktop app knows that is not archived. A conversation
- * that two app sessions name (a resume) goes to the one touched last.
+ * A reader with its own cache. `read()` gives `links`, { cliSessionId:
+ * local_id } for every session the desktop app knows that is not archived,
+ * and `archived`, the Claude Code ids that only archived app sessions name
+ * (sorted). A conversation that two app sessions name (a resume) links to the
+ * one touched last. `links()` is `read()`'s links alone.
  */
 export function createDesktopSessions({ root = desktopSessionsRoot(), env = process.env, now = () => Date.now(), fs = { readFile, stat } } = {}) {
   const files = new Map(); // path -> { mtimeMs, link }
@@ -81,11 +93,12 @@ export function createDesktopSessions({ root = desktopSessionsRoot(), env = proc
   let pending = null;
 
   async function scan() {
-    if (!root || desktopLinksVetoed(env)) return {};
+    if (!root || desktopLinksVetoed(env)) return NOTHING;
     const paths = await listFiles(root);
     const seen = new Set(paths);
     for (const p of files.keys()) if (!seen.has(p)) files.delete(p);
     const best = new Map(); // cli -> { local, mtimeMs }
+    const shelved = new Set(); // cli named by an archived app session
     for (const p of paths) {
       let st;
       try { st = await fs.stat(p); } catch { continue; }
@@ -97,32 +110,58 @@ export function createDesktopSessions({ root = desktopSessionsRoot(), env = proc
         files.set(p, entry);
       }
       const l = entry.link;
-      if (!l || l.archived) continue;
+      if (!l) continue;
+      if (l.archived) { for (const cli of l.cli) shelved.add(cli); continue; }
       for (const cli of l.cli) {
         const had = best.get(cli);
         if (!had || had.mtimeMs < entry.mtimeMs) best.set(cli, { local: l.local, mtimeMs: entry.mtimeMs });
       }
     }
-    return Object.fromEntries([...best].map(([cli, v]) => [cli, v.local]));
+    return {
+      links: Object.fromEntries([...best].map(([cli, v]) => [cli, v.local])),
+      archived: [...shelved].filter(cli => !best.has(cli)).sort(),
+    };
+  }
+
+  async function read() {
+    if (cached && now() - at < LIST_TTL_MS) return cached;
+    if (!pending) {
+      pending = scan().then(v => { cached = v; at = now(); return v; }, () => cached ?? NOTHING).finally(() => { pending = null; });
+    }
+    return pending;
   }
 
   return {
-    async links() {
-      if (cached && now() - at < LIST_TTL_MS) return cached;
-      if (!pending) {
-        pending = scan().then(v => { cached = v; at = now(); return v; }, () => cached ?? {}).finally(() => { pending = null; });
-      }
-      return pending;
-    },
+    read,
+    async links() { return (await read()).links; },
   };
 }
 
 let shared = null;
 /** The deck's one reader, for its route. */
 export async function desktopSessionsState(env = process.env) {
-  if (desktopLinksVetoed(env)) return { off: true, links: {} };
+  if (desktopLinksVetoed(env)) return { off: true, links: {}, archived: [] };
   shared ??= createDesktopSessions({ env });
-  return { off: false, links: await shared.links() };
+  const { links, archived } = await shared.read();
+  return { off: false, links, archived };
+}
+
+/** The Claude Code ids the desktop app has archived, as a set; empty under
+ *  the off switch or when the app's folder cannot be read. */
+export async function archivedDesktopSessions(env = process.env) {
+  try { return new Set((await desktopSessionsState(env)).archived); } catch { return new Set(); }
+}
+
+/** Whether an archived session still shows: it is working or waiting now.
+ *  `state` is session-summary.mjs's ("working", "waiting", "idle", "ended"). */
+export function shownDespiteArchive(state) {
+  return state === "working" || state === "waiting";
+}
+
+/** session-summary.mjs rows without the ones the desktop app archived. */
+export function withoutArchived(rows, archived) {
+  if (!archived?.size || !Array.isArray(rows)) return rows;
+  return rows.filter(r => !archived.has(r.id) || shownDespiteArchive(r.state));
 }
 
 /** The desktop app's link for a local id, or null for any other shape. */
@@ -153,5 +192,27 @@ export async function openInDesktop(sessionId, { env = process.env, platform = p
   const exec = run ?? execRun;
   const r = await exec(cmd, [...pre, url], { timeout: 10_000 });
   // explorer.exe exits 1 even when it opened the link.
+  return r.ok || platform === "win32" ? { ok: true } : { ok: false, error: "open-failed" };
+}
+
+/** A Remote Control session's id, as its claude.ai link names it. */
+export const REMOTE_ID = /^session_[A-Za-z0-9]{1,128}$/;
+
+/** The desktop app's link for a Remote Control session, or null. */
+export function remoteDesktopUrl(remoteId) {
+  return typeof remoteId === "string" && REMOTE_ID.test(remoteId) ? `claude://code/${remoteId}` : null;
+}
+
+/**
+ * Opens a Remote Control session in the Claude desktop app, which shows it as
+ * claude.ai does. The id is held to the one shape the app takes for it, so the
+ * link the deck builds can name nothing else.
+ */
+export async function openRemoteInDesktop(remoteId, { env = process.env, platform = process.platform, run } = {}) {
+  if (desktopLinksVetoed(env)) return { ok: false, error: "off" };
+  const url = remoteDesktopUrl(remoteId);
+  if (!url) return { ok: false, error: "bad-session" };
+  const [cmd, pre] = openerFor(platform);
+  const r = await (run ?? execRun)(cmd, [...pre, url], { timeout: 10_000 });
   return r.ok || platform === "win32" ? { ok: true } : { ok: false, error: "open-failed" };
 }

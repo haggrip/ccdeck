@@ -337,9 +337,15 @@ export function prune(store, now) {
  *
  * Keys carry the moment the wait began, so a session that waits again later
  * is a new item, and the closed one before it stays closed.
+ *
+ * `archived` holds the sessions the person archived in the Claude desktop app
+ * (desktop-sessions.mjs). One of them that is not in `rows` was put away, so
+ * what the deck and the brief added for it closes, and says so; what the user
+ * or a session wrote stays theirs.
  */
-export function reconcileDeck(store, rows, digest, now) {
+export function reconcileDeck(store, rows, digest, now, { archived = null } = {}) {
   let changed = false;
+  const ARCHIVED = "Archived in Claude Desktop";
   const byId = new Map((Array.isArray(rows) ? rows : []).map(r => [r.id, r]));
   const failed = new Map((Array.isArray(digest) ? digest : []).filter(d => d.state === "failed").map(d => [d.id, d]));
   for (const r of byId.values()) {
@@ -371,7 +377,9 @@ export function reconcileDeck(store, rows, digest, now) {
     if (!sid) continue;
     const r = byId.get(sid);
     const key = item.key ?? "";
-    if (item.origin === "deck" && key.startsWith(`session:${sid}:wait:`)) {
+    if (!r && archived?.has(sid) && (item.origin === "deck" || item.origin === "brief")) {
+      changed = closeItem(item, { by: "deck", reason: ARCHIVED, now }) || changed;
+    } else if (item.origin === "deck" && key.startsWith(`session:${sid}:wait:`)) {
       const [, , , kind, since] = key.split(":");
       if (!r) changed = closeItem(item, { by: "deck", reason: "The session is no longer on the board", now }) || changed;
       else if (r.state === "ended") changed = closeItem(item, { by: "deck", reason: "The session ended", now }) || changed;
@@ -778,7 +786,8 @@ export function todoView(store, now, extra = {}) {
  *
  *   dir          the deck's data directory; the list lives in dir/status-todo
  *   agent()      resolves to { runAgent } or null when vetoed
- *   sessions()   resolves to { rows, digest } (summarizeSessions, sessionDigest)
+ *   sessions()   resolves to { rows, digest, archived? } (summarizeSessions,
+ *                sessionDigest, and the desktop app's archived sessions)
  *   changed()    resolves to whether the event ring moved since it was last asked
  *   broadcast(v) sends the view to the open pages
  */
@@ -838,11 +847,11 @@ export function createStatusTodo({
   let sessionCwd = new Map();
   async function reconcile() {
     await load();
-    let rows = [], digest = [];
-    try { ({ rows, digest } = await sessions()); } catch (err) { log(`status todo: sessions unreadable (${err?.message ?? err})`); return false; }
+    let rows = [], digest = [], archived = null;
+    try { ({ rows, digest, archived = null } = await sessions()); } catch (err) { log(`status todo: sessions unreadable (${err?.message ?? err})`); return false; }
     knownSessions = new Set(rows.map(r => r.id));
     sessionCwd = new Map(rows.filter(r => r.cwd).map(r => [r.id, r.cwd]));
-    const did = reconcileDeck(store, rows, digest, now());
+    const did = reconcileDeck(store, rows, digest, now(), { archived });
     if (did) await commit();
     return did;
   }

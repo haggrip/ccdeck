@@ -29,7 +29,7 @@ import { isOverdue, isSnoozed, openerOf, splitOpen, tomorrowMorning, whenShort, 
 import { inDesktop, type DesktopLinks } from "../desktop-links";
 import { useStatusBrief, type StatusBriefHandle } from "../use-status-brief";
 import { useStatusTodo, type StatusTodoHandle } from "../use-status-todo";
-import type { Row } from "./SessionList";
+import { rank, type Row } from "./SessionList";
 
 export const MISSION_ID = "mission";
 
@@ -92,7 +92,8 @@ function Task({ item, now, sessions, desktop, onOpenSession, onOpenDesktop, act,
   // The title goes where the task is acted on: its session's card, its page,
   // else the desktop app for a session the board no longer has.
   const head = open.session ? (
-    <button type="button" className="mi-task-title" onClick={() => onOpenSession(open.session!)} title={t("brief.open.session")}>{title}</button>
+    <button type="button" className="mi-task-title" onClick={() => open.desktop ? onOpenDesktop(open.desktop) : onOpenSession(open.session!)}
+      title={t(open.desktop ? "brief.open.desktop" : "brief.open.session")}>{title}</button>
   ) : open.href ? (
     <a className="mi-task-title" href={open.href} target="_blank" rel="noreferrer noopener" title={t("brief.open.link", { source: src?.name ?? "" })}>{title}<ExternalLinkGlyph /></a>
   ) : open.desktop ? (
@@ -149,12 +150,14 @@ function Group({ id, tone, title, items, empty, children }: { id: string; tone: 
   );
 }
 
-/** A session's live state, in the order the page lists them. */
+/** A session's live state, in the order the page lists them. Working is the
+ *  Sessions list's Working group (rank 2), as the header counts it: a session
+ *  never given a prompt is Ready there, not at work, and is not listed. */
 type LiveState = "waiting" | "failed" | "working" | "unread";
 export function liveState(r: Row): LiveState | null {
   if (r.waiting && r.waiting.kind !== "idle") return "waiting";
   if (r.state === "err" && r.unseen) return "failed";
-  if (r.state === "active" && !(r.waiting && r.waiting.kind === "idle")) return "working";
+  if (rank(r) === 2) return "working";
   if (r.unseen && r.turnEndedAt != null) return "unread";
   return null;
 }
@@ -173,19 +176,22 @@ function Live({ rows, desktop, onOpenSession, onOpenDesktop, t }: {
       <h3 className="mi-h" id="mi-live"><span className="mi-pulse" aria-hidden />{t("brief.mission.live")}<span className="mi-n">{live.length}</span></h3>
       {live.length ? (
         <ul className="mi-live-list">
-          {live.map(({ r, s }) => (
+          {live.map(({ r, s }) => {
+            // A session the desktop app runs opens there; any other, its card.
+            const app = inDesktop(r.sessionId, desktop);
+            return (
             <li key={r.sessionId} className="mi-live-row" data-live={s}>
-              <button type="button" className="mi-live-main" onClick={() => onOpenSession(r.sessionId)} title={t("brief.open.session")}>
+              <button type="button" className="mi-live-main" onClick={() => (app ? onOpenDesktop : onOpenSession)(r.sessionId)}
+                title={t(app ? "brief.open.desktop" : "brief.open.session")}>
                 <span className="mi-dot" aria-hidden />
                 <span className="mi-live-name">{r.label}</span>
                 <span className="mi-live-state">{t(LIVE_MSGS[s])}</span>
                 {r.waiting?.message && s === "waiting" && <span className="mi-live-detail">{r.waiting.message}</span>}
               </button>
-              {inDesktop(r.sessionId, desktop) && (
-                <DesktopButton compact label={t("brief.open.desktop")} onPress={() => onOpenDesktop(r.sessionId)} />
-              )}
+              {app && <DesktopButton label={t("brief.open.desktop")} onPress={() => onOpenDesktop(r.sessionId)} />}
             </li>
-          ))}
+            );
+          })}
         </ul>
       ) : <p className="mi-empty">{t("brief.mission.live.empty")}</p>}
     </section>

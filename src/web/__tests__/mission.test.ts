@@ -20,7 +20,8 @@ import type { StatusTodoHandle } from "../use-status-todo";
 import type { StatusBriefHandle } from "../use-status-brief";
 import type { Row } from "../components/SessionList";
 import { resetLanguageForTest, t } from "../i18n";
-import { createDesktopSessions, desktopSessionsRoot, linkOf, desktopLinksVetoed, openInDesktop } from "../../server/desktop-sessions.mjs";
+import { createDesktopSessions, desktopSessionsRoot, linkOf, desktopLinksVetoed, openInDesktop, openRemoteInDesktop } from "../../server/desktop-sessions.mjs";
+import { remoteIdOf } from "../components/RemoteControlList";
 import { GUARDED_READS } from "../../server/request-gates.mjs";
 import { SETTING_VARS } from "../../server/login-service.mjs";
 import { navigationFor, claudeSessionLink } from "../../../desktop/nav.mjs";
@@ -183,6 +184,19 @@ describe("opening a session in the desktop app", () => {
     expect(await openInDesktop(CLI, { env: {}, platform: "darwin", run, links: { [CLI]: "local_x&q=1" } })).toEqual({ ok: false, error: "not-in-app" });
     expect(await openInDesktop(CLI, { env: { AGENTS_DECK_NO_DESKTOP_LINKS: "1" }, platform: "darwin", run, links: { [CLI]: LOCAL } })).toEqual({ ok: false, error: "off" });
   });
+
+  it("opens a Remote Control session by its claude.ai id, and no other shape", async () => {
+    const calls: [string, string[]][] = [];
+    const run = async (cmd: string, args: string[]) => { calls.push([cmd, args]); return { ok: true }; };
+    expect(remoteIdOf("https://claude.ai/code/session_017qTQardmNuDpppY8EFZziJ")).toBe("session_017qTQardmNuDpppY8EFZziJ");
+    expect(await openRemoteInDesktop("session_017qTQardmNuDpppY8EFZziJ", { env: {}, platform: "darwin", run })).toEqual({ ok: true });
+    expect(calls).toEqual([["open", ["claude://code/session_017qTQardmNuDpppY8EFZziJ"]]]);
+    for (const bad of ["session_a/../x", "session_", "cse_1", "local_1", "session_a?x=1"]) {
+      expect(await openRemoteInDesktop(bad, { env: {}, platform: "darwin", run }), bad).toEqual({ ok: false, error: "bad-session" });
+    }
+    expect(await openRemoteInDesktop("session_abc", { env: { AGENTS_DECK_NO_DESKTOP_LINKS: "1" }, platform: "darwin", run })).toEqual({ ok: false, error: "off" });
+    expect(calls.length).toBe(1);
+  });
 });
 
 describe("the wiring", () => {
@@ -201,6 +215,24 @@ describe("the wiring", () => {
     expect(app).toMatch(/const openSession = useCallback\(\(sessionId: string\) => \{\s*leaveMission\(\);/);
     expect(app).toMatch(/const focusSessionOnView = useCallback\(\(sessionId: string\) => \{\s*leaveMission\(\);/);
     expect(app).toContain("const statusShown = phone && statusPane.open");
+  });
+
+  it("opens a session the desktop app runs there when it is picked in Mission, from the Sessions list and the page", () => {
+    const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+    expect(app).toMatch(/const goToSession = useCallback\(\(sessionId: string\) => \{\s*if \(missionRef\.current && inDesktop\(sessionId, desktopLinksRef\.current\)\) \{ openDesktop\(sessionId\); return; \}\s*pickSession\(sessionId\);/);
+    expect(app).toContain("onSelect={goToSession}");
+    expect(app).toContain("onOpenSession={goToSession} onOpenDesktop={openDesktop}");
+    const css = readFileSync(fileURLToPath(new URL("../styles/session-list.css", import.meta.url)), "utf8");
+    expect(css).not.toMatch(/\.sl-desktop[^{]*\{[^}]*opacity: 0/);
+  });
+
+  it("says nothing of failed tool calls on a finished Sessions row in the focused deck", () => {
+    const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+    expect(app).toContain("quietFailures={FOCUSED_DECK}");
+    const row = readFileSync(fileURLToPath(new URL("../components/RailParts.tsx", import.meta.url)), "utf8");
+    expect(row).toContain("const failed = quietFailures ? null : railFailed(r, group, t);");
+    expect(row).toContain('const glyph = quietFailures && plainGlyph === "partial" ? "done" : plainGlyph;');
+    expect(row).not.toContain("kind={railGlyph(r, group)}");
   });
 
   it("lets the desktop shell hand only the deck's two claude:// shapes to the OS", () => {

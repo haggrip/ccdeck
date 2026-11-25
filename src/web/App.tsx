@@ -19,8 +19,8 @@ import UsagePanel from "./components/UsagePanel";
 import MachinePanel from "./components/MachinePanel";
 import StatusPane from "./components/StatusPane";
 import MissionView from "./components/MissionView";
-import { useDesktopLinks } from "./use-desktop-links";
-import { openInDesktop } from "./desktop-links";
+import { useDesktopSessions } from "./use-desktop-links";
+import { inDesktop, openInDesktop } from "./desktop-links";
 import { useStatusPane } from "./use-status-pane";
 import AccountsPanel from "./components/AccountsPanel";
 import AccountsSwitch, { type AccountSide } from "./components/AccountsSwitch";
@@ -1001,9 +1001,15 @@ function Inner() {
     if (missionRef.current) switchView("board", lastInputWasKey() ? "key" : "pointer");
   }, [missionRef, switchView]);
   // Which sessions the Claude desktop app runs, and the press that opens one
-  // there (desktop-links.ts): Mission's tasks and the Sessions rows.
-  const desktopLinks = useDesktopLinks();
+  // there (desktop-links.ts): Mission's tasks and the Sessions rows. And which
+  // the person archived there: the Sessions list, Mission and the Status pane
+  // let those go (SessionList.tsx archivedAway).
+  const { links: desktopLinks, archived: archivedSessions } = useDesktopSessions();
   const openDesktop = useCallback((sessionId: string) => { void openInDesktop(sessionId); }, []);
+  // Going to a session from Mission: one the desktop app runs opens there, where
+  // it is driven, and Mission stays; any other goes to its card (goToSession,
+  // below, once pickSession is known).
+  const desktopLinksRef = useMirroredRef(desktopLinks);
   const switchViewRef = useMirroredRef(switchView);
   const workspaceRef = useMirroredRef(inWorkspace);
   // Ctrl + backtick: read through a ref by the one key listener (use-deck-shortcuts.ts).
@@ -1327,6 +1333,10 @@ function Inner() {
     // No terminal: the Inspector opens as a sheet and the list stays under it.
     openSession(sessionId);
   }, [openSession, phone, closeSessionListToCanvas, stage.enabled, openInPane, markLanded, removedAgentIds, bringBack]);
+  const goToSession = useCallback((sessionId: string) => {
+    if (missionRef.current && inDesktop(sessionId, desktopLinksRef.current)) { openDesktop(sessionId); return; }
+    pickSession(sessionId);
+  }, [missionRef, desktopLinksRef, openDesktop, pickSession]);
   /** A card on the phone's Board opens its session with the Sessions row's own
    *  press, and leaving the pane comes back to the Board, where the tap was. */
   const pickFromBoard = useCallback((sessionId: string) => {
@@ -1611,7 +1621,7 @@ function Inner() {
               state={stateRef.current}
               now={now}
               selectedIds={selectedIds}
-              onSelect={pickSession}
+              onSelect={goToSession}
               onClose={() => { panelReturn.sessionList(); closeSessionList(); }}
               removedIds={removedAgentIds}
               onBringBackAll={bringBackAll}
@@ -1625,6 +1635,8 @@ function Inner() {
               emptyNotice={heroInList ? emptyHero(0) : undefined}
               remote={remoteMachines.length > 0 ? <RemoteSessionRows machines={remoteMachines} now={now} /> : undefined}
               desktop={phone ? undefined : desktopLinks}
+              archived={archivedSessions}
+              quietFailures={FOCUSED_DECK}
               onOpenDesktop={openDesktop}
             />
           )}
@@ -1679,8 +1691,8 @@ function Inner() {
             with the Board kept under it (use-mission.ts). Its line to the deck
             lives while it is up. */}
         {missionOn && (
-          <MissionView rows={buildRows(stateRef.current, now, watchingSessions)} now={now} desktop={desktopLinks}
-            onOpenSession={pickSession} onOpenDesktop={openDesktop} />
+          <MissionView rows={buildRows(stateRef.current, now, watchingSessions, archivedSessions)} now={now} desktop={desktopLinks}
+            onOpenSession={goToSession} onOpenDesktop={openDesktop} />
         )}
       </CanvasMain>
 
@@ -1741,7 +1753,7 @@ function Inner() {
           (components/StatusPane.tsx, status-pane.css). Mounted only while it is
           open, which is also what starts and stops its line to the deck. */}
       {statusShown && (
-        <StatusPane rows={buildRows(stateRef.current, now, watchingSessions)} now={now}
+        <StatusPane rows={buildRows(stateRef.current, now, watchingSessions, archivedSessions)} now={now}
           pinned={statusPane.pinned} onTogglePin={statusPane.togglePin}
           besideInspector={rightCol && detailShown}
           sideWidth={inWorkspace && side.on ? side.width : 0}

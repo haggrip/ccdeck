@@ -304,13 +304,16 @@ span.mi-task-title { cursor: default; }
 .mi-pulse { width: 8px; height: 8px; border-radius: var(--r-pill); background: var(--ok); animation: mi-pulse var(--pulse-live) infinite alternate; }
 @keyframes mi-pulse { from { opacity: 1; } to { opacity: 0.35; } }
 .mi-live-list, .mi-plain { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
-.mi-live-row { --mi-live: var(--muted); display: flex; align-items: center; gap: 6px; }
+.mi-live-row { --mi-live: var(--muted); display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; }
+/* Its "Open in Claude Desktop" sits beside the row while there is room, else
+   under the name. */
+.mi-live-row > .mi-desktop { margin-left: 26px; }
 .mi-live-row[data-live="waiting"] { --mi-live: var(--warn); }
 .mi-live-row[data-live="failed"] { --mi-live: var(--err); }
 .mi-live-row[data-live="working"] { --mi-live: var(--usage-blue); }
 .mi-live-row[data-live="unread"] { --mi-live: var(--ok); }
 .mi-live-main {
-  flex: 1 1 auto;
+  flex: 1 1 200px;
   display: grid;
   grid-template-columns: 10px minmax(0, 1fr) auto;
   column-gap: 8px;
