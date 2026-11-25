@@ -37,7 +37,7 @@ import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { writeFileAtomic } from "./atomic-write.mjs";
 import { LINK_STATES, dismissKeyOf } from "./status-todo.mjs";
-import { FIRST_SINCE_MS, MAX_SINCE_MS, PR_URL, activityPromptLines, githubPromptLines, normaliseActivity, prUrlOf, waitsOnMyReview } from "./status-gh.mjs";
+import { FIRST_SINCE_MS, MAX_SINCE_MS, PR_URL, activityPromptLines, githubPromptLines, normaliseActivity, prUrlOf, reviewSettledBy } from "./status-gh.mjs";
 
 export const BRIEF_FILE = "status-brief.json";
 export const MODELS = Object.freeze(["haiku", "sonnet", "opus"]);
@@ -68,7 +68,8 @@ export const MIN_GAP_MS = 60_000;
 export const BACKOFF_MS = Object.freeze([5 * 60_000, 15 * 60_000, 30 * 60_000, 60 * 60_000]);
 /** How far back the brief looks for review requests in Slack channels. A
  *  request stays open until someone reviews, so it looks further back than
- *  the DMs do; gh drops whatever was approved since (waitsOnMyReview). */
+ *  the DMs do; gh drops whatever was approved or turned draft since
+ *  (reviewSettledBy). */
 export const SLACK_REVIEW_LOOKBACK_MS = 3 * 24 * 3600_000;
 /** A brief with connector reads in it takes longer than the contract's default. */
 export const RUN_TIMEOUT_MS = 180_000;
@@ -417,7 +418,9 @@ const clock = at => (Number.isFinite(at) ? new Date(at).toISOString() : "never")
  * So the ask also searches the channels he is a member of
  * (`only_my_channels`) for messages that link a pull request,
  * SLACK_REVIEW_LOOKBACK_MS back. The model only finds the asks; gh decides
- * which still wait on him (waitsOnMyReview, in run below).
+ * which still wait on him (reviewSettledBy, in run below). A draft, or a PR
+ * anyone approved, does not (owner, 2026-11-25): a channel's ask is answered by
+ * the first approval.
  *
  * Read against his Slack the same day: the request is usually a bare link
  * (#eyes-on-prs-saas, #prs-data-platform), so a person's message linking a PR
@@ -624,9 +627,11 @@ export function createStatusBrief({ dir, agent, sessions, todo = null, github = 
     // Always a list, never runAgent's default of every tool that is on.
     const { tools, reach } = pickTools(connectors, s.settings.sources, enabled, off);
     let digest = [];
+    let rows = [];
     try {
-      const { rows, envelopes } = await sessions();
-      digest = sessionDigest(rows, envelopes, { now: startedAt });
+      const read = await sessions();
+      rows = Array.isArray(read?.rows) ? read.rows : [];
+      digest = sessionDigest(rows, read?.envelopes, { now: startedAt });
     } catch (err) { log(`status brief: sessions unreadable (${err?.message ?? err})`); }
     // The open Todo items' PRs and tickets, for the brief to read the state of.
     let watched = [];
@@ -668,6 +673,7 @@ export function createStatusBrief({ dir, agent, sessions, todo = null, github = 
     }
     if (result?.ok && result.json && typeof result.json === "object") {
       const known = new Set(digest.map(d => d.id));
+      const seenOf = new Map(rows.map(r => [r.id, { state: r.state, since: r.since }]));
       const brief = normaliseBrief(result.json);
       // A session id the model made up links nowhere: the item goes.
       for (const list of [brief.waiting, brief.todo, brief.talkTo]) {
@@ -675,6 +681,10 @@ export function createStatusBrief({ dir, agent, sessions, todo = null, github = 
           const it = list[i];
           if (it.sessionId && !known.has(it.sessionId)) {
             if (it.url) delete it.sessionId; else list.splice(i, 1);
+          } else if (it.sessionId && !it.url && seenOf.has(it.sessionId)) {
+            // The session as the brief read it: the Todo list closes the item
+            // once it moves on (status-todo.mjs movedOn).
+            it.seen = seenOf.get(it.sessionId);
           }
         }
       }
@@ -682,29 +692,34 @@ export function createStatusBrief({ dir, agent, sessions, todo = null, github = 
       // made of the ask to leave it out.
       const ignore = new Set(s.settings.slackIgnore);
       for (const k of ["waiting", "todo", "talkTo"]) brief[k] = brief[k].filter(it => !fromIgnoredChannel(it, ignore));
-      // A review asked for in Slack goes on only while it still waits on me,
-      // as gh reads the PR (waitsOnMyReview): the model finds the asks, gh
-      // judges them. Each is linked by the PR's own address, which is what the
-      // Todo list keys it by and closes it on.
-      const asked = brief.waiting.filter(it => it.kind === "review" && it.source === "slack" && prUrlOf(it.url));
+      // A review asked of me (in Slack, or by GitHub) goes on only while it
+      // still waits on me, as gh reads the PR (reviewSettledBy): the model
+      // finds the asks, gh judges them, and the reviews already on the Todo
+      // list by the same rule. Each is linked by the PR's own address, which
+      // is what the Todo list keys it by and closes it on.
+      const asked = brief.waiting.filter(it => it.kind === "review" && prUrlOf(it.url));
       for (const it of asked) {
         it.url = prUrlOf(it.url);
         const dkey = dismissKeyOf({ url: it.url, kind: it.kind });
         if (dkey) it.dkey = dkey;
       }
-      if (asked.length && gh?.status === "on" && typeof github?.reviewViews === "function") {
+      const tracked = watched.filter(w => w.kind === "review" && isPr(w)).map(w => w.url);
+      let settled = [];
+      if ((asked.length || tracked.length) && gh?.status === "on" && typeof github?.reviewViews === "function") {
         let views = null;
-        try { views = await github.reviewViews(asked.map(it => it.url)); }
-        catch (err) { log(`status brief: the Slack review requests could not be checked with gh (${err?.message ?? err})`); }
+        try { views = await github.reviewViews([...new Set([...asked.map(it => it.url), ...tracked])]); }
+        catch (err) { log(`status brief: the review requests could not be checked with gh (${err?.message ?? err})`); }
         if (views) {
-          const gone = new Set(asked.filter(it => !waitsOnMyReview(views.get(it.url) ?? null, gh.account)));
+          const why = url => reviewSettledBy(views.get(url) ?? null, gh.account);
+          const gone = new Set(asked.filter(it => why(it.url)));
           brief.waiting = brief.waiting.filter(it => !gone.has(it));
+          settled = tracked.map(url => ({ url, state: why(url) })).filter(l => l.state && l.state !== "mine");
         }
       }
       // gh's own reading of the tracked PRs stands over the model's.
       if (gh?.status === "on") {
         const byGh = new Set(gh.linkStates.map(l => l.url));
-        brief.linkStates = [...brief.linkStates.filter(l => !byGh.has(l.url)), ...gh.linkStates].slice(0, 60);
+        brief.linkStates = [...settled, ...brief.linkStates.filter(l => !byGh.has(l.url)), ...gh.linkStates].slice(0, 60);
       }
       const activity = gh?.status === "on" ? normaliseActivity(gh.activity) : null;
       s.brief = {

@@ -89,7 +89,7 @@ describe("gh's view of those PRs", () => {
     expect([...views!.keys()]).toEqual([pr(1), pr(2)]);
     expect(views!.get(pr(2))).toMatchObject({ reviewDecision: "APPROVED" });
     const viewed = gh.calls.filter(a => a[0] === "pr");
-    expect(viewed).toEqual([1, 2, 3].map(n => ["pr", "view", pr(n), "--json", "state,mergedAt,reviewDecision,author,latestReviews"]));
+    expect(viewed).toEqual([1, 2, 3].map(n => ["pr", "view", pr(n), "--json", "state,mergedAt,isDraft,reviewDecision,reviewRequests,author,latestReviews"]));
   });
 
   it("reads at most MAX_WATCH, and nothing without gh", async () => {
@@ -172,6 +172,7 @@ describe("the brief's runner and the review requests it found", () => {
     { kind: "review", title: "I asked for changes", source: "slack", url: pr(4), person: "Kim" },
     { kind: "review", title: "Merged", source: "slack", url: pr(5), person: "Kim" },
     { kind: "review", title: "gh cannot read it", source: "slack", url: pr(6), person: "Kim" },
+    // GitHub's own ask, by the same rule: this PR is approved.
     { kind: "review", title: "Requested on GitHub", source: "github", url: pr(2) },
     { kind: "reply", title: "A DM", source: "slack", url: "https://acme.slack.com/archives/D1/p1" },
   ];
@@ -202,7 +203,7 @@ describe("the brief's runner and the review requests it found", () => {
     await b.refresh(); await b.settled();
     expect(asked).toEqual([[1, 2, 3, 4, 5, 6].map(pr)]);
     const waiting = (await b.view()).brief!.waiting as { title: string; url?: string; dkey?: string }[];
-    expect(waiting.map(i => i.title)).toEqual(["Dana asks for a review of acme/api#1", "gh cannot read it", "Requested on GitHub", "A DM"]);
+    expect(waiting.map(i => i.title)).toEqual(["Dana asks for a review of acme/api#1", "gh cannot read it", "A DM"]);
     expect(waiting[0].url).toBe(pr(1));
     expect(waiting[0].dkey).toBe(`url:${pr(1)}`);
     expect(handed[0].waiting.map(i => i.title)).toEqual(waiting.map(i => i.title));
