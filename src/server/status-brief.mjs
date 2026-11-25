@@ -427,6 +427,11 @@ const clock = at => (Number.isFinite(at) ? new Date(at).toISOString() : "never")
  * answer has no permalink, and the model left out a DM that waited on him for
  * want of a link to give, so every search asks for "detailed", whose
  * Permalink line is the message's link.
+ *
+ * The summary is written before gh's check, so it says nothing of these
+ * requests and gives no total of what waits: the first brief that found them
+ * said "seven PR links posted for review" when gh had left two. The page's
+ * own counts (Mission's header) say how many are left.
  */
 function slackAsk(since, given, now = Date.now(), ignore = []) {
   const search = given.find(n => toolTail(n) === "slack_search_public_and_private");
@@ -443,7 +448,7 @@ function slackAsk(since, given, now = Date.now(), ignore = []) {
   const rest = PROMPT_TOOLS.slack.map(tail => given.find(n => toolTail(n) === tail)).filter(n => n && n !== search && n !== thread);
   return `Slack: direct messages, mentions of me, and replies by others in threads I started or took part in, since ${clock(since)}, that still need an answer, a review or a decision from me. A reply that hands me something to review or answers my question counts even without a mention. Link each such item by its message's permalink.`
     + ` Also review requests in the channels I am a member of since ${clock(reviewFrom)}: every message from a person that links https://github.com/<owner>/<repo>/pull/<n>, whether or not it mentions me or asks in words. A bare link counts: that is how review requests are usually posted. Skip posts by bots and automations (CI, deploys, test reports, stale-PR notices), my own messages, and a message that plainly links the pull request for another reason (it says it was merged or deployed, or cites it as where a bug came from).`
-    + ` Each is a "review" item in "waiting" with "url" set to the pull request's own link (not the Slack message's), "source" "slack", "person" who posted it, the channel's name in "channel" and in "detail", and the message's time as "activityAt". Leave out pull requests I opened. Do not judge whether one is approved, merged or closed: the deck checks each with gh and drops those itself. Count them when you say what waits on me.`
+    + ` Each is a "review" item in "waiting" with "url" set to the pull request's own link (not the Slack message's), "source" "slack", "person" who posted it, the channel's name in "channel" and in "detail", and the message's time as "activityAt". Leave out pull requests I opened. Do not judge whether one is approved, merged or closed: the deck checks each with gh and drops those itself. So in the summary, neither count nor describe these review requests, give no total of what waits on me, and never say that nothing does: the deck checks them after you answer, and the page counts what is left.`
     + (ignore.length ? ` Leave out everything posted in ${ignore.map(c => `#${c}`).join(", ")}.` : "")
     + how + (rest.length ? ` You may also use ${rest.join(", ")}.` : "");
 }
