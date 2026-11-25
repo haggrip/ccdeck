@@ -31,6 +31,8 @@ export interface BriefItem {
   url?: string;
   sessionId?: string;
   person?: string;
+  /** The Slack channel it was posted in. */
+  channel?: string;
   /** When its source last moved, as the brief read it. */
   activityAt?: number;
   /** What the deck dismisses it by (status-todo.mjs dismissKeyOf). */
@@ -101,6 +103,14 @@ export interface BriefSettings {
   model: BriefModel;
   everyMinutes: 0 | 15 | 30 | 60;
   sources: Record<"github" | "slack" | "jira", boolean>;
+  /** Slack channels the brief reads nothing from, by name, without "#". */
+  slackIgnore?: string[];
+}
+
+/** Channel names out of what was typed ("#a, b c"), as the deck keeps them
+ *  (status-brief.mjs channelName): lower case, no "#", Slack's alphabet. */
+export function channelNames(typed: string): string[] {
+  return [...new Set(typed.split(/[\s,]+/).map(w => w.replace(/^#/, "").toLowerCase()).filter(n => /^[a-z0-9][a-z0-9._-]{0,79}$/.test(n)))];
 }
 
 export interface BriefView {

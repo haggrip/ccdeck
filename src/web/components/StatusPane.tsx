@@ -34,7 +34,7 @@ import { selfPressAccepted, selfPressProps } from "../panel-press";
 import PanelFoldHead from "./PanelFoldHead";
 import { agoWords } from "../shell-ago";
 import {
-  BRIEF_EVERY, BRIEF_MODELS, liveItems, localBrief, peopleShown, safeHref,
+  BRIEF_EVERY, BRIEF_MODELS, channelNames, liveItems, localBrief, peopleShown, safeHref,
   type BriefActivity, type BriefItem, type BriefModel, type BriefPerson, type BriefSettings, type BriefView, type LocalBrief,
 } from "../status-brief";
 import { useStatusBrief, type StatusBriefHandle } from "../use-status-brief";
@@ -255,6 +255,31 @@ export function StatusGlyph() {
   );
 }
 
+/** The Slack channels the brief ignores: a chip each, pressed to stop
+ *  ignoring it, and a box that takes "#channel" and Enter. */
+function IgnoredChannels({ list, onChange, t }: { list: readonly string[]; onChange: (next: string[]) => void; t: TFunction }) {
+  const [draft, setDraft] = useState("");
+  const add = () => {
+    const names = channelNames(draft).filter(n => !list.includes(n));
+    setDraft("");
+    if (names.length) onChange([...list, ...names]);
+  };
+  return (
+    <div className="stp-ignore">
+      <span className="stp-muted" id="stp-ignore-label">{t("brief.settings.slackIgnore")}</span>
+      <div className="stp-hidden">
+        {list.map(c => (
+          <button key={c} type="button" className="stp-chip" onClick={() => onChange(list.filter(x => x !== c))}
+            title={t("brief.settings.slackIgnore.remove", { channel: c })} aria-label={t("brief.settings.slackIgnore.remove", { channel: c })}>#{c} <KitIcon name="close" /></button>
+        ))}
+        <input type="text" className="stp-ignore-input" value={draft} maxLength={200} aria-labelledby="stp-ignore-label"
+          placeholder={t("brief.settings.slackIgnore.placeholder")} onChange={e => setDraft(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); add(); } }} onBlur={add} />
+      </div>
+    </div>
+  );
+}
+
 export function Settings({ view, handle, t }: { view: BriefView; handle: StatusBriefHandle; t: TFunction }) {
   const s: BriefSettings = view.settings;
   const reach = view.brief?.reach;
@@ -287,6 +312,7 @@ export function Settings({ view, handle, t }: { view: BriefView; handle: StatusB
           </label>
         ))}
       </fieldset>
+      {s.sources.slack && <IgnoredChannels list={s.slackIgnore ?? []} onChange={slackIgnore => handle.setSettings({ slackIgnore })} t={t} />}
       {view.people.hidden.length > 0 && (
         <div className="stp-hidden">
           <span className="stp-muted">{t("brief.people.hiddenList")}</span>
