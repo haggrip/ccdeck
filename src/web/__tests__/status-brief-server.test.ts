@@ -195,9 +195,12 @@ describe("what is kept of the model's answer", () => {
   it("cuts lengths and counts", () => {
     const long = "x".repeat(5000);
     const many = Array.from({ length: 40 }, (_, i) => ({ kind: "review", title: `t${i}`, source: "github", url: `https://github.com/o/r/pull/${i}` }));
-    const brief = normaliseBrief({ summary: long, waiting: many });
+    const brief = normaliseBrief({ summary: long, waiting: many, todo: many.map(m => ({ ...m, kind: "todo" })) });
     expect(brief.summary.length).toBeLessThanOrEqual(700);
-    expect(brief.waiting).toHaveLength(12);
+    // CHANGED ON PURPOSE (Slack channel review requests): Waiting on you
+    // holds 24, so gh judges them before any are cut; the rest hold 12.
+    expect(brief.waiting).toHaveLength(24);
+    expect(brief.todo).toHaveLength(12);
   });
 
   it("reads anything that is not an object as an empty brief", () => {

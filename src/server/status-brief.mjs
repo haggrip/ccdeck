@@ -100,6 +100,10 @@ export const TALK_KINDS = Object.freeze(["feedback", "talk"]);
 const ITEM_SOURCES = Object.freeze(["github", "slack", "jira", "session"]);
 
 const MAX_ITEMS = 12;
+/** Waiting on you holds more: review requests from Slack channels come
+ *  before gh has dropped the ones already approved or merged, and a busy
+ *  week has more than twelve of those. */
+export const MAX_WAITING = 24;
 const MAX_PEOPLE = 16;
 const MAX_SUMMARY = 700;
 const MAX_TITLE = 200;
@@ -229,8 +233,8 @@ function item(raw, kinds, fallbackKind) {
   return out;
 }
 
-const items = (list, kinds, fallbackKind) => (Array.isArray(list) ? list : [])
-  .map(raw => item(raw, kinds, fallbackKind)).filter(Boolean).slice(0, MAX_ITEMS);
+const items = (list, kinds, fallbackKind, max = MAX_ITEMS) => (Array.isArray(list) ? list : [])
+  .map(raw => item(raw, kinds, fallbackKind)).filter(Boolean).slice(0, max);
 
 /** How a person is told apart: their handle, else their name, folded. */
 export function personKey(p) {
@@ -276,7 +280,7 @@ export function normaliseBrief(json) {
   }
   return {
     summary: text(j.summary, MAX_SUMMARY),
-    waiting: items(j.waiting, WAITING_KINDS, null),
+    waiting: items(j.waiting, WAITING_KINDS, null, MAX_WAITING),
     todo: items(j.todo, TODO_KINDS, "todo"),
     talkTo: items(j.talkTo, TALK_KINDS, "talk"),
     people,
@@ -394,24 +398,34 @@ const clock = at => (Number.isFinite(at) ? new Date(at).toISOString() : "never")
  * the team's channels all the time, mentioning nobody, and a brief that read
  * only DMs, mentions and threads said nothing waited on him while three did.
  * So the ask also searches the channels he is a member of
- * (`only_my_channels`) for messages that link a pull request and ask for a
- * review, SLACK_REVIEW_LOOKBACK_MS back. The model only finds the asks; gh
- * decides which still wait on him (waitsOnMyReview, in run below).
+ * (`only_my_channels`) for messages that link a pull request,
+ * SLACK_REVIEW_LOOKBACK_MS back. The model only finds the asks; gh decides
+ * which still wait on him (waitsOnMyReview, in run below).
+ *
+ * Read against his Slack the same day: the request is usually a bare link
+ * (#eyes-on-prs-saas, #prs-data-platform), so a person's message linking a PR
+ * counts without any words of asking; the keyword that finds them is "pull"
+ * (a link's path is indexed, and "github.com" also matched every CI and
+ * deploy post); bots fill a page, so up to three are read. The "concise"
+ * answer has no permalink, and the model left out a DM that waited on him for
+ * want of a link to give, so every search asks for "detailed", whose
+ * Permalink line is the message's link.
  */
 function slackAsk(since, given, now = Date.now()) {
   const search = given.find(n => toolTail(n) === "slack_search_public_and_private");
   const thread = given.find(n => toolTail(n) === "slack_read_thread");
   const after = Number.isFinite(since) ? ` with "after" set to ${Math.floor(since / 1000)}` : "";
   const reviewFrom = Math.min(Number.isFinite(since) ? since : now, now - SLACK_REVIEW_LOOKBACK_MS);
+  const detailed = `response_format "detailed" and include_context false`;
   const how = search ? [
-    ` Search with ${search}${after}, sorted by timestamp: once with channel_types "im,mpim" for direct messages, and once with filters "is:thread with:<@MY_ID>" for replies in threads I started or took part in, where MY_ID is my Slack user id (the search tool's description names it).`,
+    ` Search with ${search}${after}, sorted by timestamp, ${detailed}: once with channel_types "im,mpim" for direct messages, and once with filters "is:thread with:<@MY_ID>" for replies in threads I started or took part in, where MY_ID is my Slack user id (the search tool's description names it).`,
     ...(thread ? [` Read each such thread with ${thread} to see whether the newest reply still waits on me.`] : []),
-    ` Then search for review requests in the channels I am a member of: with ${search}, only_my_channels true, channel_types "public_channel,private_channel", "after" set to ${Math.floor(reviewFrom / 1000)} and sorted by timestamp, once with keywords ["github.com"] and once with keywords ["review"].`,
+    ` Then search the channels I am a member of for pull request links: with ${search}, keywords ["pull"], only_my_channels true, channel_types "public_channel,private_channel", "after" set to ${Math.floor(reviewFrom / 1000)}, sorted by timestamp, ${detailed}, reading up to 3 pages (pass the cursor each page returns).`,
   ].join("") : "";
   const rest = PROMPT_TOOLS.slack.map(tail => given.find(n => toolTail(n) === tail)).filter(n => n && n !== search && n !== thread);
-  return `Slack: direct messages, mentions of me, and replies by others in threads I started or took part in, since ${clock(since)}, that still need an answer, a review or a decision from me. A reply that hands me something to review or answers my question counts even without a mention.`
-    + ` Also requests to review a pull request posted in channels I am a member of since ${clock(reviewFrom)}, from anyone, whether or not they mention me: a message linking https://github.com/<owner>/<repo>/pull/<n> that asks for a review, a look or an approval ("review", "PTAL", "can someone look", "👀" and the like).`
-    + ` Each is a "review" item in "waiting" with "url" set to the pull request's own link (not the Slack message's), "source" "slack", "person" who asked, the channel in "detail", and the message's time as "activityAt". Leave out pull requests I opened. Do not judge whether one is approved, merged or closed: the deck checks each with gh and drops those itself. Count them when you say what waits on me.`
+  return `Slack: direct messages, mentions of me, and replies by others in threads I started or took part in, since ${clock(since)}, that still need an answer, a review or a decision from me. A reply that hands me something to review or answers my question counts even without a mention. Link each such item by its message's permalink.`
+    + ` Also review requests in the channels I am a member of since ${clock(reviewFrom)}: every message from a person that links https://github.com/<owner>/<repo>/pull/<n>, whether or not it mentions me or asks in words. A bare link counts: that is how review requests are usually posted. Skip posts by bots and automations (CI, deploys, test reports, stale-PR notices), my own messages, and a message that plainly links the pull request for another reason (it says it was merged or deployed, or cites it as where a bug came from).`
+    + ` Each is a "review" item in "waiting" with "url" set to the pull request's own link (not the Slack message's), "source" "slack", "person" who posted it, the channel in "detail", and the message's time as "activityAt". Leave out pull requests I opened. Do not judge whether one is approved, merged or closed: the deck checks each with gh and drops those itself. Count them when you say what waits on me.`
     + how + (rest.length ? ` You may also use ${rest.join(", ")}.` : "");
 }
 

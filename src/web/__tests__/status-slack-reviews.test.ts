@@ -8,7 +8,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { rmTempDir } from "./rm-temp-dir";
-import { SLACK_REVIEW_LOOKBACK_MS, buildPrompt, createStatusBrief } from "../../server/status-brief.mjs";
+import { MAX_WAITING, SLACK_REVIEW_LOOKBACK_MS, buildPrompt, createStatusBrief, normaliseBrief } from "../../server/status-brief.mjs";
 import { MAX_WATCH, createGitHubReader, prUrlOf, waitsOnMyReview } from "../../server/status-gh.mjs";
 
 const dirs: string[] = [];
@@ -103,17 +103,25 @@ describe("the brief's Slack ask", () => {
     const now = Date.UTC(2026, 10, 25, 12, 0, 0);
     const since = now - 3600_000;
     const line = slackLine(since, now);
-    expect(line).toMatch(/requests to review a pull request posted in channels I am a member of/);
-    expect(line).toMatch(/from anyone, whether or not they mention me/);
-    expect(line).toContain(`only_my_channels true, channel_types "public_channel,private_channel", "after" set to ${(now - SLACK_REVIEW_LOOKBACK_MS) / 1000}`);
-    expect(line).toMatch(/once with keywords \["github\.com"\] and once with keywords \["review"\]/);
+    expect(line).toMatch(/review requests in the channels I am a member of since/);
+    expect(line).toMatch(/every message from a person that links https:\/\/github\.com\/<owner>\/<repo>\/pull\/<n>, whether or not it mentions me or asks in words\. A bare link counts/);
+    expect(line).toMatch(/Skip posts by bots and automations \(CI, deploys, test reports, stale-PR notices\), my own messages/);
+    // "pull" finds the links (a link's path is indexed); "github.com" also
+    // matched every CI post. Bots fill a page, so it reads three.
+    expect(line).toContain(`keywords ["pull"], only_my_channels true, channel_types "public_channel,private_channel", "after" set to ${(now - SLACK_REVIEW_LOOKBACK_MS) / 1000}, sorted by timestamp, response_format "detailed" and include_context false, reading up to 3 pages`);
     // The DM and thread searches keep their own, shorter window.
-    expect(line).toContain(`"after" set to ${since / 1000}, sorted by timestamp: once with channel_types "im,mpim"`);
+    expect(line).toContain(`"after" set to ${since / 1000}, sorted by timestamp, response_format "detailed" and include_context false: once with channel_types "im,mpim"`);
+  });
+
+  it("asks for the detailed answer, whose permalink links each Slack item", () => {
+    const line = slackLine(0, Date.UTC(2026, 10, 25));
+    expect(line.match(/response_format "detailed"/g)).toHaveLength(2);
+    expect(line).toMatch(/Link each such item by its message's permalink\./);
   });
 
   it("asks for each as a review item linked to the PR, mine left out, and leaves the verdict to gh", () => {
     const line = slackLine(0, 0);
-    expect(line).toMatch(/"review" item in "waiting" with "url" set to the pull request's own link \(not the Slack message's\), "source" "slack", "person" who asked/);
+    expect(line).toMatch(/"review" item in "waiting" with "url" set to the pull request's own link \(not the Slack message's\), "source" "slack", "person" who posted it/);
     expect(line).toMatch(/Leave out pull requests I opened/);
     expect(line).toMatch(/Do not judge whether one is approved, merged or closed: the deck checks each with gh/);
     expect(line).toMatch(/Count them when you say what waits on me/);
@@ -122,13 +130,26 @@ describe("the brief's Slack ask", () => {
   it("looks further back than three days when the last brief did", () => {
     const now = Date.UTC(2026, 10, 25, 12, 0, 0);
     const since = now - 5 * 24 * 3600_000;
-    expect(slackLine(since, now)).toContain(`"after" set to ${since / 1000} and sorted by timestamp, once with keywords ["github.com"]`);
+    expect(slackLine(since, now)).toContain(`channel_types "public_channel,private_channel", "after" set to ${since / 1000}, sorted by timestamp`);
   });
 
   it("names no search when the run has none", () => {
     const line = slackLine(0, 0, []);
     expect(line).toMatch(/channels I am a member of/);
     expect(line).not.toMatch(/mcp__|only_my_channels/);
+  });
+});
+
+describe("room on Waiting on you", () => {
+  it("keeps up to MAX_WAITING, so gh judges the requests before any are cut", () => {
+    const many = Array.from({ length: 30 }, (_, i) => ({ kind: "review", title: `#${i}`, source: "slack", url: pr(i + 1) }));
+    expect(MAX_WAITING).toBe(24);
+    expect(normaliseBrief({ waiting: many, todo: many.map(m => ({ ...m, kind: "todo" })) })).toMatchObject({
+      waiting: expect.arrayContaining([expect.objectContaining({ title: "#23" })]),
+    });
+    const b = normaliseBrief({ waiting: many, todo: many.map(m => ({ ...m, kind: "todo" })) });
+    expect(b.waiting).toHaveLength(MAX_WAITING);
+    expect(b.todo).toHaveLength(12);
   });
 });
 
