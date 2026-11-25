@@ -495,8 +495,12 @@ describe("what a reader is told, now that the dot is decoration everywhere", () 
     // Compact rows lead with the provider avatar; other rows lead with the
     // hidden glyph. Both announce the state immediately after, ahead of the
     // name. Compact rows still draw the same hidden glyph beside the clock.
-    expect(railParts).toMatch(/\{compact \? <ProviderAvatar provider=\{r\.provider \?\? "claude"\} \/> : <RailGlyph kind=\{railGlyph\(r, group\)\} \/>\}\s*<span className="vis-hidden">\{stateLabel\(r\.state\)\}<\/span>/);
-    expect(railParts).toMatch(/\{compact && <span className="sl-row-status">\s*\{time && <span className=\{`sl-time \$\{time\.tone\}`\}><span className="vis-hidden">\{time\.spoken\}<\/span>\{time\.text\}<\/span>\}\s*<RailGlyph kind=\{railGlyph\(r, group\)\} \/>/);
+    // CHANGED ON PURPOSE (the focused deck's quietFailures): the glyph is
+    // railGlyph's, except that a finished row there draws Done's mark where
+    // it would draw the partial one.
+    expect(railParts).toContain("const plainGlyph = railGlyph(r, group);");
+    expect(railParts).toMatch(/\{compact \? <ProviderAvatar provider=\{r\.provider \?\? "claude"\} \/> : <RailGlyph kind=\{glyph\} \/>\}\s*<span className="vis-hidden">\{stateLabel\(r\.state\)\}<\/span>/);
+    expect(railParts).toMatch(/\{compact && <span className="sl-row-status">\s*\{time && <span className=\{`sl-time \$\{time\.tone\}`\}><span className="vis-hidden">\{time\.spoken\}<\/span>\{time\.text\}<\/span>\}\s*<RailGlyph kind=\{glyph\} \/>/);
     expect(railParts).toContain('<span className="vis-hidden">{rowSpoken(r)}</span>');
     expect(railParts).toMatch(/<span className="sl-glyph" data-glyph=\{kind\} aria-hidden>/);
     expect(sessionBreakdown).toMatch(/<span className=\{`sl-dot state-\$\{s\.state\}`\} aria-hidden \/>\s*<span className="vis-hidden">\{stateLabel\(s\.state\)\}<\/span>/);

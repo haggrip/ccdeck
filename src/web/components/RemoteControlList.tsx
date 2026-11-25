@@ -1,12 +1,14 @@
 // The Remote Control group under the Sessions list: the person's Claude Remote
 // Control sessions on the machines they named (src/server/remote-control-
-// sessions.mjs), each a link to its own page on claude.ai, where it is prompted
-// and its tools approved. Read-only here: the deck sends nothing to them.
+// sessions.mjs). A press opens one in the Claude desktop app, which the deck
+// asks the OS to do (desktop-links.ts); its claude.ai page is the fallback.
+// Read-only here: the deck sends nothing to them.
 //
 // Draws nothing at all while the feature is off (a veto, or no machine named),
 // so a deck that does not use it looks exactly as it did.
 import { useEffect, useState } from "react";
 import { useT } from "../i18n";
+import { openRemoteInDesktop } from "../desktop-links";
 
 export interface RemoteSession { id: string; title: string; status: string; startedAt: number | null; url: string }
 export interface RemoteHost { host: string; ok: boolean; reason?: string; sessions: RemoteSession[] }
@@ -34,7 +36,14 @@ export function remoteRows(state: RemoteState | null): { sessions: (RemoteSessio
   return { sessions, failed };
 }
 
-export default function RemoteControlList({ fetchState = defaultFetch }: { fetchState?: () => Promise<RemoteState | null> }) {
+/** The session's claude.ai id (session_…), from its link. */
+export function remoteIdOf(url: string): string | null {
+  return /\/code\/(session_[A-Za-z0-9]+)$/.exec(url)?.[1] ?? null;
+}
+
+export default function RemoteControlList({ fetchState = defaultFetch, openDesktop = openRemoteInDesktop }: {
+  fetchState?: () => Promise<RemoteState | null>; openDesktop?: (remoteId: string) => Promise<boolean>;
+}) {
   const t = useT();
   const [state, setState] = useState<RemoteState | null>(null);
   useEffect(() => {
@@ -64,8 +73,17 @@ export default function RemoteControlList({ fetchState = defaultFetch }: { fetch
         const title = s.title || t("board.remote.untitled");
         return (
           <li key={`${s.host}-${s.id}`} className="sl-row-item">
+            {/* A press opens it in the Claude desktop app, where sessions are
+                driven; a modified press, or a deck that cannot open the app,
+                keeps the claude.ai page. */}
             <a className="sl-row rc-row" href={s.url} target="_blank" rel="noopener noreferrer"
-              title={t("board.remote.open", { title })}>
+              title={t("board.remote.open", { title })}
+              onClick={e => {
+                const id = remoteIdOf(s.url);
+                if (!id || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+                e.preventDefault();
+                void openDesktop(id).then(ok => { if (!ok) window.open(s.url, "_blank", "noopener,noreferrer"); });
+              }}>
               <span className={`rc-dot ${s.status === "busy" ? "busy" : "idle"}`} aria-hidden />
               <span className="sl-text">
                 <span className="sl-line1"><span className="sl-name"><span className="sl-label">{title}</span></span></span>

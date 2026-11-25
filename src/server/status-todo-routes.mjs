@@ -20,6 +20,7 @@ import { presentsDeckToken } from "./request-gates.mjs";
 import { sseClients, trayClients, writeSse } from "./sse-clients.mjs";
 import { sessionDigest } from "./status-brief.mjs";
 import { createStatusTodo } from "./status-todo.mjs";
+import { archivedDesktopSessions, withoutArchived } from "./desktop-sessions.mjs";
 import { agentVetoed, runAgent } from "./claude-agent.mjs";
 
 export const STATUS_TODO_ROUTE = "/api/status-todo";
@@ -32,20 +33,29 @@ export function broadcastTodo(view) {
 
 let todo = null;
 let seenSeq = -1;
+let seenArchived = "";
 /** The deck's one list, made the first time it is wanted. */
 export function statusTodo() {
   todo ??= createStatusTodo({
     dir: deckDataDir(),
     agent: async () => (agentVetoed() ? null : { runAgent }),
+    // A session archived in the Claude desktop app is not one of the deck's
+    // sessions here: it adds nothing, and what it added closes
+    // (desktop-sessions.mjs, reconcileDeck).
     sessions: async () => {
       const envelopes = eventsSince(0);
-      const rows = summarizeSessions(envelopes);
-      return { rows, digest: sessionDigest(rows, envelopes, { maxRows: 1000 }) };
+      const archived = await archivedDesktopSessions();
+      const rows = withoutArchived(summarizeSessions(envelopes), archived);
+      return { rows, digest: sessionDigest(rows, envelopes, { maxRows: 1000 }), archived };
     },
+    // The ring moving, or the person archiving or restoring a session in the
+    // desktop app, which moves nothing in the ring.
     changed: async () => {
       const seq = lastSeq();
-      if (seq === seenSeq) return false;
+      const archived = [...await archivedDesktopSessions()].join("\n");
+      if (seq === seenSeq && archived === seenArchived) return false;
       seenSeq = seq;
+      seenArchived = archived;
       return true;
     },
     broadcast: broadcastTodo,
@@ -60,7 +70,7 @@ export function startStatusTodo() {
 }
 
 /** For the suite: a list built on its own directory and fakes. */
-export function useStatusTodoForTest(instance) { todo = instance; seenSeq = -1; }
+export function useStatusTodoForTest(instance) { todo = instance; seenSeq = -1; seenArchived = ""; }
 
 async function bodyOf(req, res) {
   const raw = await readBody(req, res, 8_000).catch(() => null);

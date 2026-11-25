@@ -57,7 +57,13 @@ describe("a phone's session list is a drawer, and picking a session closes it", 
     // list, so the list closes there through this path; with no terminal the
     // Inspector is a sheet over the list and the list stays under it.
     expect(app).toMatch(/const pickSession = useCallback\(\(sessionId: string\) => \{\s*if \(phone && stage\.enabled\) \{[\s\S]*?closeSessionListToCanvas\(\);\s*return;\s*\}\s*(?:\/\/[^\n]*\s*)?openSession\(sessionId\);\s*\}/);
-    expect(app).toMatch(/onSelect=\{pickSession\}/);
+    // CHANGED ON PURPOSE (the focused deck, Mission): the row goes through
+    // goToSession, which opens a session the desktop app runs there while
+    // Mission is up and is pickSession otherwise. Mission is never up on a
+    // phone (missionOn), so a phone's pick is still pickSession's.
+    expect(app).toMatch(/onSelect=\{goToSession\}/);
+    expect(app).toContain("const missionOn = mission.on && !phone;");
+    expect(app).toMatch(/const goToSession = useCallback\(\(sessionId: string\) => \{\s*if \(missionRef\.current && inDesktop\(sessionId, desktopLinksRef\.current\)\) \{ openDesktop\(sessionId\); return; \}\s*pickSession\(sessionId\);/);
   });
 
   it("ends the eviction before closing, so the accounts panel does not slide back over the session", () => {

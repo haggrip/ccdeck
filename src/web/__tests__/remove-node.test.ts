@@ -578,7 +578,11 @@ describe("where Remove lives and what follows it", () => {
 
   it("keeps a removed session in the session list, marked, as the way back", () => {
     // Through pickSession, which closes a phone's drawer after openSession.
-    expect(app).toMatch(/onSelect=\{pickSession\}[\s\S]*?removedIds=\{removedAgentIds\}/);
+    // CHANGED ON PURPOSE (the focused deck, Mission): by way of goToSession,
+    // which sends a session the desktop app runs there while Mission is up
+    // and hands every other pick to pickSession.
+    expect(app).toMatch(/onSelect=\{goToSession\}[\s\S]*?removedIds=\{removedAgentIds\}/);
+    expect(app).toMatch(/const goToSession = useCallback\(\(sessionId: string\) => \{[^}]*\}\s*pickSession\(sessionId\);/);
     // CHANGED ON PURPOSE (the owner's phone layout): a phone with the Command Panel on
     // opens the pane first (bringing a removed session back as it does); every other
     // pick is openSession, as it was.

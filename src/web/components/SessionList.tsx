@@ -138,6 +138,15 @@ export function rank(r: Row): RailGroup {
   return r.unseen ? 1 : 3;
 }
 
+/** Whether a row goes from the lists because the person archived its session
+ *  in the Claude desktop app (use-desktop-links.ts): unless it needs them
+ *  (Needs you) or is at work (Working), which archiving never puts away. */
+export function archivedAway(r: Row, archived: ReadonlySet<string> | undefined): boolean {
+  if (!archived?.size || !archived.has(r.sessionId)) return false;
+  const group = rank(r);
+  return group !== 0 && group !== 2;
+}
+
 /** The newest call still running on an active agent. The reducer appends, so
  *  the last open one; scanning from the end stops at the first open call. */
 function inFlightCall(a: GraphState["agents"] extends Map<string, infer A> ? A : never): Row["tool"] {
@@ -152,8 +161,8 @@ function inFlightCall(a: GraphState["agents"] extends Map<string, infer A> ? A :
 /** `watching` are the sessions you are looking at (selected, or open on the
  *  stage): their finished turn is seen as it ends, so they never pass through
  *  Done · new on the way to the effect that writes the marker. */
-export function buildRows(state: GraphState, now: number, watching?: ReadonlySet<string>): Row[] {
-  const rows: Row[] = [];
+export function buildRows(state: GraphState, now: number, watching?: ReadonlySet<string>, archived?: ReadonlySet<string>): Row[] {
+  let rows: Row[] = [];
   for (const a of state.agents.values()) {
     if (a.kind !== "root") continue;
     // Codex child threads keep root nodes for their own lifecycle and usage,
@@ -216,6 +225,8 @@ export function buildRows(state: GraphState, now: number, watching?: ReadonlySet
       ...(a.toolErrorCount ? { toolErrorCount: a.toolErrorCount } : null),
     });
   }
+  // Before the twins are found, so no row keeps a clock for a twin that went.
+  if (archived?.size) rows = rows.filter(r => !archivedAway(r, archived));
   const twins = twinClocks(rows.map(r => ({ id: r.sessionId, title: r.label, task: r.task, startedAt: r.startedAt })));
   for (const r of rows) {
     const twin = twins.get(r.sessionId);
@@ -293,6 +304,11 @@ interface Props {
    *  carry "Open in Claude Desktop". */
   desktop?: DesktopLinks;
   onOpenDesktop?: (sessionId: string) => void;
+  /** Sessions the person archived in the Claude desktop app: their rows go,
+   *  unless they need you or are at work (archivedAway). */
+  archived?: ReadonlySet<string>;
+  /** The focused deck: no count of failed tool calls on a finished row. */
+  quietFailures?: boolean;
   /** New session, the Plus in the header: the Command Panel's own launch
    *  (use-stage.ts newSessionFrom), given the button as the popover's anchor.
    *  Absent where that launch does not exist, and the Plus with it. */
@@ -318,7 +334,7 @@ interface Props {
 interface Ghost { row: Row; group: RailGroup; after: string | null; until: number }
 interface Entry { id: string; row: Row; ghost: boolean }
 
-export default function SessionList({ state, now, historyReady = true, selectedIds, onSelect, onClose, removedIds, onBringBackAll, leaving = false, landed = null, watching, openPanes, onOpenKeys, onOpenBeside, onNewSession, offline = null, emptyNotice = null, edge = null, remote = null, desktop, onOpenDesktop }: Props) {
+export default function SessionList({ state, now, historyReady = true, selectedIds, onSelect, onClose, removedIds, onBringBackAll, leaving = false, landed = null, watching, openPanes, onOpenKeys, onOpenBeside, onNewSession, offline = null, emptyNotice = null, edge = null, remote = null, desktop, onOpenDesktop, archived, quietFailures = false }: Props) {
   const t = useT();
   const singleKeys = useSingleKeyShortcuts();
   // `state.revision`, not `state.lastSeq`: the prop is `stateRef.current` and
@@ -337,8 +353,8 @@ export default function SessionList({ state, now, historyReady = true, selectedI
   const seenVersion = useSessionsSeenVersion();
   const watchKey = watching ? [...watching].sort().join("\n") : "";
   // The replay fills the store in batches. Publish its rows in a single render.
-  const rows = useMemo(() => historyReady ? buildRows(state, now, watching) : [],
-    [state, state.revision, now, seenVersion, watchKey, historyReady]);
+  const rows = useMemo(() => historyReady ? buildRows(state, now, watching, archived) : [],
+    [state, state.revision, now, seenVersion, watchKey, historyReady, archived]);
   const byId = new Map(rows.map(r => [r.sessionId, r]));
   // New finished turns keep their priority in buildRows, but share Done's
   // header, count and fold with seen turns. Looking at one clears its row
@@ -478,7 +494,7 @@ export default function SessionList({ state, now, historyReady = true, selectedI
   // keeps it in: they change in place while the row waits for its move.
   const contexts = compactRowContexts(rows, new Map(layout.map(slot => [slot.id, slot.group])));
   const renderRow = (e: Entry): ReactNode => (
-    <RailRow key={e.id} row={e.row} group={rank(e.row)} now={now} leaving={e.ghost}
+    <RailRow key={e.id} row={e.row} group={rank(e.row)} now={now} leaving={e.ghost} quietFailures={quietFailures}
       selected={selectedIds.has(e.id)} removed={removedIds?.has(e.id) ?? false}
       landNonce={landing?.id === e.id ? landing.nonce : null} onSelect={press} onOpenKeys={e.ghost ? undefined : onOpenKeys}
       onOpenBeside={e.ghost ? undefined : onOpenBeside}

@@ -86,6 +86,10 @@ export function PlusGlyph() {
 export type FoldMode = "animate" | "fade" | "instant";
 
 export interface RailRowProps {
+  /** The focused deck (focused-deck.ts): a finished row says Done and nothing
+   *  of the tool calls that failed on the way, which read as the session
+   *  failing; its mark is Done's. */
+  quietFailures?: boolean;
   compact?: boolean;
   showContext?: boolean;
   context?: CompactRowContext;
@@ -150,9 +154,11 @@ export function openBesideOnShiftEnter(
   };
 }
 
-export function RailRow({ row: r, group, now, selected, removed, leaving, landNonce, onSelect, onOpenKeys, onOpenBeside, onOpenDesktop, rename, compact = false, showContext = false, context, pane }: RailRowProps) {
+export function RailRow({ row: r, group, now, selected, removed, leaving, landNonce, onSelect, onOpenKeys, onOpenBeside, onOpenDesktop, quietFailures = false, rename, compact = false, showContext = false, context, pane }: RailRowProps) {
   const t = useT();
-  const failed = railFailed(r, group, t);
+  const failed = quietFailures ? null : railFailed(r, group, t);
+  const plainGlyph = railGlyph(r, group);
+  const glyph = quietFailures && plainGlyph === "partial" ? "done" : plainGlyph;
   // Keep a second line where it explains an action or tells sessions apart.
   // A named task's project fits beside its name; its full prompt stays in the tooltip.
   const twin = compact && context ? context.twin : r.twin;
@@ -191,7 +197,7 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
       <li className="sl-row-item" data-rail-id={r.sessionId}>
         <div className="sl-row-in">
           <div className={`sl-row sl-row-edit${selected ? " selected" : ""}`}>
-            <RailGlyph kind={railGlyph(r, group)} />
+            <RailGlyph kind={glyph} />
             <SessionNameField facts={rename} place="row" onDone={renaming.done} />
           </div>
         </div>
@@ -206,6 +212,7 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
       <div
         className="sl-row-in"
         data-dragging={dragging || undefined}
+        data-desktop={onOpenDesktop ? "" : undefined}
         draggable={beside ? true : undefined}
         onDragStart={beside ? e => {
           beginDrag(e, { kind: "session", id: r.sessionId, name: r.label });
@@ -238,7 +245,7 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
           {lit != null && <span key={lit} className="sl-land" aria-hidden onAnimationEnd={() => setLit(null)} />}
           {/* The glyph stays hidden and the state beside it is in words, ahead
               of the name, so the row's name says what the glyph shows (#373). */}
-          {compact ? <ProviderAvatar provider={r.provider ?? "claude"} /> : <RailGlyph kind={railGlyph(r, group)} />}
+          {compact ? <ProviderAvatar provider={r.provider ?? "claude"} /> : <RailGlyph kind={glyph} />}
           <span className="vis-hidden">{stateLabel(r.state)}</span>
           {/* What the row no longer draws, for a screen reader and for touch,
               where the tooltip is not reached. */}
@@ -261,7 +268,7 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
               {unread && <span className="sl-unread" aria-hidden />}
               {compact && <span className="sl-row-status">
                 {time && <span className={`sl-time ${time.tone}`}><span className="vis-hidden">{time.spoken}</span>{time.text}</span>}
-                <RailGlyph kind={railGlyph(r, group)} />
+                <RailGlyph kind={glyph} />
               </span>}
             </span>
             {lined && (start
@@ -309,8 +316,8 @@ function RowWords({ removed, failed, line }: { removed: boolean; failed: string 
     <>
       {removed && <span className="sl-off">{t("board.rail.offBoard")}</span>}
       {removed && (failed || line) ? " · " : ""}
-      {/* Done in the line's own ink, then the count in the warning's: the
-          turn finished, and some of its calls did not. */}
+      {/* Done, then how many tool calls failed on the way, both in the line's
+          own ink: the turn finished, so nothing here waits on you. */}
       {failed && <>{t("board.card.stateDone")} · <span className="sl-failed">{failed}</span></>}
       {failed && line ? " · " : ""}
       {line && (line.kind === "tool"

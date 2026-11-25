@@ -657,9 +657,10 @@
 .sl-remote-control.sl-remote-start { padding-left: 12px; }
 
 /* "Open in Claude Desktop" on a row whose session the desktop app runs
-   (RailParts.tsx): over the row's right end, shown while the row is hovered
-   or has focus, in the Claude mark's orange. */
+   (RailParts.tsx): at the row's right end, always shown, in the Claude mark's
+   orange, with the row's own time and state moved clear of it. */
 .session-list .sl-row-in { position: relative; }
+.session-list .sl-row-in[data-desktop] > .sl-row { padding-right: 32px; }
 .session-list .sl-desktop {
   position: absolute;
   top: 50%;
@@ -674,13 +675,8 @@
   border-radius: var(--r-ctl);
   background: color-mix(in srgb, var(--usage-orange) 16%, var(--panel));
   color: var(--usage-orange);
-  opacity: 0;
   transform: translateY(-50%);
-  transition: opacity var(--dur-fast) var(--ease);
 }
-.session-list .sl-row-in:focus-within .sl-desktop { opacity: 1; }
 @media (hover: hover) and (pointer: fine) {
-  .session-list .sl-row-in:hover .sl-desktop { opacity: 1; }
   .session-list .sl-desktop:hover { background: color-mix(in srgb, var(--usage-orange) 28%, var(--panel)); }
 }
-@media (hover: none) { .session-list .sl-desktop { opacity: 1; } }

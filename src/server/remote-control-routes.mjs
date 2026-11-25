@@ -22,8 +22,9 @@ export async function handleRemoteControlRead(req, res, source = null) {
 export const DESKTOP_SESSIONS_ROUTE = "/api/desktop-sessions";
 
 /** GET /api/desktop-sessions — which of this computer's sessions the Claude
- *  desktop app runs, as { cliSessionId: local_id } (desktop-sessions.mjs). The
- *  same guarded, this-computer-only read. */
+ *  desktop app runs, as `links` { cliSessionId: local_id }, and which it has
+ *  archived, as `archived` [cliSessionId] (desktop-sessions.mjs). The same
+ *  guarded, this-computer-only read. */
 export const DESKTOP_OPEN_ROUTE = "/api/desktop-sessions/open";
 
 /** POST /api/desktop-sessions/open { sessionId } — brings that session up in
@@ -35,8 +36,12 @@ export async function handleDesktopOpen(req, res, source = null) {
   const raw = await readBody(req, res, 2_000).catch(() => null);
   let body = null;
   try { body = raw ? JSON.parse(raw) : null; } catch { body = null; }
-  const { openInDesktop } = source ?? await import(pathToFileURL(join(PKG_ROOT, "src/server/desktop-sessions.mjs")).href);
-  const out = await openInDesktop(body?.sessionId);
+  const { openInDesktop, openRemoteInDesktop } = source ?? await import(pathToFileURL(join(PKG_ROOT, "src/server/desktop-sessions.mjs")).href);
+  // A Remote Control session by its claude.ai id, else a local one by its
+  // Claude Code session id.
+  const out = body && typeof body.remote === "string"
+    ? await openRemoteInDesktop(body.remote)
+    : await openInDesktop(body?.sessionId);
   return send(res, out.ok ? 200 : out.error === "open-failed" ? 502 : 404, out);
 }
 
