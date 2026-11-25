@@ -48,7 +48,20 @@ export const DEFAULT_SETTINGS = Object.freeze({
   model: "haiku",
   everyMinutes: 30,
   sources: Object.freeze({ github: true, slack: true, jira: true }),
+  // Slack channels the brief reads nothing from (owner, 2026-11-25:
+  // #prs-data-platform is another team's review queue).
+  slackIgnore: Object.freeze([]),
 });
+/** The most Slack channels the brief can be told to ignore. */
+export const MAX_IGNORED_CHANNELS = 30;
+
+/** A Slack channel's name as the settings keep it: lower case, no "#", in
+ *  Slack's own alphabet for names, else null. */
+export function channelName(v) {
+  if (typeof v !== "string") return null;
+  const name = v.trim().replace(/^#/, "").toLowerCase();
+  return /^[a-z0-9][a-z0-9._-]{0,79}$/.test(name) ? name : null;
+}
 /** No two runs closer than this, a press included. */
 export const MIN_GAP_MS = 60_000;
 /** After 1, 2, 3, 4+ failures in a row, an automatic run waits at least this long. */
@@ -224,6 +237,9 @@ function item(raw, kinds, fallbackKind) {
   if (sessionId) out.sessionId = sessionId;
   const person = text(raw.person, 80);
   if (person) out.person = person;
+  // The Slack channel it was posted in, which an ignored channel is told by.
+  const channel = source === "slack" ? channelName(raw.channel) : null;
+  if (channel) out.channel = channel;
   // When its source last moved: what brings back an item the user dismissed.
   const activityAt = typeof raw.activityAt === "number" ? raw.activityAt : Date.parse(String(raw.activityAt ?? ""));
   if (Number.isFinite(activityAt) && activityAt > 0) out.activityAt = activityAt;
@@ -296,6 +312,7 @@ export function normaliseSettings(raw) {
     model: MODELS.includes(r.model) ? r.model : DEFAULT_SETTINGS.model,
     everyMinutes: EVERY_CHOICES.includes(r.everyMinutes) ? r.everyMinutes : DEFAULT_SETTINGS.everyMinutes,
     sources,
+    slackIgnore: [...new Set((Array.isArray(r.slackIgnore) ? r.slackIgnore : []).map(channelName).filter(Boolean))].slice(0, MAX_IGNORED_CHANNELS),
   };
 }
 
@@ -411,26 +428,39 @@ const clock = at => (Number.isFinite(at) ? new Date(at).toISOString() : "never")
  * want of a link to give, so every search asks for "detailed", whose
  * Permalink line is the message's link.
  */
-function slackAsk(since, given, now = Date.now()) {
+function slackAsk(since, given, now = Date.now(), ignore = []) {
   const search = given.find(n => toolTail(n) === "slack_search_public_and_private");
   const thread = given.find(n => toolTail(n) === "slack_read_thread");
   const after = Number.isFinite(since) ? ` with "after" set to ${Math.floor(since / 1000)}` : "";
   const reviewFrom = Math.min(Number.isFinite(since) ? since : now, now - SLACK_REVIEW_LOOKBACK_MS);
   const detailed = `response_format "detailed" and include_context false`;
+  const skip = ignore.length ? ` filters "${ignore.map(c => `-in:#${c}`).join(" ")}",` : "";
   const how = search ? [
     ` Search with ${search}${after}, sorted by timestamp, ${detailed}: once with channel_types "im,mpim" for direct messages, and once with filters "is:thread with:<@MY_ID>" for replies in threads I started or took part in, where MY_ID is my Slack user id (the search tool's description names it).`,
     ...(thread ? [` Read each such thread with ${thread} to see whether the newest reply still waits on me.`] : []),
-    ` Then search the channels I am a member of for pull request links: with ${search}, keywords ["pull"], only_my_channels true, channel_types "public_channel,private_channel", "after" set to ${Math.floor(reviewFrom / 1000)}, sorted by timestamp, ${detailed}, reading up to 3 pages (pass the cursor each page returns).`,
+    ` Then search the channels I am a member of for pull request links: with ${search}, keywords ["pull"],${skip} only_my_channels true, channel_types "public_channel,private_channel", "after" set to ${Math.floor(reviewFrom / 1000)}, sorted by timestamp, ${detailed}, reading up to 3 pages (pass the cursor each page returns).`,
   ].join("") : "";
   const rest = PROMPT_TOOLS.slack.map(tail => given.find(n => toolTail(n) === tail)).filter(n => n && n !== search && n !== thread);
   return `Slack: direct messages, mentions of me, and replies by others in threads I started or took part in, since ${clock(since)}, that still need an answer, a review or a decision from me. A reply that hands me something to review or answers my question counts even without a mention. Link each such item by its message's permalink.`
     + ` Also review requests in the channels I am a member of since ${clock(reviewFrom)}: every message from a person that links https://github.com/<owner>/<repo>/pull/<n>, whether or not it mentions me or asks in words. A bare link counts: that is how review requests are usually posted. Skip posts by bots and automations (CI, deploys, test reports, stale-PR notices), my own messages, and a message that plainly links the pull request for another reason (it says it was merged or deployed, or cites it as where a bug came from).`
-    + ` Each is a "review" item in "waiting" with "url" set to the pull request's own link (not the Slack message's), "source" "slack", "person" who posted it, the channel in "detail", and the message's time as "activityAt". Leave out pull requests I opened. Do not judge whether one is approved, merged or closed: the deck checks each with gh and drops those itself. Count them when you say what waits on me.`
+    + ` Each is a "review" item in "waiting" with "url" set to the pull request's own link (not the Slack message's), "source" "slack", "person" who posted it, the channel's name in "channel" and in "detail", and the message's time as "activityAt". Leave out pull requests I opened. Do not judge whether one is approved, merged or closed: the deck checks each with gh and drops those itself. Count them when you say what waits on me.`
+    + (ignore.length ? ` Leave out everything posted in ${ignore.map(c => `#${c}`).join(", ")}.` : "")
     + how + (rest.length ? ` You may also use ${rest.join(", ")}.` : "");
 }
 
+/** Whether a brief item came from a Slack channel the settings ignore: by its
+ *  channel, else by a #channel its detail or title names. */
+export function fromIgnoredChannel(it, ignore) {
+  if (it?.source !== "slack" || !ignore?.size) return false;
+  if (it.channel) return ignore.has(it.channel);
+  for (const m of `${it.title ?? ""} ${it.detail ?? ""}`.matchAll(/#([A-Za-z0-9][A-Za-z0-9._-]{0,79})/g)) {
+    if (ignore.has(m[1].toLowerCase())) return true;
+  }
+  return false;
+}
+
 /** What the model is asked. Pure, so the suite can read it. */
-export function buildPrompt({ sessions, reach, tools = [], since, now = Date.now(), hidden = [], watch = [], dismissed = [], github = null }) {
+export function buildPrompt({ sessions, reach, tools = [], since, now = Date.now(), hidden = [], watch = [], dismissed = [], github = null, slackIgnore = [] }) {
   // Named in full, so the model never reaches for one it was not given: a
   // call outside the run's list ends the run (claude-agent.mjs).
   const given = [...new Set((Array.isArray(tools) ? tools : []).filter(t => typeof t === "string"))].sort();
@@ -446,7 +476,7 @@ export function buildPrompt({ sessions, reach, tools = [], since, now = Date.now
   const want = [];
   if (reach.github === "on" && github?.status === "on" && github.activity) want.push("GitHub activity, from SINCE THE LAST BRIEF below: open the summary with what moved on my PRs and the ones I review (approvals, changes requested, comments, merges, CI). The deck puts the replies, merges and re-reviews it asks for on the to-do list itself.");
   if (reach.github === "on" && github?.status === "on") want.push("GitHub, from the GITHUB section below: a \"review\" item for each pull request where my review is requested; for my own, \"merge\" when it is approved with no failed or pending checks and not behind, \"fix\" when checks failed, it conflicts or it is behind its base, and \"reply\" when changes were requested. Use each one's updated time as \"activityAt\".");
-  if (reach.slack === "on") want.push(slackAsk(since, given, now));
+  if (reach.slack === "on") want.push(slackAsk(since, given, now, (Array.isArray(slackIgnore) ? slackIgnore : []).map(channelName).filter(Boolean)));
   if (reach.jira === "on") want.push("Jira: my issues in the current sprint that are not done." + use("jira"));
   if (reach.jira === "on" && given.some(n => ["searchConfluence", "searchConfluenceUsingCql"].includes(toolTail(n)))) want.push(`Confluence: comments on my pages or mentions of me since ${clock(since)} that still need an answer.` + use("jira"));
   return [
@@ -489,7 +519,7 @@ export function buildPrompt({ sessions, reach, tools = [], since, now = Date.now
     github?.status === "on" && reach.github === "on" && github.activity
       ? '  "summary": "two or three plain sentences: the first says what moved on GitHub since the last brief (from SINCE THE LAST BRIEF, or that nothing did), the rest what is going on across the sessions and sources",'
       : '  "summary": "two or three plain sentences on what is going on across the sessions and sources",',
-    '  "waiting": [{ "kind": "approve|merge|review|reply|decide", "title": "...", "detail": "...", "source": "github|slack|jira|session", "url": "https://...", "sessionId": "...", "person": "...", "activityAt": "ISO time of the newest activity you saw on its source" }],',
+    '  "waiting": [{ "kind": "approve|merge|review|reply|decide", "title": "...", "detail": "...", "source": "github|slack|jira|session", "url": "https://...", "sessionId": "...", "person": "...", "channel": "the Slack channel\'s name, for a Slack item posted in one", "activityAt": "ISO time of the newest activity you saw on its source" }],',
     '  "todo": [{ "kind": "todo|fix|follow-up", "title": "...", "detail": "...", "source": "...", "url": "...", "sessionId": "...", "activityAt": "..." }],',
     '  "talkTo": [{ "kind": "feedback|talk", "person": "name", "title": "what about", "source": "...", "url": "...", "activityAt": "..." }],',
     '  "people": [{ "name": "...", "handle": "...", "why": "reviews, DMs or mentions that make them worth watching", "source": "github|slack|jira", "url": "https://..." }],',
@@ -623,6 +653,7 @@ export function createStatusBrief({ dir, agent, sessions, todo = null, github = 
       since: Math.min(s.brief?.at ?? startedAt, startedAt - 24 * 3600_000),
       hidden: s.people.hidden,
       dismissed,
+      slackIgnore: s.settings.slackIgnore,
     });
     let result;
     try {
@@ -642,6 +673,10 @@ export function createStatusBrief({ dir, agent, sessions, todo = null, github = 
           }
         }
       }
+      // Nothing from a Slack channel the settings ignore, whatever the model
+      // made of the ask to leave it out.
+      const ignore = new Set(s.settings.slackIgnore);
+      for (const k of ["waiting", "todo", "talkTo"]) brief[k] = brief[k].filter(it => !fromIgnoredChannel(it, ignore));
       // A review asked for in Slack goes on only while it still waits on me,
       // as gh reads the PR (waitsOnMyReview): the model finds the asks, gh
       // judges them. Each is linked by the PR's own address, which is what the
@@ -711,6 +746,7 @@ export function createStatusBrief({ dir, agent, sessions, todo = null, github = 
       ...(p.model !== undefined ? { model: p.model } : {}),
       ...(p.everyMinutes !== undefined ? { everyMinutes: p.everyMinutes } : {}),
       sources: { ...s.settings.sources, ...(p.sources && typeof p.sources === "object" ? p.sources : {}) },
+      ...(Array.isArray(p.slackIgnore) ? { slackIgnore: p.slackIgnore } : {}),
     });
     await save();
     return s.settings;

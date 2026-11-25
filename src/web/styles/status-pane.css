@@ -215,6 +215,18 @@
 .stp-sources legend { padding: 0; margin-bottom: 4px; color: var(--muted); }
 .stp-check { display: inline-flex; align-items: center; gap: 4px; }
 .stp-hidden { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+/* The Slack channels the brief ignores (StatusPane.tsx IgnoredChannels). */
+.stp-ignore { display: flex; flex-direction: column; gap: 4px; }
+.stp-ignore-input {
+  flex: 1 1 120px;
+  min-width: 0;
+  padding: 2px 6px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-ctl);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
 .stp-chip {
   display: inline-flex;
   align-items: center;

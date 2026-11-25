@@ -8,7 +8,14 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { rmTempDir } from "./rm-temp-dir";
-import { MAX_WAITING, SLACK_REVIEW_LOOKBACK_MS, buildPrompt, createStatusBrief, normaliseBrief } from "../../server/status-brief.mjs";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import {
+  MAX_IGNORED_CHANNELS, MAX_WAITING, SLACK_REVIEW_LOOKBACK_MS, buildPrompt, channelName, createStatusBrief, fromIgnoredChannel, normaliseBrief, normaliseSettings,
+} from "../../server/status-brief.mjs";
+import { channelNames, type BriefView } from "../status-brief";
+import { Settings } from "../components/StatusPane";
+import { t } from "../i18n";
 import { MAX_WATCH, createGitHubReader, prUrlOf, waitsOnMyReview } from "../../server/status-gh.mjs";
 
 const dirs: string[] = [];
@@ -202,5 +209,77 @@ describe("the brief's runner and the review requests it found", () => {
     await b.refresh(); await b.settled();
     expect(asked).toEqual([]);
     expect(((await b.view()).brief!.waiting as unknown[]).length).toBe(ASKED.length);
+  });
+});
+
+describe("Slack channels the brief ignores", () => {
+  it("are kept by name: lower case, no #, Slack's alphabet, each once, at most MAX_IGNORED_CHANNELS", () => {
+    expect([channelName("#PRS-Data-Platform"), channelName(" eyes-on-prs_saas "), channelName("a.b")]).toEqual(["prs-data-platform", "eyes-on-prs_saas", "a.b"]);
+    for (const bad of ["", "#", "-x", "a b", "a,b", "x".repeat(81), "in:#x", 7, null]) expect(channelName(bad as string), String(bad)).toBeNull();
+    expect(normaliseSettings({}).slackIgnore).toEqual([]);
+    expect(normaliseSettings({ slackIgnore: ["#prs-data-platform", "PRS-DATA-PLATFORM", "no way", 3] }).slackIgnore).toEqual(["prs-data-platform"]);
+    expect(normaliseSettings({ slackIgnore: Array.from({ length: 40 }, (_, i) => `c${i}`) }).slackIgnore).toHaveLength(MAX_IGNORED_CHANNELS);
+    expect(channelNames("#prs-data-platform, Eyes-On  #bad name!")).toEqual(["prs-data-platform", "eyes-on", "bad"]);
+  });
+
+  it("are left out of the search itself and named in the ask", () => {
+    const line = buildPrompt({ sessions: [], reach: { github: "none", slack: "on", jira: "none" }, tools: ["mcp__s__slack_search_public_and_private"], since: 0, now: 0,
+      slackIgnore: ["prs-data-platform", "noise", "in:#x"] }).split("\n").find(l => l.startsWith("- Slack:"))!;
+    expect(line).toContain('keywords ["pull"], filters "-in:#prs-data-platform -in:#noise", only_my_channels true');
+    expect(line).toContain("Leave out everything posted in #prs-data-platform, #noise.");
+    expect(line).not.toContain("in:#x");
+    const none = buildPrompt({ sessions: [], reach: { github: "none", slack: "on", jira: "none" }, tools: ["mcp__s__slack_search_public_and_private"], since: 0, now: 0 });
+    expect(none).not.toMatch(/-in:#|Leave out everything posted in/);
+  });
+
+  it("drop an item by its channel, else by a #channel its words name, and only a Slack one", () => {
+    const ignore = new Set(["prs-data-platform"]);
+    const kept = normaliseBrief({ waiting: [{ kind: "review", title: "x", source: "slack", url: pr(1), channel: "#PRS-Data-Platform" }] }).waiting[0];
+    expect(kept.channel).toBe("prs-data-platform");
+    expect(fromIgnoredChannel(kept, ignore)).toBe(true);
+    expect(fromIgnoredChannel({ source: "slack", title: "x", detail: "posted in #prs-data-platform" }, ignore)).toBe(true);
+    expect(fromIgnoredChannel({ source: "slack", title: "x", channel: "eyes-on-prs-saas", detail: "also in #prs-data-platform" }, ignore)).toBe(false);
+    expect(fromIgnoredChannel({ source: "github", title: "#prs-data-platform" }, ignore)).toBe(false);
+    expect(fromIgnoredChannel({ source: "slack", title: "x", channel: "prs-data-platform" }, new Set())).toBe(false);
+    // A GitHub item keeps no channel.
+    expect(normaliseBrief({ waiting: [{ kind: "review", title: "x", source: "github", url: pr(1), channel: "c" }] }).waiting[0].channel).toBeUndefined();
+  });
+
+  it("are saved from the settings, and nothing from them reaches the brief or gh", async () => {
+    const asked: string[][] = [];
+    const prompts: string[] = [];
+    const b = createStatusBrief({
+      dir: tempDir(), now: () => Date.UTC(2026, 10, 25, 12, 0, 0),
+      agent: async () => ({ listConnectors: async () => [], runAgent: async (c: { prompt: string }) => { prompts.push(c.prompt); return { ok: true, json: { summary: "ok", waiting: [
+        { kind: "review", title: "From the ignored channel", source: "slack", url: pr(1), channel: "prs-data-platform" },
+        { kind: "review", title: "Named in its detail", source: "slack", url: pr(2), detail: "#prs-data-platform" },
+        { kind: "review", title: "From a channel I read", source: "slack", url: pr(3), channel: "eyes-on-prs-saas" },
+      ], talkTo: [{ kind: "talk", person: "Noa", title: "x", source: "slack", url: "https://acme.slack.com/archives/C1/p1", channel: "prs-data-platform" }] } }; } }),
+      sessions: async () => ({ rows: [], envelopes: [] }),
+      github: { read: async () => ({ status: "on", account: ME, review: [], mine: [], linkStates: [] }), reviewViews: async (urls: string[]) => { asked.push(urls); return new Map(); } },
+    });
+    expect((await b.setSettings({ slackIgnore: ["#prs-data-platform"] })).slackIgnore).toEqual(["prs-data-platform"]);
+    // A patch without it leaves it alone.
+    expect((await b.setSettings({ model: "sonnet" })).slackIgnore).toEqual(["prs-data-platform"]);
+    await b.refresh(); await b.settled();
+    const brief = (await b.view()).brief!;
+    expect((brief.waiting as { title: string }[]).map(i => i.title)).toEqual(["From a channel I read"]);
+    expect(brief.talkTo).toEqual([]);
+    expect(asked).toEqual([[pr(3)]]);
+    expect((await b.setSettings({ slackIgnore: [] })).slackIgnore).toEqual([]);
+  });
+
+  it("are shown in the brief's settings while Slack is on, each a chip that stops ignoring it", () => {
+    const view = {
+      ok: true, now: 0, brief: null, running: false, agent: "ready", people: { pinned: [], hidden: [] },
+      settings: { model: "haiku", everyMinutes: 30, sources: { github: true, slack: true, jira: true }, slackIgnore: ["prs-data-platform"] },
+    } as unknown as BriefView;
+    const handle = { view, unreachable: false, refresh() {}, setSettings() {}, person() {} };
+    const html = renderToStaticMarkup(createElement(Settings, { view, handle, t }));
+    expect(html).toContain("Ignored Slack channels");
+    expect(html).toMatch(/class="stp-chip"[^>]*aria-label="Stop ignoring #prs-data-platform"[^>]*>#prs-data-platform/);
+    expect(html).toMatch(/class="stp-ignore-input"[^>]*placeholder="#channel, then Enter"/);
+    const off = { ...view, settings: { ...view.settings, sources: { github: true, slack: false, jira: true } } } as BriefView;
+    expect(renderToStaticMarkup(createElement(Settings, { view: off, handle: { ...handle, view: off }, t }))).not.toContain("Ignored Slack channels");
   });
 });
