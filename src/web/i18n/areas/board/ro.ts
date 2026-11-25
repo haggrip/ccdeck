@@ -260,6 +260,7 @@ const catalog: Catalog = {
   "board.list.liveCount": "{n} active",
   "board.list.hideSidebar": "Ascunde bara laterală",
   "board.list.hide": "Ascunde lista de sesiuni",
+  "board.list.openDesktop": "Deschide în Claude Desktop",
   "board.list.empty": "Nicio sesiune încă.",
   "board.list.bring": "Readu {label} pe tablă",
   "board.list.focus": "Mergi la {label}",

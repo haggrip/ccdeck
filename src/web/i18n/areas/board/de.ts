@@ -248,6 +248,7 @@ const catalog: Catalog = {
   "board.list.liveCount": "{n} aktiv",
   "board.list.hideSidebar": "Seitenleiste ausblenden",
   "board.list.hide": "Sitzungsliste ausblenden",
+  "board.list.openDesktop": "In Claude Desktop öffnen",
   "board.list.empty": "Noch keine Sitzungen.",
   "board.list.bring": "{label} zurück auf den Canvas holen",
   "board.list.focus": "Auf {label} fokussieren",

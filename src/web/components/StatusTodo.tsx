@@ -14,7 +14,6 @@ import { KitIcon, KitStateGlyph } from "./kit-icons";
 import { ExternalLinkGlyph } from "./action-glyphs";
 import { isOverdue, isSnoozed, openerOf, splitOpen, tomorrowMorning, whenShort, type TodoItem } from "../status-todo";
 import type { StatusTodoHandle } from "../use-status-todo";
-import type { DesktopLinks } from "../desktop-links";
 import { KIND_MSGS } from "./status-kinds";
 
 const SOURCE_NAMES: Record<string, string> = { pr: "GitHub", slack: "Slack", ticket: "Jira" };
@@ -22,9 +21,8 @@ const ORIGIN_MSGS = {
   deck: "brief.todo.from.deck", brief: "brief.todo.from.brief", hagai: "brief.todo.from.hagai", session: "brief.todo.from.session",
 } as const;
 
-function sourceName(item: TodoItem, t: TFunction, desktop?: boolean): string {
+function sourceName(item: TodoItem, t: TFunction): string {
   const k = item.link?.kind;
-  if (desktop) return t("brief.source.desktop");
   if (k === "session") return t("brief.source.session");
   if (k === "project") return item.link?.project ?? t("brief.source.project");
   if (k === "url") { try { return new URL(item.link!.url!).hostname; } catch { return ""; } }
@@ -32,11 +30,11 @@ function sourceName(item: TodoItem, t: TFunction, desktop?: boolean): string {
   return k ? SOURCE_NAMES[k] ?? "" : "";
 }
 
-function Row({ item, now, sessions, desktop, onOpenSession, act, dismiss, t }: {
-  item: TodoItem; now: number; sessions: ReadonlySet<string>; desktop?: DesktopLinks;
+function Row({ item, now, sessions, onOpenSession, act, dismiss, t }: {
+  item: TodoItem; now: number; sessions: ReadonlySet<string>;
   onOpenSession: (id: string) => void; act: StatusTodoHandle["act"]; dismiss: StatusTodoHandle["dismiss"]; t: TFunction;
 }) {
-  const open = openerOf(item, sessions, desktop);
+  const open = openerOf(item, sessions);
   const snoozed = isSnoozed(item, now);
   const overdue = isOverdue(item, now);
   const label = (
@@ -47,20 +45,17 @@ function Row({ item, now, sessions, desktop, onOpenSession, act, dismiss, t }: {
   );
   // Where it leads, its project beside a session, and where it came from: each
   // a part of its own, a dot between them and none before the first.
-  const parts = [sourceName(item, t, !!open.desktop) || null, (open.desktop || open.session) && item.link?.project ? item.link.project : null, t(ORIGIN_MSGS[item.origin])]
+  const parts = [sourceName(item, t) || null, open.session && item.link?.project ? item.link.project : null, t(ORIGIN_MSGS[item.origin])]
     .filter((p): p is string => !!p);
   const meta = (
     <span className="stp-src">
-      {parts.map((p, i) => <span key={i} className="stp-sep">{p}{i === 0 && (open.desktop || open.href) ? <ExternalLinkGlyph /> : null}</span>)}
+      {parts.map((p, i) => <span key={i} className="stp-sep">{p}{i === 0 && open.href ? <ExternalLinkGlyph /> : null}</span>)}
     </span>
   );
   return (
     <li className="stp-item stp-todo-item" data-kind={item.kind} data-snoozed={snoozed ? "" : undefined} data-overdue={overdue ? "" : undefined}>
       <span className="stp-kind">{t(KIND_MSGS[item.kind])}</span>
-      {open.desktop ? (
-        // The OS hands claude:// to the desktop app; no new tab is opened.
-        <a className="stp-link" href={open.desktop} title={t("brief.open.desktop")}>{label}{meta}</a>
-      ) : open.session ? (
+      {open.session ? (
         <button type="button" className="stp-link" onClick={() => onOpenSession(open.session!)} title={t("brief.open.session")}>{label}{meta}</button>
       ) : open.href ? (
         <a className="stp-link" href={open.href} target="_blank" rel="noreferrer noopener" title={t("brief.open.link", { source: sourceName(item, t) })}>{label}{meta}</a>
@@ -75,10 +70,6 @@ function Row({ item, now, sessions, desktop, onOpenSession, act, dismiss, t }: {
         )}
         {snoozed && <span className="stp-due">{t("brief.todo.snoozed", { time: whenShort(item.snoozedUntil!, now) })}</span>}
         <span className="stp-person-acts">
-          {open.desktop && open.session && (
-            <button type="button" className="glyph-btn stp-todo-card" onClick={() => onOpenSession(open.session!)}
-              aria-label={t("brief.open.session")} title={t("brief.open.session")}><KitIcon name="board" /></button>
-          )}
           {snoozed ? (
             <button type="button" className="glyph-btn stp-todo-wake" onClick={() => act("unsnooze", item.id)}
               aria-label={t("brief.todo.unsnooze", { title: item.title })} title={t("brief.todo.unsnooze", { title: item.title })}><KitIcon name="play" /></button>
@@ -99,7 +90,7 @@ function Row({ item, now, sessions, desktop, onOpenSession, act, dismiss, t }: {
 }
 
 function List({ id, title, items, ...rest }: {
-  id: string; title: string; items: TodoItem[]; now: number; sessions: ReadonlySet<string>; desktop?: DesktopLinks;
+  id: string; title: string; items: TodoItem[]; now: number; sessions: ReadonlySet<string>;
   onOpenSession: (id: string) => void; act: StatusTodoHandle["act"]; dismiss: StatusTodoHandle["dismiss"]; t: TFunction;
 }) {
   return (
@@ -112,10 +103,8 @@ function List({ id, title, items, ...rest }: {
   );
 }
 
-export default function StatusTodo({ todo, now, sessions, desktop, onOpenSession, t }: {
+export default function StatusTodo({ todo, now, sessions, onOpenSession, t }: {
   todo: StatusTodoHandle; now: number; sessions: ReadonlySet<string>;
-  /** Which sessions the Claude desktop app runs: those open there. */
-  desktop?: DesktopLinks;
   onOpenSession: (id: string) => void; t: TFunction;
 }) {
   const [draft, setDraft] = useState("");
@@ -141,8 +130,8 @@ export default function StatusTodo({ todo, now, sessions, desktop, onOpenSession
       </form>
       {reading && <p className="stp-state" aria-live="polite">{t("brief.todo.reading")}</p>}
       {failed && <p className="stp-flag">{t("brief.todo.keeperFailed", { message: failed.message || failed.code })}</p>}
-      <List id="stp-waiting" title={t("brief.section.waiting")} items={waiting} now={now} sessions={sessions} desktop={desktop} onOpenSession={onOpenSession} act={todo.act} dismiss={todo.dismiss} t={t} />
-      <List id="stp-todo" title={t("brief.section.todo")} items={rest} now={now} sessions={sessions} desktop={desktop} onOpenSession={onOpenSession} act={todo.act} dismiss={todo.dismiss} t={t} />
+      <List id="stp-waiting" title={t("brief.section.waiting")} items={waiting} now={now} sessions={sessions} onOpenSession={onOpenSession} act={todo.act} dismiss={todo.dismiss} t={t} />
+      <List id="stp-todo" title={t("brief.section.todo")} items={rest} now={now} sessions={sessions} onOpenSession={onOpenSession} act={todo.act} dismiss={todo.dismiss} t={t} />
       {closed.length > 0 && (
         <details className="stp-closed">
           <summary className="stp-h">{t("brief.todo.recent")}<span className="stp-n">{closed.length}</span></summary>

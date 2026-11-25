@@ -10,6 +10,8 @@
 // they are. The one exception is a load with no room for both, a phone's or a
 // narrow desktop window's, where Usage keeps the machine panel shut for that
 // load alone (phone-load.ts).
+import { surfaceRemoved } from "./focused-deck";
+import type { Dispatch, SetStateAction } from "react";
 import { useEffect, useRef, useState } from "react";
 import { readStored, writeStored } from "./storage";
 import { useFeatureUse } from "./feature-use";
@@ -65,7 +67,7 @@ function saveMachinePanelOpen(open: boolean): void {
  *  depends on it. `inColumn` is a load that lands in Workspace, where the two
  *  share one side column (side-column.ts) instead of standing side by side, so
  *  the room rule is not theirs. */
-export function useRightPanels(leftColumnW = 0, inColumn = false) {
+export function useRightPanels(leftColumnW = 0, inColumn = false, focused = false) {
   /** Right detail panel visibility — persisted across refresh. */
   const [detailOpen, setDetailOpen] = useState<boolean>(loadDetailOpen);
   /** Shut for now, not by the reader: Workspace's sheet width (1100 to 1319)
@@ -128,5 +130,17 @@ export function useRightPanels(leftColumnW = 0, inColumn = false) {
     usage: () => { usageHeldRef.current = true; setUsagePanelOpen(false); },
     machine: () => { machineHeldRef.current = true; setMachinePanelOpen(false); },
   };
-  return { detailOpen, setDetailOpen, usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen, hold };
+  // The focused deck (focused-deck.ts): Usage and This machine never open,
+  // whatever a key, a door or a stored flag asks.
+  const usageGone = focused && surfaceRemoved("usage");
+  const machineGone = focused && surfaceRemoved("machine");
+  return {
+    detailOpen, setDetailOpen,
+    usagePanelOpen: usageGone ? false : usagePanelOpen, setUsagePanelOpen: usageGone ? NO_SET : setUsagePanelOpen,
+    machinePanelOpen: machineGone ? false : machinePanelOpen, setMachinePanelOpen: machineGone ? NO_SET : setMachinePanelOpen,
+    hold,
+  };
 }
+
+/** A setter for a panel the focused deck removed: every ask is dropped. */
+const NO_SET: Dispatch<SetStateAction<boolean>> = () => {};

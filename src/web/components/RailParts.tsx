@@ -108,6 +108,9 @@ export interface RailRowProps {
    *  beside the one in focus, and the row can be dragged onto a pane. Absent
    *  on the Board, and on a row off the board. */
   onOpenBeside?: (sessionId: string) => void;
+  /** The session runs in the Claude desktop app: a button beside the row
+   *  brings it up there (desktop-links.ts). */
+  onOpenDesktop?: (sessionId: string) => void;
   /** A session the deck can name (internal #101): a double click on the row,
    *  or F2 on it, opens the field where its name is. Left out (a row on its
    *  way out), the row only selects. */
@@ -147,7 +150,7 @@ export function openBesideOnShiftEnter(
   };
 }
 
-export function RailRow({ row: r, group, now, selected, removed, leaving, landNonce, onSelect, onOpenKeys, onOpenBeside, rename, compact = false, showContext = false, context, pane }: RailRowProps) {
+export function RailRow({ row: r, group, now, selected, removed, leaving, landNonce, onSelect, onOpenKeys, onOpenBeside, onOpenDesktop, rename, compact = false, showContext = false, context, pane }: RailRowProps) {
   const t = useT();
   const failed = railFailed(r, group, t);
   // Keep a second line where it explains an action or tells sessions apart.
@@ -283,6 +286,14 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
             </span>}
           </span>
         </button>
+        {onOpenDesktop && (
+          <button type="button" className="sl-desktop" onClick={() => onOpenDesktop(r.sessionId)}
+            title={t("board.list.openDesktop")} aria-label={`${t("board.list.openDesktop")}: ${r.label}`}>
+            <svg className="glyph" width="14" height="14" viewBox="0 0 14 14" aria-hidden>
+              <path fill="currentColor" d="M7 1.2l1.1 3.5 3.5-1.6-2.2 3.1 3.4 1.1-3.6.6 1.6 3.3-3.1-2.1L7 12.8 6.3 9.1l-3.1 2.1 1.6-3.3-3.6-.6 3.4-1.1-2.2-3.1 3.5 1.6z" />
+            </svg>
+          </button>
+        )}
       </div>
     </li>
   );

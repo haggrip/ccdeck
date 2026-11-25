@@ -6,7 +6,7 @@
 // imports the agent: a deck nobody asks never loads it.
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { send } from "./http-io.mjs";
+import { readBody, send } from "./http-io.mjs";
 
 export const REMOTE_CONTROL_ROUTE = "/api/remote-control";
 
@@ -24,6 +24,22 @@ export const DESKTOP_SESSIONS_ROUTE = "/api/desktop-sessions";
 /** GET /api/desktop-sessions — which of this computer's sessions the Claude
  *  desktop app runs, as { cliSessionId: local_id } (desktop-sessions.mjs). The
  *  same guarded, this-computer-only read. */
+export const DESKTOP_OPEN_ROUTE = "/api/desktop-sessions/open";
+
+/** POST /api/desktop-sessions/open { sessionId } — brings that session up in
+ *  the Claude desktop app (desktop-sessions.mjs openInDesktop). The deck builds
+ *  the link from the app's own files; the page names only the session. Behind
+ *  the deck's mutation gate, and this computer only. */
+export async function handleDesktopOpen(req, res, source = null) {
+  if (!loopback(req)) return send(res, 403, { ok: false, error: "This computer only." });
+  const raw = await readBody(req, res, 2_000).catch(() => null);
+  let body = null;
+  try { body = raw ? JSON.parse(raw) : null; } catch { body = null; }
+  const { openInDesktop } = source ?? await import(pathToFileURL(join(PKG_ROOT, "src/server/desktop-sessions.mjs")).href);
+  const out = await openInDesktop(body?.sessionId);
+  return send(res, out.ok ? 200 : out.error === "open-failed" ? 502 : 404, out);
+}
+
 export async function handleDesktopSessionsRead(req, res, source = null) {
   if (!loopback(req)) return send(res, 403, { ok: false, error: "Desktop sessions can be seen on this computer only." });
   const { desktopSessionsState } = source ?? await import(pathToFileURL(join(PKG_ROOT, "src/server/desktop-sessions.mjs")).href);

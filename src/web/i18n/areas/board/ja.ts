@@ -248,6 +248,7 @@ const catalog: Catalog = {
   "board.list.liveCount": "{n}件実行中",
   "board.list.hideSidebar": "サイドバーを非表示",
   "board.list.hide": "セッション一覧を非表示",
+  "board.list.openDesktop": "Claude Desktop で開く",
   "board.list.empty": "セッションはまだありません。",
   "board.list.bring": "{label} をキャンバスに戻す",
   "board.list.focus": "{label} にフォーカス",

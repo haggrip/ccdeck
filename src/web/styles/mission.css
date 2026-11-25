@@ -1,57 +1,380 @@
 /* ---------------- Mission ----------------
-   The Status pane as the deck's main page (use-mission.ts, StatusPane.tsx
-   variant "mission"): laid over the canvas's cell, the Board kept under it.
-   One readable column of brief across the top, then the Todo list on the left
-   and the brief's other sections beside it. The pane's own rows, chips and
-   buttons are status-pane.css's, unchanged. */
-.status-pane.mission {
+   components/MissionView.tsx: the deck's main page, laid over the canvas's
+   cell with the Board kept under it (use-mission.ts).
+
+   A TASK MANAGER, NOT A PANEL. The design language is an inbox's: colour says
+   what kind of ask a thing is, and only that. Each task carries one tone, on
+   its edge, its kind chip and nothing else:
+     ask     someone waits on an answer, a decision, an approval   --warn
+     err     something failed or needs fixing                      --err
+     review  a review or a merge                                   --usage-indigo
+     talk    a reply owed                                          --usage-pink
+     do      a thing to do or follow up                            --usage-teal
+     note    a note                                                --usage-zinc
+   Sources keep their brand hue as a dot (GitHub, Slack, Jira, Linear, Claude
+   Desktop), and live sessions keep the board's state colours. Every colour is
+   a theme token, so light, dark and the other themes follow. */
+
+.mission {
+  --mi-claude: var(--usage-orange);
   position: absolute;
   inset: 0;
   z-index: 30;
-  width: auto;
-  max-height: none;
   overflow-y: auto;
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
-  background: var(--bg);
+  color: var(--text);
+  text-align: left;
+  background:
+    radial-gradient(1100px 260px at 12% -8%, color-mix(in srgb, var(--accent) 11%, transparent), transparent 70%),
+    radial-gradient(900px 240px at 92% -12%, color-mix(in srgb, var(--usage-teal) 8%, transparent), transparent 70%),
+    var(--bg);
   font-size: calc(13px + var(--ui-text-increase, 0px));
-  line-height: calc(18px + var(--ui-text-increase, 0px));
+  line-height: calc(20px + var(--ui-text-increase, 0px));
 }
-.status-pane.mission .stp-head {
-  gap: 12px;
-  padding: 0 16px 0 24px;
-  background: var(--bg);
-}
-.status-pane.mission .stp-heading { flex: none; font-size: calc(16px + var(--ui-text-increase, 0px)); }
-.status-pane.mission .stp-counts { flex: 1 1 auto; min-width: 0; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.status-pane.mission .stp-body {
+.mi-wrap {
   box-sizing: border-box;
-  max-width: 1280px;
+  max-width: 1320px;
   margin: 0 auto;
+  padding: 20px 32px 40px;
+  display: flex;
+  flex-direction: column;
   gap: 16px;
-  padding: 16px 24px 24px;
 }
-.status-pane.mission .stp-summary-text { max-width: 80ch; }
-.mission-cols {
+
+/* ---- the header: title, date, tools, then the counts in colour ---- */
+.mi-head { display: flex; flex-direction: column; gap: 14px; }
+.mi-title-row { display: flex; align-items: baseline; gap: 12px; }
+.mi-title {
+  margin: 0;
+  font-size: calc(22px + var(--ui-text-increase, 0px));
+  line-height: calc(28px + var(--ui-text-increase, 0px));
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+.mi-date { flex: 1 1 auto; color: var(--muted); }
+.mi-tools { display: inline-flex; gap: 4px; align-self: center; }
+.mi-tools .glyph-btn { color: var(--muted); }
+.mi-tools .glyph-btn[aria-expanded="true"] { color: var(--text); }
+
+.mi-stats {
   display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(280px, 2fr);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mi-stat {
+  --mi-tone: var(--muted);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 14px 10px 16px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--mi-tone) 9%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--mi-tone) 26%, var(--line-soft));
+  border-radius: var(--r-panel);
+}
+.mi-stat::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--mi-tone); }
+.mi-stat[data-stat="ask"] { --mi-tone: var(--warn); }
+.mi-stat[data-stat="err"] { --mi-tone: var(--err); }
+.mi-stat[data-stat="work"] { --mi-tone: var(--usage-blue); }
+.mi-stat[data-stat="ok"] { --mi-tone: var(--ok); }
+.mi-stat[data-stat="do"] { --mi-tone: var(--usage-teal); }
+.mi-stat-n {
+  font-size: calc(22px + var(--ui-text-increase, 0px));
+  line-height: calc(28px + var(--ui-text-increase, 0px));
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--mi-tone);
+}
+.mi-stat-label { font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); color: var(--muted); }
+/* Nothing to count: the tile steps back, so the ones that matter stand out. */
+.mi-stat[data-zero] { background: var(--panel); border-color: var(--line-soft); }
+.mi-stat[data-zero]::before { opacity: 0.25; }
+.mi-stat[data-zero] .mi-stat-n { color: var(--muted); }
+
+/* ---- the two columns ---- */
+.mi-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(300px, 1fr);
   gap: 24px;
   align-items: start;
 }
-.mission-main, .mission-side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
-/* The Todo list is the page's subject: its sections sit on the panel's ground. */
-.mission-main .stp-todo { display: flex; flex-direction: column; gap: 16px; }
-.mission-main .stp-section,
-.mission-side .stp-section {
-  padding: 12px;
+.mi-main, .mi-side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+/* The brief, as a briefing: the accent's edge and a breath of its tint. */
+.mi-brief {
+  padding: 12px 16px;
+  background: color-mix(in srgb, var(--accent) 7%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--line-soft));
+  border-left: 3px solid var(--accent);
+  border-radius: var(--r-panel);
+}
+.mi-brief:empty { display: none; }
+.mi-brief-text { margin: 0; max-width: 90ch; color: var(--text); }
+.mi-meta { margin: 6px 0 0; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); color: var(--muted); }
+.mi-state { margin: 0; color: var(--muted); }
+.mi-flag { margin: 0; color: var(--err); }
+
+/* The box that takes your words: the page's one input, so it looks like one. */
+.mi-add {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 44px;
+  padding: 0 6px 0 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+  color: var(--muted);
+}
+.mi-add:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
+.mi-add-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+}
+.mi-add-send {
+  flex: none;
+  height: 30px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  color: var(--bg);
+  font: inherit;
+  font-weight: 600;
+}
+.mi-add-send:disabled { background: var(--bg-soft); color: var(--muted); cursor: default; }
+
+/* ---- groups and their headings ---- */
+.mi-group { display: flex; flex-direction: column; gap: 8px; }
+.mi-h {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.mi-group[data-group="now"] > .mi-h { color: var(--warn); }
+.mi-group[data-group="now"] > .mi-h::before {
+  content: ""; width: 8px; height: 8px; border-radius: var(--r-pill); background: var(--warn);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--warn) 22%, transparent);
+}
+.mi-n {
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: var(--r-pill);
+  background: var(--bg-soft);
+  color: var(--muted);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: calc(18px + var(--ui-text-increase, 0px));
+  text-align: center;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+.mi-empty { margin: 0; color: var(--muted); }
+
+/* ---- a task ---- */
+.mi-tasks { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.mi-task {
+  --mi-tone: var(--usage-teal);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  padding: 10px 12px 10px 14px;
+  background: var(--panel);
+  border: 1px solid var(--line-soft);
+  border-left: 3px solid var(--mi-tone);
+  border-radius: var(--r-panel);
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+.mi-task[data-tone="ask"] { --mi-tone: var(--warn); }
+.mi-task[data-tone="err"] { --mi-tone: var(--err); }
+.mi-task[data-tone="review"] { --mi-tone: var(--usage-indigo); }
+.mi-task[data-tone="talk"] { --mi-tone: var(--usage-pink); }
+.mi-task[data-tone="do"] { --mi-tone: var(--usage-teal); }
+.mi-task[data-tone="note"] { --mi-tone: var(--usage-zinc); }
+.mi-task[data-snoozed] .mi-task-title { color: var(--muted); }
+.mi-task-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mi-task-top { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.mi-kind {
+  flex: none;
+  padding: 0 8px;
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--mi-tone) 16%, transparent);
+  color: var(--mi-tone);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: calc(18px + var(--ui-text-increase, 0px));
+  font-weight: 650;
+}
+.mi-task-title {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  text-decoration: none;
+}
+span.mi-task-title { cursor: default; }
+.mi-task-title-text { overflow-wrap: anywhere; }
+@media (hover: hover) and (pointer: fine) {
+  a.mi-task-title:hover .mi-task-title-text, button.mi-task-title:hover .mi-task-title-text { text-decoration: underline; text-underline-offset: 3px; }
+}
+.mi-task-title .glyph { color: var(--muted); }
+.mi-task-detail { margin: 0; color: var(--muted); overflow-wrap: anywhere; }
+.mi-task-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin-top: 2px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  color: var(--muted);
+}
+.mi-src { --mi-src: var(--muted); display: inline-flex; align-items: center; gap: 5px; color: var(--text); font-weight: 600; }
+.mi-src::before { content: ""; width: 7px; height: 7px; border-radius: var(--r-pill); background: var(--mi-src); }
+.mi-src[data-src="github"] { --mi-src: var(--text); }
+.mi-src[data-src="slack"] { --mi-src: var(--usage-pink); }
+.mi-src[data-src="jira"] { --mi-src: var(--usage-blue); }
+.mi-src[data-src="linear"] { --mi-src: var(--usage-indigo); }
+.mi-src[data-src="claude"] { --mi-src: var(--mi-claude); }
+.mi-src[data-src="session"] { --mi-src: var(--accent); }
+.mi-proj { padding: 0 6px; border-radius: var(--r-ctl); background: var(--bg-soft); color: var(--text); }
+.mi-origin { color: var(--muted); }
+.mi-due { padding: 0 6px; border: 1px solid var(--line); border-radius: var(--r-pill); color: var(--text); }
+.mi-due[data-overdue] { border-color: color-mix(in srgb, var(--err) 50%, transparent); background: color-mix(in srgb, var(--err) 12%, transparent); color: var(--err); font-weight: 600; }
+
+.mi-task-acts { display: flex; align-items: center; gap: 8px; }
+.mi-glyphs { display: inline-flex; gap: 2px; }
+.mi-glyphs .glyph-btn { color: var(--muted); }
+
+/* "Open in Claude Desktop": the one coloured button on the page, in the
+   Claude mark's orange, so where a session is driven is never a guess. */
+.mi-desktop {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--mi-claude) 14%, transparent);
+  color: var(--mi-claude);
+  font: inherit;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  font-weight: 600;
+  white-space: nowrap;
+}
+.mi-desktop[data-compact] { width: 26px; padding: 0; justify-content: center; }
+.mi-claude-glyph { flex: none; }
+
+/* ---- the live context, beside the tasks ---- */
+.mi-card {
+  padding: 12px 14px;
   background: var(--panel);
   border: 1px solid var(--line-soft);
   border-radius: var(--r-panel);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
-.status-pane.mission .stp-undo { position: sticky; bottom: 0; }
-/* The card beside a desktop link: the board glyph, as quiet as its siblings. */
-.stp-todo-card { flex: none; }
+.mi-settings { gap: 0; }
+/* Live sessions: the context the tasks come from, headed in the text's ink. */
+.mi-live > .mi-h { color: var(--text); }
+.mi-pulse { width: 8px; height: 8px; border-radius: var(--r-pill); background: var(--ok); animation: mi-pulse var(--pulse-live) infinite alternate; }
+@keyframes mi-pulse { from { opacity: 1; } to { opacity: 0.35; } }
+.mi-live-list, .mi-plain { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.mi-live-row { --mi-live: var(--muted); display: flex; align-items: center; gap: 6px; }
+.mi-live-row[data-live="waiting"] { --mi-live: var(--warn); }
+.mi-live-row[data-live="failed"] { --mi-live: var(--err); }
+.mi-live-row[data-live="working"] { --mi-live: var(--usage-blue); }
+.mi-live-row[data-live="unread"] { --mi-live: var(--ok); }
+.mi-live-main {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  column-gap: 8px;
+  align-items: center;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+}
+.mi-dot { width: 8px; height: 8px; border-radius: var(--r-pill); background: var(--mi-live); }
+.mi-live-row[data-live="working"] .mi-dot { animation: mi-pulse var(--pulse-live) infinite alternate; }
+.mi-live-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.mi-live-state { color: var(--mi-live); font-size: calc(11px + var(--ui-text-increase, 0px)); }
+.mi-live-detail {
+  grid-column: 2 / -1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+}
+.mi-plain-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 0; }
+.mi-plain-row > a, .mi-plain-row > button:not(.glyph-btn) {
+  min-width: 0; padding: 0; border: 0; background: none; color: var(--text); font: inherit; text-align: left; text-decoration: none;
+}
+.mi-plain-row .glyph-btn { color: var(--muted); }
+.mi-plain-row[data-closed] { color: var(--muted); }
+.mi-closed > summary { list-style: none; }
+.mi-closed > .mi-plain { margin-top: 8px; }
+/* The Status pane's own sections, reused in the cards: their headings read
+   as the page's own. */
+.mi-card .stp-h {
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.mi-card > .stp-section { gap: 6px; }
+.mi-side > .stp-dismissed { padding: 0 4px; }
+.mission > .stp-undo { position: sticky; bottom: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .mi-pulse, .mi-live-row[data-live="working"] .mi-dot { animation: none; }
+}
+@media (max-width: 1100px) {
+  .mi-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
 @media (max-width: 960px) {
-  .mission-cols { grid-template-columns: minmax(0, 1fr); }
+  .mi-grid { grid-template-columns: minmax(0, 1fr); }
+  .mi-wrap { padding: 16px 20px 40px; }
+}
+
+/* Hover is for mice (v4-hover-for-mice). */
+@media (hover: hover) and (pointer: fine) {
+  .mi-task:hover { border-color: color-mix(in srgb, var(--mi-tone) 45%, var(--line-soft)); border-left-color: var(--mi-tone); background: color-mix(in srgb, var(--mi-tone) 4%, var(--panel)); }
+  .mi-desktop:hover { background: color-mix(in srgb, var(--mi-claude) 20%, transparent); }
+  .mi-live-main:hover { background: var(--bg-soft); }
+  .mi-plain-row > a:hover, .mi-plain-row > button:not(.glyph-btn):hover { text-decoration: underline; text-underline-offset: 3px; }
+  .mi-done:hover { color: var(--ok); }
 }

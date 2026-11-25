@@ -248,6 +248,7 @@ const catalog: Catalog = {
   "board.list.liveCount": "{n} 個執行中",
   "board.list.hideSidebar": "隱藏側邊欄",
   "board.list.hide": "隱藏工作階段清單",
+  "board.list.openDesktop": "在 Claude Desktop 中開啟",
   "board.list.empty": "尚無工作階段。",
   "board.list.bring": "將 {label} 帶回畫布",
   "board.list.focus": "聚焦 {label}",

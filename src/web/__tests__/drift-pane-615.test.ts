@@ -303,7 +303,9 @@ describe("the six layouts are still the six the stylesheet declares", () => {
     // CHANGED ON PURPOSE (internal #103): the left column's width is the
     // Sessions list's own when the list is open (rail-width.ts), so the right
     // panels are fitted beside that width.
-    expect(appCode).toMatch(/\bdetailOpen\b[^}]*\}\s*= useRightPanels\(leftColumnWidth\(leftPanel, railWidth, listWidth\), readView\(\) === "workspace"\);/);
+    // CHANGED ON PURPOSE (the focused deck, focused-deck.ts): the stored flag is
+    // read under its own name, and the focused deck's third argument follows.
+    expect(appCode).toMatch(/\bdetailOpen: detailOpenStored\b[^}]*\}\s*= useRightPanels\(leftColumnWidth\(leftPanel, railWidth, listWidth\), readView\(\) === "workspace", FOCUSED_DECK\);/);
   });
 });
 

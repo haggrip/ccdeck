@@ -248,6 +248,7 @@ const catalog: Catalog = {
   "board.list.liveCount": "{n} live",
   "board.list.hideSidebar": "Hide sidebar",
   "board.list.hide": "Hide session list",
+  "board.list.openDesktop": "Open in Claude Desktop",
   "board.list.empty": "No sessions yet.",
   "board.list.bring": "Bring {label} back to the board",
   "board.list.focus": "Focus {label}",
