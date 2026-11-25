@@ -3,8 +3,9 @@
 //
 // WHY gh AND NOT A CONNECTOR. The GitHub connector failed in real briefs, and
 // what the brief needs from GitHub is a handful of fixed questions: whose
-// review is requested, the state of my own open PRs, and whether the PRs on
-// the Todo list were merged, closed, approved or went green. `gh` answers each
+// review is requested, the state of my own open PRs, whether the PRs on the
+// Todo list were merged, closed, approved or went green, and whether a PR
+// someone asked for a review of in a Slack channel still waits on me. `gh` answers each
 // one exactly, as the account it is logged in as, with no model in between.
 //
 // READ-ONLY, AND NEVER A SHELL. Every call is a fixed argument vector run with
@@ -53,6 +54,36 @@ const CANDIDATES = Object.freeze(["/opt/homebrew/bin/gh", "/usr/local/bin/gh", "
 
 /** The only URL handed to gh, and the only shape it is handed in. */
 export const PR_URL = /^https:\/\/github\.com\/[A-Za-z0-9][A-Za-z0-9_.-]{0,99}\/[A-Za-z0-9_.-]{1,100}\/pull\/\d{1,9}$/;
+
+/** A PR link as a message carries it: its own page, or one under it
+ *  (/files, /commits/…), with any query or fragment. */
+const PR_LINK = /^https:\/\/github\.com\/([A-Za-z0-9][A-Za-z0-9_.-]{0,99})\/([A-Za-z0-9_.-]{1,100})\/pull\/(\d{1,9})(?:[/?#].*)?$/;
+
+/** The PR a link points at, in the one shape gh is handed, else null. */
+export function prUrlOf(url) {
+  const m = typeof url === "string" ? PR_LINK.exec(url) : null;
+  if (!m) return null;
+  const pr = `https://github.com/${m[1]}/${m[2]}/pull/${m[3]}`;
+  return PR_URL.test(pr) ? pr : null;
+}
+
+/**
+ * Whether a PR someone asked for a review of (in a Slack channel, say) still
+ * waits on me, as gh reads it (REVIEW_VIEW): open, not approved, not mine,
+ * and not already approved or sent back by me. A PR gh could not read (`v`
+ * null: no access, a typo) stands as it was asked: it is not ruled out on a
+ * guess.
+ */
+export function waitsOnMyReview(v, account) {
+  if (!v || typeof v !== "object") return true;
+  if (v.state === "MERGED" || v.mergedAt || v.state === "CLOSED") return false;
+  if (v.reviewDecision === "APPROVED") return false;
+  const me = typeof account === "string" ? account.toLowerCase() : "";
+  if (!me) return true;
+  if (String(v.author?.login ?? "").toLowerCase() === me) return false;
+  const mine = (Array.isArray(v.latestReviews) ? v.latestReviews : []).find(r => String(r?.author?.login ?? "").toLowerCase() === me);
+  return !(mine && (mine.state === "APPROVED" || mine.state === "CHANGES_REQUESTED"));
+}
 
 /** A PR's API address, as notifications name it. */
 const API_PR = /^https:\/\/api\.github\.com\/repos\/([A-Za-z0-9][A-Za-z0-9_.-]{0,99})\/([A-Za-z0-9_.-]{1,100})\/pulls\/(\d{1,9})$/;
@@ -162,6 +193,8 @@ const ACTIVITY_VIEW = "title,state,mergedAt,closedAt,author,reviewDecision,revie
 const VIEW_JQ = "{title, state, mergedAt, closedAt, author: .author.login, reviewDecision, updatedAt,"
   + " requests: [(.reviewRequests // [])[] | (.login // .name // .slug // \"\")],"
   + " commits: [(.commits // [])[-3:][] | {at: .committedDate}]}";
+/** What waitsOnMyReview reads of a PR. */
+const REVIEW_VIEW = "state,mergedAt,reviewDecision,author,latestReviews";
 const REVIEWS_JQ = "[.[] | {user: {login: .user.login, type: .user.type}, state, submitted_at, body: ((.body // \"\")[0:600])}]";
 const COMMENTS_JQ = "[.[] | {user: {login: .user.login, type: .user.type}, created_at, body: ((.body // \"\")[0:600])}]";
 
@@ -183,6 +216,10 @@ async function inTurn(items, n, fn) {
  *   { status: "on", account, review: [...], mine: [...], linkStates: [...] }
  *   { status: "missing" | "logged-out" | "error", message }
  * `watch` is the Todo list's PR URLs whose state to read.
+ *
+ * reviewViews(urls) resolves to a Map of PR URL to gh's REVIEW_VIEW of it,
+ * for the PRs someone asked for a review of in Slack (at most MAX_WATCH; a PR
+ * gh could not read is left out), or null when there is no gh.
  */
 export function createGitHubReader({ run = execRunner, exists = canExec, now = () => Date.now() } = {}) {
   let gh;   // resolved once per process; null when there is none
@@ -314,7 +351,19 @@ export function createGitHubReader({ run = execRunner, exists = canExec, now = (
     return { status: "on", account, at: now(), review: reviewRows, mine: mineOut, linkStates, ...(activity ? { activity } : {}) };
   }
 
-  return { read };
+  async function reviewViews(urls) {
+    if (gh === undefined) gh = await findGh(run, exists);
+    if (!gh) return null;
+    const list = [...new Set((Array.isArray(urls) ? urls : []).map(prUrlOf).filter(Boolean))].slice(0, MAX_WATCH);
+    const out = new Map();
+    await inTurn(list, CONCURRENCY, async url => {
+      const v = await json(["pr", "view", url, "--json", REVIEW_VIEW]);
+      if (v.ok && v.value && typeof v.value === "object") out.set(url, v.value);
+    });
+    return out;
+  }
+
+  return { read, reviewViews };
 }
 
 /** The GitHub section of the brief's prompt: what gh read, as data. */

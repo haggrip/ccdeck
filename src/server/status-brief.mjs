@@ -37,7 +37,7 @@ import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { writeFileAtomic } from "./atomic-write.mjs";
 import { LINK_STATES, dismissKeyOf } from "./status-todo.mjs";
-import { FIRST_SINCE_MS, MAX_SINCE_MS, PR_URL, activityPromptLines, githubPromptLines, normaliseActivity } from "./status-gh.mjs";
+import { FIRST_SINCE_MS, MAX_SINCE_MS, PR_URL, activityPromptLines, githubPromptLines, normaliseActivity, prUrlOf, waitsOnMyReview } from "./status-gh.mjs";
 
 export const BRIEF_FILE = "status-brief.json";
 export const MODELS = Object.freeze(["haiku", "sonnet", "opus"]);
@@ -53,6 +53,10 @@ export const DEFAULT_SETTINGS = Object.freeze({
 export const MIN_GAP_MS = 60_000;
 /** After 1, 2, 3, 4+ failures in a row, an automatic run waits at least this long. */
 export const BACKOFF_MS = Object.freeze([5 * 60_000, 15 * 60_000, 30 * 60_000, 60 * 60_000]);
+/** How far back the brief looks for review requests in Slack channels. A
+ *  request stays open until someone reviews, so it looks further back than
+ *  the DMs do; gh drops whatever was approved since (waitsOnMyReview). */
+export const SLACK_REVIEW_LOOKBACK_MS = 3 * 24 * 3600_000;
 /** A brief with connector reads in it takes longer than the contract's default. */
 export const RUN_TIMEOUT_MS = 180_000;
 /** The brief's own cap on its allowlist (runAgent takes more): every tool
@@ -385,17 +389,29 @@ const clock = at => (Number.isFinite(at) ? new Date(at).toISOString() : "never")
  * `is:thread with:<@me>` search returns exactly those replies, so the ask
  * names that search beside the DM one, and has each thread read whole, since
  * a reply that needs him often comes without a mention.
+ *
+ * Review requests in channels (owner, 2026-11-25): people ask for reviews in
+ * the team's channels all the time, mentioning nobody, and a brief that read
+ * only DMs, mentions and threads said nothing waited on him while three did.
+ * So the ask also searches the channels he is a member of
+ * (`only_my_channels`) for messages that link a pull request and ask for a
+ * review, SLACK_REVIEW_LOOKBACK_MS back. The model only finds the asks; gh
+ * decides which still wait on him (waitsOnMyReview, in run below).
  */
-function slackAsk(since, given) {
+function slackAsk(since, given, now = Date.now()) {
   const search = given.find(n => toolTail(n) === "slack_search_public_and_private");
   const thread = given.find(n => toolTail(n) === "slack_read_thread");
   const after = Number.isFinite(since) ? ` with "after" set to ${Math.floor(since / 1000)}` : "";
+  const reviewFrom = Math.min(Number.isFinite(since) ? since : now, now - SLACK_REVIEW_LOOKBACK_MS);
   const how = search ? [
     ` Search with ${search}${after}, sorted by timestamp: once with channel_types "im,mpim" for direct messages, and once with filters "is:thread with:<@MY_ID>" for replies in threads I started or took part in, where MY_ID is my Slack user id (the search tool's description names it).`,
     ...(thread ? [` Read each such thread with ${thread} to see whether the newest reply still waits on me.`] : []),
+    ` Then search for review requests in the channels I am a member of: with ${search}, only_my_channels true, channel_types "public_channel,private_channel", "after" set to ${Math.floor(reviewFrom / 1000)} and sorted by timestamp, once with keywords ["github.com"] and once with keywords ["review"].`,
   ].join("") : "";
   const rest = PROMPT_TOOLS.slack.map(tail => given.find(n => toolTail(n) === tail)).filter(n => n && n !== search && n !== thread);
   return `Slack: direct messages, mentions of me, and replies by others in threads I started or took part in, since ${clock(since)}, that still need an answer, a review or a decision from me. A reply that hands me something to review or answers my question counts even without a mention.`
+    + ` Also requests to review a pull request posted in channels I am a member of since ${clock(reviewFrom)}, from anyone, whether or not they mention me: a message linking https://github.com/<owner>/<repo>/pull/<n> that asks for a review, a look or an approval ("review", "PTAL", "can someone look", "👀" and the like).`
+    + ` Each is a "review" item in "waiting" with "url" set to the pull request's own link (not the Slack message's), "source" "slack", "person" who asked, the channel in "detail", and the message's time as "activityAt". Leave out pull requests I opened. Do not judge whether one is approved, merged or closed: the deck checks each with gh and drops those itself. Count them when you say what waits on me.`
     + how + (rest.length ? ` You may also use ${rest.join(", ")}.` : "");
 }
 
@@ -416,7 +432,7 @@ export function buildPrompt({ sessions, reach, tools = [], since, now = Date.now
   const want = [];
   if (reach.github === "on" && github?.status === "on" && github.activity) want.push("GitHub activity, from SINCE THE LAST BRIEF below: open the summary with what moved on my PRs and the ones I review (approvals, changes requested, comments, merges, CI). The deck puts the replies, merges and re-reviews it asks for on the to-do list itself.");
   if (reach.github === "on" && github?.status === "on") want.push("GitHub, from the GITHUB section below: a \"review\" item for each pull request where my review is requested; for my own, \"merge\" when it is approved with no failed or pending checks and not behind, \"fix\" when checks failed, it conflicts or it is behind its base, and \"reply\" when changes were requested. Use each one's updated time as \"activityAt\".");
-  if (reach.slack === "on") want.push(slackAsk(since, given));
+  if (reach.slack === "on") want.push(slackAsk(since, given, now));
   if (reach.jira === "on") want.push("Jira: my issues in the current sprint that are not done." + use("jira"));
   if (reach.jira === "on" && given.some(n => ["searchConfluence", "searchConfluenceUsingCql"].includes(toolTail(n)))) want.push(`Confluence: comments on my pages or mentions of me since ${clock(since)} that still need an answer.` + use("jira"));
   return [
@@ -610,6 +626,25 @@ export function createStatusBrief({ dir, agent, sessions, todo = null, github = 
           if (it.sessionId && !known.has(it.sessionId)) {
             if (it.url) delete it.sessionId; else list.splice(i, 1);
           }
+        }
+      }
+      // A review asked for in Slack goes on only while it still waits on me,
+      // as gh reads the PR (waitsOnMyReview): the model finds the asks, gh
+      // judges them. Each is linked by the PR's own address, which is what the
+      // Todo list keys it by and closes it on.
+      const asked = brief.waiting.filter(it => it.kind === "review" && it.source === "slack" && prUrlOf(it.url));
+      for (const it of asked) {
+        it.url = prUrlOf(it.url);
+        const dkey = dismissKeyOf({ url: it.url, kind: it.kind });
+        if (dkey) it.dkey = dkey;
+      }
+      if (asked.length && gh?.status === "on" && typeof github?.reviewViews === "function") {
+        let views = null;
+        try { views = await github.reviewViews(asked.map(it => it.url)); }
+        catch (err) { log(`status brief: the Slack review requests could not be checked with gh (${err?.message ?? err})`); }
+        if (views) {
+          const gone = new Set(asked.filter(it => !waitsOnMyReview(views.get(it.url) ?? null, gh.account)));
+          brief.waiting = brief.waiting.filter(it => !gone.has(it));
         }
       }
       // gh's own reading of the tracked PRs stands over the model's.
