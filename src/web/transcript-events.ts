@@ -13,7 +13,7 @@
 import { rootAgentId, subagentIdFor, type GraphState } from "./graph-state";
 import { EFFORT_LEVEL_RE } from "./payload-effort";
 import { usageByModelFromWire, usageFromWire } from "./usage-wire";
-import type { BackgroundJob, ContextBreakdown, HookPayload } from "./types";
+import type { BackgroundJob, ContextBreakdown, HookPayload, SessionWrap } from "./types";
 
 /** A breakdown that asserts nothing, for a root that has not been told anything
  *  about its context yet.
@@ -267,7 +267,28 @@ export function applySessionRecapped(state: GraphState, p: HookPayload, sessionI
     else if (r && typeof r.text === "string" && r.text.trim() && Number.isFinite(r.at)) {
       root.recap = { text: r.text.trim(), at: r.at };
     }
+    // The desktop app's end-of-turn call rides the same event. Its null is not
+    // read: a prompt retires it, and wrapShown holds that rule. Never backwards.
+    const w = wrapFromWire(p.wrap);
+    if (w && (!root.wrap || root.wrap.at <= w.at)) root.wrap = w;
   }
+}
+
+/** The wire's wrap, checked: a malformed one says nothing. */
+function wrapFromWire(w: unknown): SessionWrap | null {
+  if (!w || typeof w !== "object") return null;
+  const v = w as Record<string, unknown>;
+  if (typeof v.at !== "number" || !Number.isFinite(v.at)) return null;
+  const str = (x: unknown) => (typeof x === "string" && x.trim() ? x.trim() : null);
+  const recap = str(v.recap);
+  const a = v.ask && typeof v.ask === "object" ? v.ask as Record<string, unknown> : null;
+  const ask = a ? {
+    question: str(a.question),
+    choices: Array.isArray(a.choices) ? a.choices.map(str).filter((c): c is string => !!c).slice(0, 4) : [],
+    blocked: a.blocked === true,
+  } : null;
+  if (!recap && !ask) return null;
+  return { id: str(v.id), at: v.at, recap, ask };
 }
 
 /** ActivityObserved carries what the session's newest reply says it is doing —

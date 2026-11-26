@@ -335,6 +335,11 @@ export interface AgentNodeData {
    *  server last read it. Whether it still describes the session is a question
    *  for session-recap.ts, which every surface that draws it asks. */
   recap?: SessionRecap;
+  /** The desktop app's end-of-turn call (src/server/session-wrap.mjs): the
+   *  session's own recap, and the question it stopped on. Root only — the
+   *  newest one, as the server last read it. Whether a prompt has answered it
+   *  is session-recap.ts's wrapShown, which every surface that draws it asks. */
+  wrap?: SessionWrap;
   /** The task list this agent keeps for itself, as its own calls last left it
    *  (#2157) — TodoWrite's and update_plan's on the agent that made them, the
    *  Task tools' on the session's root, whose list its subagents share. Absent
@@ -606,6 +611,21 @@ export interface AgentPlan {
   note?: string;
 }
 
+/** The Claude desktop app's end-of-turn call, as a page can show it — see
+ *  src/server/session-wrap.mjs. */
+export interface SessionWrap {
+  /** The call's tool_use id, which the server's two roads agree on. */
+  id: string | null;
+  /** When the call was made: the transcript line's own timestamp, epoch ms. */
+  at: number;
+  /** Where the session says it stands, in two or three sentences. */
+  recap: string | null;
+  /** The decision the turn left the person, when it left one. `blocked`: the
+   *  session's work stops until they answer. A blocked turn may put its
+   *  question in its closing message instead (question null). */
+  ask: { question: string | null; choices: string[]; blocked: boolean } | null;
+}
+
 /** Claude Code's recap of a session — the "※ recap:" line, as a card can show
  *  it (the terminal's "(disable recaps in /config)" taken off) — and when
  *  Claude Code wrote it. See src/server/session-recap.mjs. */
@@ -749,6 +769,10 @@ export interface HookPayload {
   /** Claude-only, on the synthetic `SessionRecapped`: Claude Code's recap as the
    *  transcript last showed it, or null once a later turn has retired it. */
   recap?: SessionRecap | null;
+  /** Claude-only, on the synthetic `SessionRecapped`: the desktop app's
+   *  end-of-turn call as the transcript last showed it, or null once a prompt
+   *  answered it. */
+  wrap?: SessionWrap | null;
   /** Claude-only, on the synthetic `ActivityObserved`: what the session's newest
    *  reply says it is doing (src/server/session-activity.mjs). Never null — the
    *  next prompt is what retires it, and the client holds that rule. */

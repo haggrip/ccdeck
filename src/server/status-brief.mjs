@@ -394,7 +394,12 @@ export function sessionDigest(rows, envelopes, { now = Date.now(), maxRows = 30,
       project: r.project ?? null,
       state: seen?.failed && r.state !== "working" && r.state !== "waiting" ? "failed" : r.state,
       since: r.since ?? null,
-      question: r.waiting && r.waiting.kind !== "idle" ? text(r.waiting.message, 200) || null : null,
+      question: r.waiting && r.waiting.kind !== "idle" ? text(r.waiting.message, 200) || null
+        : r.wrap?.ask?.question ? text(r.wrap.ask.question, 200) : null,
+      // Where the session says it stands, in its own end-of-turn words
+      // (session-wrap.mjs), which say more than the prompt that started it.
+      recap: r.wrap?.recap ? text(r.wrap.recap, 300) : null,
+      blocked: r.wrap?.ask?.blocked === true,
       prompt: seen?.prompt ? text(seen.prompt, 240) : null,
     });
     if (out.length >= maxRows) break;
@@ -478,8 +483,8 @@ export function buildPrompt({ sessions, reach, tools = [], since, now = Date.now
   };
   const lines = sessions.length
     ? sessions.map(s => `- [${s.id}] ${s.name ?? "(unnamed)"} · ${s.project ?? "?"} · ${s.state} since ${clock(s.since)}`
-      + (s.question ? ` · asks: ${JSON.stringify(s.question)}` : "")
-      + (s.prompt ? ` · last prompt: ${JSON.stringify(s.prompt)}` : ""))
+      + (s.question ? ` · ${s.blocked ? "stopped until I answer" : "asks"}: ${JSON.stringify(s.question)}` : "")
+      + (s.recap ? ` · where it stands: ${JSON.stringify(s.recap)}` : s.prompt ? ` · last prompt: ${JSON.stringify(s.prompt)}` : ""))
     : ["- (no sessions on this deck right now)"];
   const want = [];
   if (reach.github === "on" && github?.status === "on" && github.activity) want.push("GitHub activity, from SINCE THE LAST BRIEF below: open the summary with what moved on my PRs and the ones I review (approvals, changes requested, comments, merges, CI). The deck puts the replies, merges and re-reviews it asks for on the to-do list itself.");
@@ -505,7 +510,7 @@ export function buildPrompt({ sessions, reach, tools = [], since, now = Date.now
     "",
     `NOW: ${clock(now)}`,
     "",
-    "SESSIONS ON THIS DECK (id, name, project, state, since, standing question, last prompt):",
+    "SESSIONS ON THIS DECK (id, name, project, state, since, standing question, where the session says it stands or else my last prompt):",
     ...lines,
     "",
     ...(given.length

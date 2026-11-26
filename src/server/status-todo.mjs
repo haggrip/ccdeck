@@ -35,6 +35,7 @@ import { mkdir, readFile, chmod } from "node:fs/promises";
 import { createHash, randomBytes } from "node:crypto";
 import { join } from "node:path";
 import { writeFileAtomic } from "./atomic-write.mjs";
+import { wrapKey } from "./session-wrap.mjs";
 
 export const TODO_DIR = "status-todo";
 export const TODO_FILE = "todos.json";
@@ -362,7 +363,23 @@ export function prune(store, now) {
  * (desktop-sessions.mjs). One of them that is not in `rows` was put away, so
  * what the deck and the brief added for it closes, and says so; what the user
  * or a session wrote stays theirs.
+ *
+ * A session that ended its turn blocked on a question (the desktop app's
+ * end-of-turn call, session-wrap.mjs) is a "decide" item, keyed by the call, so
+ * the next question is a new item. It closes when the session moves on: a new
+ * call, a turn running, the session closed or gone. Unlike a wait, a long
+ * silence does not close it: a question left overnight still waits. And the
+ * deck's own close is not final: a session that shows the same question again
+ * (the deck restarted, and its rows came back before the transcript said what
+ * the session asked) opens its item again.
  */
+/** The question a session's row says it stopped on, or null: a blocked ask,
+ *  from a turn that is over (the call lands just before the turn's Stop). */
+function askOf(r) {
+  const ask = r?.wrap?.ask;
+  return ask?.blocked && r.state !== "working" ? ask : null;
+}
+
 export function reconcileDeck(store, rows, digest, now, { archived = null } = {}) {
   let changed = false;
   const ARCHIVED = "Archived in Claude Desktop";
@@ -379,6 +396,23 @@ export function reconcileDeck(store, rows, digest, now, { archived = null } = {}
         link,
       }, now);
       if (added) changed = true;
+    }
+    const asks = askOf(r);
+    if (asks) {
+      const key = `session:${r.id}:ask:${wrapKey(r.wrap)}`;
+      const had = byKey(store, key);
+      if (had) {
+        // The deck's close only: one the person made (closed, dismissed) stands.
+        if (had.state === "closed" && had.closedBy === "deck") changed = reopenItem(had, now) || changed;
+      } else {
+        const choices = asks.choices.length ? ` (${asks.choices.join(" · ")})` : "";
+        const added = addItem(store, {
+          key, origin: "deck", kind: "decide", title: name,
+          detail: `${asks.question ?? r.wrap.recap ?? "Stopped until you answer"}${choices}`,
+          link,
+        }, now);
+        if (added) changed = true;
+      }
     }
     const f = failed.get(r.id);
     if (f && r.state !== "working" && r.state !== "waiting" && r.state !== "ended") {
@@ -405,6 +439,13 @@ export function reconcileDeck(store, rows, digest, now, { archived = null } = {}
       else if (r.state === "ended") changed = closeItem(item, { by: "deck", reason: "The session ended", now }) || changed;
       else if (!(r.state === "waiting" && r.waiting && r.waiting.kind === kind && String(r.waiting.since) === since)) {
         changed = closeItem(item, { by: "deck", reason: "Answered: the session moved on", now }) || changed;
+      }
+    } else if (item.origin === "deck" && key.startsWith(`session:${sid}:ask:`)) {
+      if (!r) changed = closeItem(item, { by: "deck", reason: "The session is no longer on the board", now }) || changed;
+      else if (!(askOf(r) && key === `session:${sid}:ask:${wrapKey(r.wrap)}`)) {
+        // A row keeps its call through a silence, and loses it to a prompt or
+        // to the session closing: ended with none is the second.
+        changed = closeItem(item, { by: "deck", reason: r.state === "ended" && !r.wrap ? "The session ended" : "Answered: the session moved on", now }) || changed;
       }
     } else if (item.origin === "deck" && key.startsWith(`session:${sid}:failed:`)) {
       if (!r) changed = closeItem(item, { by: "deck", reason: "The session is no longer on the board", now }) || changed;
