@@ -29,6 +29,8 @@ import { isOverdue, isSnoozed, openerOf, splitOpen, tomorrowMorning, whenShort, 
 import { inDesktop, type DesktopLinks } from "../desktop-links";
 import { useStatusBrief, type StatusBriefHandle } from "../use-status-brief";
 import { useStatusTodo, type StatusTodoHandle } from "../use-status-todo";
+import { NO_LINKS, prStateWords, prTone, type SessionLinks, type SessionLinksView } from "../session-links";
+import { useSessionLinks } from "../use-session-links";
 import { rank, type Row } from "./SessionList";
 
 export const MISSION_ID = "mission";
@@ -79,12 +81,14 @@ export function DesktopButton({ label, onPress, compact = false }: { label: stri
   );
 }
 
-function Task({ item, now, sessions, desktop, onOpenSession, onOpenDesktop, act, dismiss, t }: {
+function Task({ item, now, sessions, desktop, linked, onOpenSession, onOpenDesktop, act, dismiss, t }: {
   item: TodoItem; now: number; sessions: ReadonlySet<string>; desktop: DesktopLinks;
+  /** The session its PR or ticket is worked on in (session-links.ts). */
+  linked?: string;
   onOpenSession: (id: string) => void; onOpenDesktop: (id: string) => void;
   act: StatusTodoHandle["act"]; dismiss: StatusTodoHandle["dismiss"]; t: TFunction;
 }) {
-  const open = openerOf(item, sessions, desktop);
+  const open = openerOf(item, sessions, desktop, linked);
   const snoozed = isSnoozed(item, now);
   const overdue = isOverdue(item, now);
   const src = sourceOf(item, !!open.desktop && !open.href);
@@ -169,8 +173,37 @@ const LIVE_MSGS = {
   waiting: "brief.mission.live.waiting", failed: "brief.mission.live.failed", working: "brief.mission.live.working", unread: "brief.mission.live.unread",
 } as const;
 
-function Live({ rows, desktop, onOpenSession, onOpenDesktop, t }: {
-  rows: readonly Row[]; desktop: DesktopLinks; onOpenSession: (id: string) => void; onOpenDesktop: (id: string) => void; t: TFunction;
+/** A session's PRs and tickets, each a chip that opens its page, on a line of
+ *  its own under the session's row (session-links.ts). A PR's colour is its
+ *  state as the brief's gh reads last saw it, and its title says it. */
+export function SessionChips({ links, t }: { links: SessionLinks | undefined; t: TFunction }) {
+  if (!links || (!links.prs.length && !links.keys.length)) return null;
+  return (
+    <ul className="mi-live-links" role="list" aria-label={t("brief.mission.links")}>
+      {links.prs.map(pr => {
+        const name = pr.repo && pr.number != null ? `${pr.repo}#${pr.number}` : pr.url;
+        const title = [name, ...prStateWords(pr).map(k => t(k))].join(" · ");
+        return (
+          <li key={pr.url}>
+            <a className="mi-chip" data-kind="pr" data-tone={prTone(pr) ?? undefined} href={pr.url} target="_blank" rel="noreferrer noopener" title={title} aria-label={title}>
+              {pr.number != null ? `#${pr.number}` : name}
+            </a>
+          </li>
+        );
+      })}
+      {links.keys.map(k => (
+        <li key={k.key}>
+          {k.url
+            ? <a className="mi-chip" data-kind="ticket" href={k.url} target="_blank" rel="noreferrer noopener" title={k.key}>{k.key}</a>
+            : <span className="mi-chip" data-kind="ticket">{k.key}</span>}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function Live({ rows, desktop, links, onOpenSession, onOpenDesktop, t }: {
+  rows: readonly Row[]; desktop: DesktopLinks; links: SessionLinksView; onOpenSession: (id: string) => void; onOpenDesktop: (id: string) => void; t: TFunction;
 }) {
   const live = rows.map(r => ({ r, s: liveState(r) })).filter((x): x is { r: Row; s: LiveState } => x.s != null)
     .sort((a, b) => LIVE_ORDER.indexOf(a.s) - LIVE_ORDER.indexOf(b.s) || b.r.lastActivity - a.r.lastActivity);
@@ -198,6 +231,7 @@ function Live({ rows, desktop, onOpenSession, onOpenDesktop, t }: {
                 {r.wrap?.recap && <span className="mi-live-detail mi-live-recap" title={r.wrap.recap}>{r.wrap.recap}</span>}
               </button>
               {app && <DesktopButton label={t("brief.open.desktop")} onPress={() => onOpenDesktop(r.sessionId)} />}
+              <SessionChips links={links.sessions[r.sessionId]} t={t} />
             </li>
             );
           })}
@@ -242,16 +276,19 @@ export interface MissionProps {
   onOpenSession: (sessionId: string) => void;
   /** Brought up in the Claude desktop app. */
   onOpenDesktop: (sessionId: string) => void;
+  /** Each session's PRs and tickets, and the session each item is about. */
+  links?: SessionLinksView;
 }
 
 /** The page as App mounts it, with its own line to the deck. */
 export default function MissionView(props: MissionProps) {
   const brief = useStatusBrief();
   const todo = useStatusTodo();
-  return <MissionPage {...props} brief={brief} todo={todo} />;
+  const links = useSessionLinks();
+  return <MissionPage {...props} brief={brief} todo={todo} links={links} />;
 }
 
-export function MissionPage({ rows, now, desktop, onOpenSession, onOpenDesktop, brief, todo }: MissionProps & { brief: StatusBriefHandle; todo: StatusTodoHandle }) {
+export function MissionPage({ rows, now, desktop, onOpenSession, onOpenDesktop, links = NO_LINKS, brief, todo }: MissionProps & { brief: StatusBriefHandle; todo: StatusTodoHandle }) {
   const t = useT();
   const [draft, setDraft] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -340,10 +377,10 @@ export function MissionPage({ rows, now, desktop, onOpenSession, onOpenDesktop, 
             {keeperFailed && <p className="mi-flag">{t("brief.todo.keeperFailed", { message: keeperFailed.message || keeperFailed.code })}</p>}
 
             <Group id="mi-now" tone="now" title={t("brief.section.waiting")} items={waiting} empty={t("brief.mission.clear")}>
-              {waiting.map(i => <Task key={i.id} item={i} {...rest} />)}
+              {waiting.map(i => <Task key={i.id} item={i} linked={links.items[i.id]} {...rest} />)}
             </Group>
             <Group id="mi-next" tone="next" title={t("brief.section.todo")} items={next} empty={t("brief.section.empty")}>
-              {next.map(i => <Task key={i.id} item={i} {...rest} />)}
+              {next.map(i => <Task key={i.id} item={i} linked={links.items[i.id]} {...rest} />)}
             </Group>
             {closed.length > 0 && (
               <details className="mi-closed">
@@ -361,7 +398,7 @@ export function MissionPage({ rows, now, desktop, onOpenSession, onOpenDesktop, 
           </div>
 
           <aside className="mi-side" aria-label={t("brief.mission.context")}>
-            <Live rows={rows} desktop={desktop} onOpenSession={onOpenSession} onOpenDesktop={onOpenDesktop} t={t} />
+            <Live rows={rows} desktop={desktop} links={links} onOpenSession={onOpenSession} onOpenDesktop={onOpenDesktop} t={t} />
             {b?.activity && b.reach?.github === "on" && <div className="mi-card"><Since activity={b.activity} t={t} /></div>}
             <TalkTo items={talkTo} onOpenSession={onOpenSession} onDismiss={todo.dismiss ? it => todo.dismiss!({ item: it }) : undefined} t={t} />
             <div className="mi-card"><People people={people} onPerson={brief.person} t={t} /></div>

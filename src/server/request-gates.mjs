@@ -453,6 +453,8 @@ export const GUARDED_READS = new Set([
   "/api/status-brief",
   // The live Todo list: the same class of secret, plus the user's own notes.
   "/api/status-todo",
+  // The PRs and tickets each session works on (session-links-routes.mjs).
+  "/api/session-links",
   "/api/claude-accounts",
   // Reveals the local machine's Codex profile roster, even though paths and
   // credentials are deliberately omitted from the response.

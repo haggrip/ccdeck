@@ -33,7 +33,8 @@ export function loadAgent(env = process.env) {
 }
 
 let brief = null;
-function statusBrief() {
+/** The deck's one brief, made the first time it is wanted. */
+export function statusBrief() {
   brief ??= createStatusBrief({
     dir: deckDataDir(),
     agent: () => loadAgent(),

@@ -343,7 +343,9 @@ export function createGitHubReader({ run = execRunner, exists = canExec, now = (
 
     // One view per PR: my own (for checks, review and mergeability), and the
     // Todo list's (for what settles them), each read once.
-    const view = "state,reviewDecision,mergeable,mergeStateStatus,statusCheckRollup,isDraft,updatedAt,mergedAt";
+    // headRefName: the branch, which links a PR to the session on it
+    // (session-links.mjs).
+    const view = "state,reviewDecision,mergeable,mergeStateStatus,statusCheckRollup,isDraft,updatedAt,mergedAt,headRefName";
     const watched = [...new Set((Array.isArray(watch) ? watch : []).filter(u => typeof u === "string" && PR_URL.test(u)))].slice(0, MAX_WATCH);
     const urls = [...new Set([...mineRows.slice(0, MAX_VIEWS).map(r => r.url), ...watched])];
     const views = new Map();
@@ -362,6 +364,7 @@ export function createGitHubReader({ run = execRunner, exists = canExec, now = (
         mergeable: ["MERGEABLE", "CONFLICTING", "UNKNOWN"].includes(v.mergeable) ? v.mergeable : null,
         mergeState: /^[A-Z_]{1,20}$/.test(v.mergeStateStatus ?? "") ? v.mergeStateStatus : null,
         updatedAt: iso(v.updatedAt) ?? r.updatedAt,
+        ...(branchName(v.headRefName) ? { branch: v.headRefName } : {}),
       };
     });
     const linkStates = [];
@@ -386,6 +389,32 @@ export function createGitHubReader({ run = execRunner, exists = canExec, now = (
   }
 
   return { read, reviewViews };
+}
+
+/** A git branch's name as gh gives it, or null. */
+function branchName(v) {
+  return typeof v === "string" && v.length <= 255 && /^[^\s\0~^:?*[\\]+$/.test(v) ? v : null;
+}
+
+/**
+ * My open PRs as the brief keeps them, for the chips on Mission's live
+ * sessions (session-links.mjs): the address, title and branch, draft, the
+ * review decision and the checks counted. `mine` is read()'s.
+ */
+export function normalisePrs(mine) {
+  const out = [];
+  for (const r of Array.isArray(mine) ? mine : []) {
+    if (typeof r?.url !== "string" || !PR_URL.test(r.url)) continue;
+    const n = v => (Number.isInteger(v) && v >= 0 ? Math.min(v, 999) : 0);
+    out.push({
+      url: r.url, title: text(r.title, MAX_TITLE), draft: r.draft === true,
+      ...(branchName(r.branch) ? { branch: r.branch } : {}),
+      ...(["APPROVED", "CHANGES_REQUESTED", "REVIEW_REQUIRED"].includes(r.review) ? { review: r.review } : {}),
+      ...(r.checks && typeof r.checks === "object" ? { checks: { passed: n(r.checks.passed), failed: n(r.checks.failed), pending: n(r.checks.pending) } } : {}),
+    });
+    if (out.length >= MAX_SEARCH) break;
+  }
+  return out;
 }
 
 /** The GitHub section of the brief's prompt: what gh read, as data. */

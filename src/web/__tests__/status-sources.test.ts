@@ -36,7 +36,7 @@ function fakeGh(over: Record<string, () => unknown> = {}) {
     ]),
     [`view ${MINE}`]: () => ok({ state: "OPEN", reviewDecision: "APPROVED", mergeable: "MERGEABLE", mergeStateStatus: "BEHIND", statusCheckRollup: [
       { __typename: "CheckRun", status: "COMPLETED", conclusion: "SUCCESS" }, { __typename: "CheckRun", status: "COMPLETED", conclusion: "FAILURE" }, { __typename: "StatusContext", state: "PENDING" },
-    ], updatedAt: "2026-11-24T09:30:00Z" }),
+    ], updatedAt: "2026-11-24T09:30:00Z", headRefName: "dis-412-webhook-retries" }),
     [`view ${TRACKED}`]: () => ok({ state: "MERGED", mergedAt: "2026-11-24T07:00:00Z", reviewDecision: "APPROVED", statusCheckRollup: [] }),
     ...over,
   };
@@ -72,7 +72,7 @@ describe("the gh reader", () => {
     expect(r.review).toEqual([{ url: OTHERS, repo: "acme/infra", number: 31, title: "Rotate keys", author: "dana", updatedAt: "2026-11-24T08:00:00.000Z", draft: false }]);
     // A row whose URL is not a GitHub PR is dropped.
     expect(r.mine).toHaveLength(1);
-    expect(r.mine[0]).toMatchObject({ url: MINE, review: "APPROVED", checks: { passed: 1, failed: 1, pending: 1 }, mergeable: "MERGEABLE", mergeState: "BEHIND" });
+    expect(r.mine[0]).toMatchObject({ url: MINE, review: "APPROVED", checks: { passed: 1, failed: 1, pending: 1 }, mergeable: "MERGEABLE", mergeState: "BEHIND", branch: "dis-412-webhook-retries" });
     expect(r.linkStates).toEqual([{ url: TRACKED, state: "merged" }]);
     // Fixed argument vectors only, the URLs handed over only in their one shape.
     const argv = gh.calls.map(c => c.args.join(" "));
@@ -80,8 +80,8 @@ describe("the gh reader", () => {
       "api user --jq .login",
       "search prs --review-requested=@me --state=open --json number,title,url,repository,author,updatedAt,isDraft --limit 20",
       "search prs --author=@me --state=open --json number,title,url,repository,author,updatedAt,isDraft --limit 20",
-      `pr view ${MINE} --json state,reviewDecision,mergeable,mergeStateStatus,statusCheckRollup,isDraft,updatedAt,mergedAt`,
-      `pr view ${TRACKED} --json state,reviewDecision,mergeable,mergeStateStatus,statusCheckRollup,isDraft,updatedAt,mergedAt`,
+      `pr view ${MINE} --json state,reviewDecision,mergeable,mergeStateStatus,statusCheckRollup,isDraft,updatedAt,mergedAt,headRefName`,
+      `pr view ${TRACKED} --json state,reviewDecision,mergeable,mergeStateStatus,statusCheckRollup,isDraft,updatedAt,mergedAt,headRefName`,
     ]));
     expect(argv.some(a => a.includes("--web") || a.includes("--help") || a.includes("evil"))).toBe(false);
     expect(gh.calls.every(c => c.file === "gh")).toBe(true);
@@ -147,9 +147,12 @@ describe("the brief with gh", () => {
     // gh's "merged" stands over the model's "open"; the model's ticket state stays.
     expect(view.brief?.linkStates).toEqual([{ url: "https://x.atlassian.net/browse/T-1", state: "done" }, { url: TRACKED, state: "merged" }]);
     expect((seen[0] as { linkStates: unknown[] }).linkStates).toEqual(view.brief?.linkStates);
-    // The account survives a restart.
+    // My open PRs are kept for the sessions' PR chips (session-links.mjs).
+    expect((view.brief as { prs?: unknown }).prs).toEqual([{ url: MINE, title: "Webhook retries", draft: false, branch: "dis-412-webhook-retries", review: "APPROVED", checks: { passed: 1, failed: 1, pending: 1 } }]);
+    // The account survives a restart, and so do the PRs.
     const again = createStatusBrief({ dir, agent: async () => fake.agent, sessions: SESSIONS, now: () => 1000 });
     expect((await again.view()).brief?.ghAccount).toBe("haggrip");
+    expect(((await again.view()).brief as { prs?: unknown[] }).prs).toHaveLength(1);
   });
 
   it("says why GitHub is missing, and never runs gh while the source is off", async () => {

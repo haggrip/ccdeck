@@ -37,7 +37,7 @@ import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { writeFileAtomic } from "./atomic-write.mjs";
 import { LINK_STATES, dismissKeyOf } from "./status-todo.mjs";
-import { FIRST_SINCE_MS, MAX_SINCE_MS, PR_URL, activityPromptLines, githubPromptLines, normaliseActivity, prUrlOf, reviewSettledBy } from "./status-gh.mjs";
+import { FIRST_SINCE_MS, MAX_SINCE_MS, PR_URL, activityPromptLines, githubPromptLines, normaliseActivity, normalisePrs, prUrlOf, reviewSettledBy } from "./status-gh.mjs";
 
 export const BRIEF_FILE = "status-brief.json";
 export const MODELS = Object.freeze(["haiku", "sonnet", "opus"]);
@@ -344,6 +344,7 @@ export function normaliseStore(raw) {
       ...normaliseBrief(b), at: b.at, model: MODELS.includes(b.model) ? b.model : null, reach: normaliseReach(b.reach),
       ...(typeof b.ghAccount === "string" && /^[A-Za-z0-9-]{1,39}$/.test(b.ghAccount) ? { ghAccount: b.ghAccount } : {}),
       ...(normaliseActivity(b.activity) ? { activity: normaliseActivity(b.activity) } : {}),
+      ...(normalisePrs(b.prs).length ? { prs: normalisePrs(b.prs) } : {}),
     } : null,
     lastRunAt: Number.isFinite(r.lastRunAt) ? r.lastRunAt : null,
     failures: Number.isInteger(r.failures) && r.failures > 0 ? Math.min(r.failures, 99) : 0,
@@ -731,6 +732,9 @@ export function createStatusBrief({ dir, agent, sessions, todo = null, github = 
         ...brief, at: now(), model: s.settings.model, reach,
         ...(gh?.status === "on" && gh.account ? { ghAccount: gh.account } : {}),
         ...(activity ? { activity } : {}),
+        // My open PRs as gh read them, for the sessions' PR chips
+        // (session-links.mjs).
+        ...(gh?.status === "on" && normalisePrs(gh.mine).length ? { prs: normalisePrs(gh.mine) } : {}),
       };
       s.error = null;
       s.failures = 0;

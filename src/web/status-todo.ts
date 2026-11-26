@@ -75,13 +75,18 @@ export const isOverdue = (i: TodoItem, now: number) => !!i.due && i.due < now;
 /** Where an item opens: its session in the Claude desktop app when the app
  *  runs it, else its session's card, its page, or nothing but its project's
  *  name. A session the board no longer has keeps its project, and its card
- *  stays on offer beside the app's link while the board has it. */
-export function openerOf(i: TodoItem, sessions: ReadonlySet<string>, desktop?: DesktopLinks | null): { session?: string; href?: string; desktop?: string; project?: string } {
+ *  stays on offer beside the app's link while the board has it.
+ *
+ *  `linked` is the session the item's PR or ticket is worked on in, when the
+ *  item names none itself (session-links.ts): it adds that session's desktop
+ *  link and nothing else, so the title still opens the PR or ticket. */
+export function openerOf(i: TodoItem, sessions: ReadonlySet<string>, desktop?: DesktopLinks | null, linked?: string | null): { session?: string; href?: string; desktop?: string; project?: string } {
   const href = safeHref(i.link?.url ?? null) ?? undefined;
   const session = i.link?.sessionId && sessions.has(i.link.sessionId) ? i.link.sessionId : undefined;
   // The Claude Code session the desktop app runs: the deck opens it there
   // (desktop-links.ts openInDesktop).
-  const app = desktopHref(i.link?.sessionId, desktop) ? i.link!.sessionId : undefined;
+  const app = desktopHref(i.link?.sessionId, desktop) ? i.link!.sessionId
+    : !i.link?.sessionId && linked && desktopHref(linked, desktop) ? linked : undefined;
   return { ...(session ? { session } : {}), ...(href ? { href } : {}), ...(app ? { desktop: app } : {}), ...(i.link?.project ? { project: i.link.project } : {}) };
 }
 
