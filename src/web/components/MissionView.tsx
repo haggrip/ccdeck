@@ -156,6 +156,9 @@ function Group({ id, tone, title, items, empty, children }: { id: string; tone: 
 type LiveState = "waiting" | "failed" | "working" | "unread";
 export function liveState(r: Row): LiveState | null {
   if (r.waiting && r.waiting.kind !== "idle") return "waiting";
+  // Stopped on a question (the desktop app's end-of-turn call): it waits on the
+  // person as surely as a permission prompt does.
+  if (r.wrap?.ask?.blocked && rank(r) !== 2) return "waiting";
   if (r.state === "err" && r.unseen) return "failed";
   if (rank(r) === 2) return "working";
   if (r.unseen && r.turnEndedAt != null) return "unread";
@@ -187,6 +190,12 @@ function Live({ rows, desktop, onOpenSession, onOpenDesktop, t }: {
                 <span className="mi-live-name">{r.label}</span>
                 <span className="mi-live-state">{t(LIVE_MSGS[s])}</span>
                 {r.waiting?.message && s === "waiting" && <span className="mi-live-detail">{r.waiting.message}</span>}
+                {/* Where the session says it stands, and what it asked: its own
+                    end-of-turn words, until a prompt answers them. */}
+                {r.wrap?.ask?.question && !(r.waiting?.message && s === "waiting") && (
+                  <span className="mi-live-detail mi-live-ask" title={r.wrap.ask.question}>{r.wrap.ask.question}</span>
+                )}
+                {r.wrap?.recap && <span className="mi-live-detail mi-live-recap" title={r.wrap.recap}>{r.wrap.recap}</span>}
               </button>
               {app && <DesktopButton label={t("brief.open.desktop")} onPress={() => onOpenDesktop(r.sessionId)} />}
             </li>

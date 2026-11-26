@@ -20,6 +20,7 @@ import { join } from "node:path";
 import { scanAgentsMdFiles, scanClaudeMdFiles } from "./memory-files.mjs";
 // Claude Code's "※ recap:" line — see session-recap.mjs.
 import { RECAP_MARK } from "./session-recap.mjs";
+import { WRAP_MARK, wrapKey } from "./session-wrap.mjs";
 // What the session is doing now, folded off the same tail — see
 // session-activity.mjs.
 import { foldActivityLine, newActivityState } from "./session-activity.mjs";
@@ -443,7 +444,7 @@ async function readSessionNamingFromTranscript(path) {
   const naming = (name || state.aiTitle)
     ? { name: name ?? null, aiTitle: state.aiTitle }
     : null;
-  return { naming, recap: state.recap ?? null };
+  return { naming, recap: state.recap ?? null, wrap: state.wrap ?? null };
 }
 
 function maybeResolveSessionName(payload) {
@@ -453,7 +454,7 @@ function maybeResolveSessionName(payload) {
   nameReads.run(sid, () => readSessionNamingFromTranscript(tp)
     .then(read => {
       if (!read) return;
-      noteRecap(sid, read.recap);
+      noteRecap(sid, read.recap, read.wrap);
       noteNaming(sid, read.naming);
     }));
 }
@@ -539,27 +540,33 @@ function maybeAnnounceDeckName(payload, provider) {
 // every tail it reads to `onRecapTail`, and a tail carrying a recap asks the
 // cursor to fold the file. The cursor stays the one place the rule lives: a
 // recap a later turn retired is retired whichever road found it.
-const recapBySession = new Map();       // sid -> `${at}` last sent, "" once retired
+//
+// The desktop app's end-of-turn call (session-wrap.mjs) rides the same event as
+// `wrap`, through the same gate: the signature is the pair, so a new call with
+// the recap unchanged is said, and every event carries both as they stand.
+const recapBySession = new Map();       // sid -> `${recap at}|${wrap key}` last sent, "" once both retired
 
-function noteRecap(sid, recap) {
-  const sig = recap ? String(recap.at) : "";
+function noteRecap(sid, recap, wrap = null) {
+  const sig = recap || wrap ? `${recap ? recap.at : ""}|${wrapKey(wrap)}` : "";
   const prev = recapBySession.get(sid);
   if (prev === sig) return;
-  if (prev === undefined && !recap) return;
+  if (prev === undefined && !recap && !wrap) return;
   recapBySession.set(sid, sig);
   pushEvent({
     hook_event_name: "SessionRecapped",
     session_id: sid,
     recap: recap ? { text: recap.text, at: recap.at } : null,
+    wrap: wrap ? { id: wrap.id, at: wrap.at, recap: wrap.recap, ask: wrap.ask } : null,
   }, "internal");
 }
 
-/** The output watch's tap. Only a tail carrying the recap mark costs a scan,
- *  and the scan is the cursor's own: it folds the bytes it has not seen yet. */
+/** The output watch's tap. Only a tail carrying the recap mark, or the desktop
+ *  app's end-of-turn call, costs a scan, and the scan is the cursor's own: it
+ *  folds the bytes it has not seen yet. */
 function onRecapTail(sid, text, path) {
-  if (!path || !text.includes(RECAP_MARK)) return;
+  if (!path || (!text.includes(RECAP_MARK) && !text.includes(WRAP_MARK))) return;
   scanTranscript(path)
-    .then(state => { if (state) noteRecap(sid, state.recap ?? null); })
+    .then(state => { if (state) noteRecap(sid, state.recap ?? null, state.wrap ?? null); })
     .catch(() => {});
 }
 

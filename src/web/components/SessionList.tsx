@@ -14,8 +14,9 @@ import { isAlarming } from "../ambient-counts";
 import { useT } from "../i18n";
 import { agentCost } from "../usage-models";
 import type { GraphState } from "../reducer";
-import type { BackgroundJob, Provider, SessionRecap, WaitingBlock } from "../types";
+import type { BackgroundJob, Provider, SessionRecap, SessionWrap, WaitingBlock } from "../types";
 import { sessionNoteShown, type SessionNote } from "../session-note";
+import { wrapShown } from "../session-recap";
 import { drawnState, neverPrompted } from "../node-face";
 import { isAgentVisible } from "../visibility";
 import { withKey } from "../single-key-shortcuts";
@@ -55,6 +56,10 @@ export interface Row {
    *  last, or a background job's question, headline or failure. Same rule;
    *  null whenever the recap speaks instead, or nothing has been said. */
   status?: SessionNote | null;
+  /** The desktop app's end-of-turn call while no prompt has answered it
+   *  (wrapShown): the session's own recap, and the question it stopped on.
+   *  Absent on every other row, which keeps exactly the shape it had. */
+  wrap?: SessionWrap;
   /** The model for Board cards and noncompact rows. Workspace compact rows
    *  keep provider identity in the avatar. */
   modelId?: string;
@@ -187,6 +192,7 @@ export function buildRows(state: GraphState, now: number, watching?: ReadonlySet
     const recap = note?.kind === "recap" ? { text: note.text, at: note.at } : null;
     const status = note && note.kind !== "recap" ? note : null;
     const ended = turnEndedAt(a);
+    const wrap = wrapShown(a);
     // Named as every surface names it (rail-row-copy.ts sessionNames).
     const { title: label, folder, task } = sessionNames(a);
     rows.push({
@@ -199,6 +205,7 @@ export function buildRows(state: GraphState, now: number, watching?: ReadonlySet
       waiting: a.waiting,
       recap,
       status,
+      ...(wrap ? { wrap } : {}),
       modelId: a.model,
       // The board's provider, so an opencode or Copilot row wears its own
       // avatar and name, never Claude's.

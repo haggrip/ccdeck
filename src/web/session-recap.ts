@@ -6,7 +6,7 @@
 // the model has written a line, and a recap that outlived the person's answer
 // would describe a session that has already moved on. So the card, the session
 // list and the detail panel ask this one question, and ask it the same way.
-import type { AgentNodeData, SessionRecap } from "./types";
+import type { AgentNodeData, SessionRecap, SessionWrap } from "./types";
 
 type RecapBearing = Pick<AgentNodeData, "kind" | "recap" | "prompts" | "state" | "closedAt">;
 
@@ -29,4 +29,20 @@ export function recapShown(a: RecapBearing): SessionRecap | null {
   if (a.state === "active" || a.closedAt != null) return null;
   for (const p of a.prompts) if (p.at > recap.at) return null;
   return recap;
+}
+
+type WrapBearing = Pick<AgentNodeData, "kind" | "wrap" | "prompts" | "closedAt">;
+
+/**
+ * The desktop app's end-of-turn call to show (src/server/session-wrap.mjs), or
+ * null. The recap's rule, but for two differences: it shows while a turn runs,
+ * because the call lands moments before the turn's Stop and says where that
+ * turn left things; and only a newer prompt retires it, never the model's next
+ * line, since the app has the model write its closing message after the call.
+ */
+export function wrapShown(a: WrapBearing): SessionWrap | null {
+  const wrap = a.wrap;
+  if (a.kind !== "root" || !wrap || a.closedAt != null) return null;
+  for (const p of a.prompts) if (p.at > wrap.at) return null;
+  return wrap;
 }

@@ -16,6 +16,7 @@
 // Pure: envelopes in, rows out. The route that serves it is in index.mjs.
 
 import { payloadProvider } from "./provider-ids.mjs";
+import { normaliseWrap, WRAP_TOOL, wrapFromInput, wrapKey } from "./session-wrap.mjs";
 
 /** How long a session may be silent before it is taken to be gone — the
  *  canvas's own STALE_SESSION_MS (src/web/board-sweeps.ts), for its reasons:
@@ -84,7 +85,7 @@ function blankSession(id, at) {
     id, provider: null, cwd: null, name: null, model: null,
     startedAt: at, lastEventAt: at, recoveryLiveAt: null,
     turn: "idle", turnSince: at, closed: false, waiting: null,
-    prompts: [], lastTurnEndAt: null,
+    prompts: [], lastTurnEndAt: null, wrap: null,
     inFlight: new Map(),
   };
 }
@@ -93,6 +94,24 @@ function enrichSummary(s, p, name) {
   if (!s.cwd && typeof p.cwd === "string" && p.cwd) s.cwd = p.cwd;
   if (typeof p.model === "string" && p.model && !subagentKeyOf(p)) s.model = p.model;
   if (name === "SessionNamed") nameSummary(s, p);
+  if (name === "SessionRecapped" && p.wrap) takeWrap(s, p.wrap);
+}
+
+/**
+ * The desktop app's end-of-turn call (session-wrap.mjs), from either road: the
+ * hook's PostToolUse or the transcript cursor's SessionRecapped. Never one the
+ * person has already answered (a prompt newer than it), never the same call
+ * twice (the hook's copy lands first, and keeps its time), never backwards.
+ * Its retirement is the next prompt, in the fold below: the cursor's own null
+ * says the same thing later, so it is not read.
+ */
+function takeWrap(s, raw) {
+  const w = normaliseWrap(raw);
+  if (!w) return;
+  const newest = Array.isArray(s.prompts) ? s.prompts[s.prompts.length - 1] : null;
+  if (newest && newest.at > w.at) return;
+  if (s.wrap && (wrapKey(s.wrap) === wrapKey(w) || s.wrap.at > w.at)) return;
+  s.wrap = w;
 }
 
 /** The session's name as its card and rail row say it (sessionDisplay in
@@ -255,6 +274,8 @@ export function summarizeSessions(envelopes, { now = Date.now(), staleMs = STALE
         s.turn = "working"; s.turnSince = at;
         const text = typeof p.prompt === "string" ? p.prompt : typeof p.message === "string" ? p.message : "";
         if (text) recordPrompt(s, at, text);
+        // The answer to the turn's ask, whatever it says.
+        if (s.wrap && at >= s.wrap.at) s.wrap = null;
         break;
       }
       case "Stop":
@@ -269,6 +290,10 @@ export function summarizeSessions(envelopes, { now = Date.now(), staleMs = STALE
       case "PostToolUse":
       case "PostToolUseFailure":
         if (p.tool_use_id) s.inFlight.delete(p.tool_use_id);
+        // The root's end-of-turn call, read off the hook the moment it lands.
+        if (name === "PostToolUse" && p.tool_name === WRAP_TOOL && !subagentKeyOf(p)) {
+          takeWrap(s, wrapFromInput(p.tool_input, p.tool_use_id, at));
+        }
         break;
       case "Notification": {
         const kind = waitingKind(p.notification_type);
@@ -316,6 +341,9 @@ export function summarizeSessions(envelopes, { now = Date.now(), staleMs = STALE
       startedAt: s.startedAt,
       lastEventAt: s.lastEventAt,
       waiting: gone || !s.waiting ? null : { kind: s.waiting.kind, message: s.waiting.message, since: s.waiting.since, tool: s.waiting.tool },
+      // Kept through a long silence, which answers nothing: a question left
+      // overnight still waits. Not once the session is closed.
+      wrap: s.closed || !s.wrap ? null : { id: s.wrap.id, at: s.wrap.at, recap: s.wrap.recap, ask: s.wrap.ask },
     });
   }
   // The ones waiting on a human first, longest-blocked first — the order the
