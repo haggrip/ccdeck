@@ -204,7 +204,7 @@ describe("what is kept of the model's answer", () => {
   });
 
   it("reads anything that is not an object as an empty brief", () => {
-    for (const j of [null, "text", 3, []]) expect(normaliseBrief(j)).toEqual({ summary: "", waiting: [], todo: [], talkTo: [], people: [], linkStates: [] });
+    for (const j of [null, "text", 3, []]) expect(normaliseBrief(j)).toEqual({ summary: "", waiting: [], todo: [], talkTo: [], waitingOn: [], people: [], linkStates: [] });
   });
 });
 

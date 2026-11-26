@@ -384,6 +384,16 @@ span.mi-task-title { cursor: default; }
 }
 .mi-plain-row .glyph-btn { color: var(--muted); }
 .mi-plain-row[data-closed] { color: var(--muted); }
+/* Waiting on others: how long each has waited, at the row's end; a long wait
+   in the warning colour. */
+.mi-waited {
+  flex: none;
+  color: var(--muted);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.mi-waited[data-long] { color: var(--warn); font-weight: 600; }
 .mi-closed > summary { list-style: none; }
 .mi-closed > .mi-plain { margin-top: 8px; }
 /* The Status pane's own sections, reused in the cards: their headings read

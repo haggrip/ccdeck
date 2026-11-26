@@ -85,7 +85,9 @@ describe("the gh reader", () => {
     ]));
     expect(argv.some(a => a.includes("--web") || a.includes("--help") || a.includes("evil"))).toBe(false);
     expect(gh.calls.every(c => c.file === "gh")).toBe(true);
-    expect(argv.some(a => /\b(create|merge|edit|close|comment|review|approve)\b/.test(a.replace("--review-requested", "")))).toBe(false);
+    // The search qualifier that leaves approved PRs out of Waiting on others
+    // reads like a review, and only reads.
+    expect(argv.some(a => /\b(create|merge|edit|close|comment|review|approve)\b/.test(a.replace("--review-requested", "").replace("-review:approved", "")))).toBe(false);
   });
 
   it("says when gh is missing, logged out, or too slow", async () => {
