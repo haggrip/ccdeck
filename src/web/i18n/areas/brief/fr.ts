@@ -19,6 +19,7 @@ const catalog: Catalog = {
   "brief.count.quiet": "Rien en attente de vous",
   "brief.meta": "Point {ago} · {model} · {sources}",
   "brief.meta.sessionsOnly": "sessions seulement",
+  "brief.reads.partial": "{source} : seules {done} recherches sur {asked} ont été faites, il peut donc manquer des éléments. Actualisez pour réessayer.",
   "brief.none": "Pas encore de point. Actualisez, et Claude Code en rédige un à partir de vos sessions et connecteurs.",
   "brief.agentOff": "Les points ont besoin de Claude Code sur ce deck. Vos sessions sont listées en direct ci-dessous.",
   "brief.failed": "Le dernier point a échoué : {message}",

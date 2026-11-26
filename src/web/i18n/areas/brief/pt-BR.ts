@@ -19,6 +19,7 @@ const catalog: Catalog = {
   "brief.count.quiet": "Nada esperando por você",
   "brief.meta": "Resumo {ago} · {model} · {sources}",
   "brief.meta.sessionsOnly": "só sessões",
+  "brief.reads.partial": "{source}: só {done} de {asked} buscas rodaram, então pode faltar algo. Atualize para tentar de novo.",
   "brief.none": "Ainda não há resumo. Atualize, e o Claude Code escreve um a partir das suas sessões e conectores.",
   "brief.agentOff": "Os resumos precisam do Claude Code neste deck. Suas sessões aparecem ao vivo abaixo.",
   "brief.failed": "O último resumo falhou: {message}",

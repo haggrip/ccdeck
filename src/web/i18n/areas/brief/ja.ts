@@ -19,6 +19,7 @@ const catalog: Catalog = {
   "brief.count.quiet": "あなた待ちはありません",
   "brief.meta": "ブリーフ {ago} · {model} · {sources}",
   "brief.meta.sessionsOnly": "セッションのみ",
+  "brief.reads.partial": "{source}: 検索は {asked} 件中 {done} 件しか実行されなかったため、漏れがある可能性があります。更新して再試行してください。",
   "brief.none": "まだブリーフがありません。更新すると、Claude Code がセッションとコネクタから作成します。",
   "brief.agentOff": "ブリーフにはこのデッキの Claude Code が必要です。セッションは下にリアルタイムで表示されます。",
   "brief.failed": "前回のブリーフは失敗しました：{message}",

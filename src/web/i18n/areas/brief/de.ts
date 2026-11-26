@@ -19,6 +19,7 @@ const catalog: Catalog = {
   "brief.count.quiet": "Nichts wartet auf dich",
   "brief.meta": "Übersicht {ago} · {model} · {sources}",
   "brief.meta.sessionsOnly": "nur Sitzungen",
+  "brief.reads.partial": "{source}: nur {done} von {asked} Suchen liefen, es kann also etwas fehlen. Aktualisieren, um es erneut zu versuchen.",
   "brief.none": "Noch keine Übersicht. Aktualisiere, und Claude Code schreibt eine aus deinen Sitzungen und Connectors.",
   "brief.agentOff": "Übersichten brauchen Claude Code auf diesem Deck. Deine Sitzungen stehen live darunter.",
   "brief.failed": "Die letzte Übersicht ist fehlgeschlagen: {message}",

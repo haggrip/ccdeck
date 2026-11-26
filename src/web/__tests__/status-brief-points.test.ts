@@ -18,7 +18,7 @@ describe("what the brief is asked for", () => {
   it("is bullets, not sentences: short, one fact each, subject first", () => {
     const p = buildPrompt({ sessions: [], reach: reach(), since: null, now: 0 });
     expect(p).toContain('"points": ["3 to 6 short bullets, most important first, one fact each, under 120 characters.');
-    expect(p).toContain("Start each with what it is about (a PR as repo#number, a ticket key, a session's name or a person) and a colon");
+    expect(p).toContain("Start each with what it is about (a PR as repo#number, a ticket key, a Slack person or channel, a session's name) and a colon");
     expect(p).not.toContain('"summary"');
     expect(p).not.toContain("two or three plain sentences");
   });

@@ -19,6 +19,7 @@ const catalog: Catalog = {
   "brief.count.quiet": "Nimic nu te așteaptă",
   "brief.meta": "Rezumat {ago} · {model} · {sources}",
   "brief.meta.sessionsOnly": "doar sesiuni",
+  "brief.reads.partial": "{source}: au rulat doar {done} din {asked} căutări, deci pot lipsi elemente. Reîmprospătează pentru a încerca din nou.",
   "brief.none": "Încă nu există un rezumat. Reîmprospătează și Claude Code scrie unul din sesiunile și conectorii tăi.",
   "brief.agentOff": "Rezumatele au nevoie de Claude Code pe acest deck. Sesiunile tale apar live mai jos.",
   "brief.failed": "Ultimul rezumat a eșuat: {message}",

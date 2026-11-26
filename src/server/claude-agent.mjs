@@ -412,6 +412,9 @@ export function usageFrom(result, { toolCalls = 0, model = "", called = [], refu
     durationMs: num(result?.duration_ms),
     toolCalls,
     tools: [...new Set(called)].slice(0, 32),
+    // How many times each tool was called, for a caller that asked for a
+    // number of reads (the brief, status-brief.mjs readsShort).
+    calls: Object.fromEntries([...called.reduce((m, n) => m.set(n, (m.get(n) ?? 0) + 1), new Map())].slice(0, 32)),
     refused: [...new Set(refused)].slice(0, 32),
     model: models[0] ?? model,
   };

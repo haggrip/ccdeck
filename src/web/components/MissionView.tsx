@@ -23,7 +23,7 @@ import { useT, type TFunction } from "../i18n";
 import { KitIcon, KitStateGlyph } from "./kit-icons";
 import { ExternalLinkGlyph, RefreshGlyph } from "./action-glyphs";
 import { KIND_MSGS } from "./status-kinds";
-import { Dismissed, People, Settings, Since, UndoLine, metaLine } from "./StatusPane";
+import { Dismissed, People, Settings, Since, UndoLine, metaLine, readsLines } from "./StatusPane";
 import { selfPressAccepted, selfPressProps } from "../panel-press";
 import { liveItems, localBrief, peopleShown, safeHref, waitedFor, waitingOnShown, type BriefItem, type WaitingOn } from "../status-brief";
 import { isOverdue, isSnoozed, openerOf, splitOpen, tomorrowMorning, whenShort, type TodoItem, type TodoKind } from "../status-todo";
@@ -442,6 +442,7 @@ export function MissionPage({ rows, now, desktop, onOpenSession, onOpenDesktop, 
               {b?.points?.length ? <BriefPoints points={b.points} className="mi-points" />
                 : b?.summary && <p className="mi-brief-text">{b.summary}</p>}
               {view && b && <p className="mi-meta">{metaLine(view, now, t)}</p>}
+              {readsLines(view, t).map(line => <p key={line} className="mi-reads">{line}</p>)}
               {state}
               {failed && <p className="mi-flag">{t("brief.failed", { message: failed.message || failed.code })}</p>}
             </section>

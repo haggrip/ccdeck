@@ -109,6 +109,9 @@ export interface Brief {
   /** The summary as bullets, each led by its subject. Absent from a brief
    *  written before the deck asked for them, which shows `summary`. */
   points?: string[];
+  /** The sources the model searched less than it was asked to (the deck
+   *  counts its calls: status-brief.mjs readsShort). Absent when it read all. */
+  reads?: Partial<Record<"slack" | "jira" | "linear", { done: number; asked: number }>>;
   waiting: BriefItem[];
   todo: BriefItem[];
   talkTo: BriefItem[];
