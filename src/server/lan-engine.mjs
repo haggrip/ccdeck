@@ -319,7 +319,9 @@ export function createEngine({
   usage: usageOption = null,
   /** This deck's sessions as summarizeSessions rows (session-summary.mjs), for
    *  a paired deck that asks while `shareSessions` is on — or nothing, which
-   *  is a deck that never shares them. Whatever it returns is whitelisted in
+   *  is a deck that never shares them. Called with `{ context }`, true while
+   *  the second tier is shared, when each row should carry its `context`
+   *  (lan-session-context.mjs). Whatever it returns is whitelisted in
    *  lan-sessions.mjs before it leaves. */
   sessions = null,
   /** Called when the sessions paired decks share with this one change. */
@@ -359,6 +361,12 @@ export function createEngine({
     // AGENTS_DECK_NO_LAN_SESSIONS=1 (`sessionsVetoed`). See lan-sessions.mjs.
     shareSessions: false,
     sessionsVetoed: false,
+    // AND WHERE EACH STANDS IN ITS OWN WORDS — the newest prompt, the question
+    // standing, the end of the last turn — off until the owner turns it on too
+    // (lan.shareSessionContext), held off by AGENTS_DECK_NO_LAN_SESSION_CONTEXT=1
+    // (`contextVetoed`). See lan-session-context.mjs.
+    shareSessionContext: false,
+    contextVetoed: false,
     // COMMANDS FOR THIS DECK'S SESSIONS FROM A PAIRED DECK — off until the owner
     // turns it on (lan.acceptControl), held off by AGENTS_DECK_NO_LAN_CONTROL=1
     // (`controlVetoed`). See lan-control.mjs.
@@ -592,7 +600,7 @@ export function createEngine({
     settings: () => cfg, serverNow: () => server, myFp: () => identity.fp,
     inbound, learnCaller, keepManifest, manifestFrame, localAccounts, liveLogin, exportAccount, onError,
     localCodex, exportCodex: codex ? (id, key) => codex.exportAccount(id, key) : null,
-    localSessions: typeof sessions === "function" ? async () => sessions() : null,
+    localSessions: typeof sessions === "function" ? async (opts) => sessions(opts) : null,
     mayTalkTo,
     localControl: typeof control === "function" ? control : null,
     controlFrom: typeof controlFrom === "function" ? controlFrom : (addr => routeTo(addr)?.own === true),
@@ -617,7 +625,13 @@ export function createEngine({
     let reply;
     try { reply = await ask({ t: "sessions" }); } catch { return; }
     if (!stillPaired()) return;
-    if (reply?.t === "sessions" && Array.isArray(reply.rows)) remote.keep(fp, reply.rows, { control: theirs?.control === 1 || theirs?.control === true });
+    if (reply?.t === "sessions" && Array.isArray(reply.rows)) {
+      remote.keep(fp, reply.rows, {
+        control: theirs?.control === 1 || theirs?.control === true,
+        // Its sessions' own words, kept only when its manifest said it shares them.
+        context: theirs?.context === 1 || theirs?.context === true,
+      });
+    }
     else remote.drop(fp);
   };
 
@@ -1619,6 +1633,11 @@ export function createEngine({
         // whether the machine said they may not whatever the switch says.
         shareSessions: cfg.shareSessions === true && cfg.sessionsVetoed !== true,
         sessionsVetoed: cfg.sessionsVetoed === true,
+        // And whether they see where each stands in its own words, which only
+        // ever rides on the sessions being shared at all.
+        shareSessionContext: cfg.shareSessions === true && cfg.sessionsVetoed !== true
+          && cfg.shareSessionContext === true && cfg.contextVetoed !== true,
+        contextVetoed: cfg.contextVetoed === true,
         // Whether paired decks may send commands to this deck's sessions.
         acceptControl: cfg.acceptControl === true && cfg.controlVetoed !== true,
         controlVetoed: cfg.controlVetoed === true,

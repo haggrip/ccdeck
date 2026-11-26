@@ -476,6 +476,9 @@ export const SETTING_VARS = Object.freeze([
   // lanSessionsVetoed). A deck started at login without it would share them
   // again once the switch is on.
   "AGENTS_DECK_NO_LAN_SESSIONS",
+  // Sharing what those sessions say vetoed (deck-prefs.mjs
+  // lanSessionContextVetoed), for the same reason.
+  "AGENTS_DECK_NO_LAN_SESSION_CONTEXT",
   // Commands from paired decks vetoed (deck-prefs.mjs lanControlVetoed).
   "AGENTS_DECK_NO_LAN_CONTROL",
   // The Claude agent's veto (claude-agent.mjs). A deck started at login without

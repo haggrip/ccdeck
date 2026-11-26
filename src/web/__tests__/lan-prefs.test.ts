@@ -191,8 +191,10 @@ describe("the shape on disk", () => {
       // Tailscale discovery is off until somebody turns it on; its own two
       // permissions ship on, and answer only for the owner's own machines.
       tailscale: false, tailscaleAsk: true, tailscaleAccept: true,
-      // Sharing sessions with paired decks is off until somebody turns it on.
+      // Sharing sessions with paired decks is off until somebody turns it on,
+      // and so is sharing what they say.
       shareSessions: false,
+      shareSessionContext: false,
       acceptControl: false,
     });
     // Absent is the default; only a real boolean overrides it, because a
@@ -222,7 +224,7 @@ describe("the shape on disk", () => {
     expect(saved.lan).toEqual({
       enabled: true, name: "", secret: "kept", shared: ["a@@1"], onward: [], manual: [], trusted: [], unpaired: [], port: 0,
       autoAsk: true, autoAccept: true, pairingMode: "automatic", aliases: {}, shareActive: true,
-      sendInUse: true, sendInUseSet: false, tailscale: false, tailscaleAsk: true, tailscaleAccept: true, shareSessions: false, acceptControl: false,
+      sendInUse: true, sendInUseSet: false, tailscale: false, tailscaleAsk: true, tailscaleAccept: true, shareSessions: false, shareSessionContext: false, acceptControl: false,
     });
   });
 

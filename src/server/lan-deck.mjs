@@ -18,10 +18,13 @@
 import { readFile } from "node:fs/promises";
 import { networkInterfaces } from "node:os";
 import { PRODUCT } from "./brand.mjs";
-import { lanControlVetoed, lanEnabled, lanSessionsVetoed, lanTailscaleOnly, terminalOn, withManualEntry, withShared } from "./deck-prefs.mjs";
+import {
+  lanControlVetoed, lanEnabled, lanSessionContextVetoed, lanSessionsVetoed, lanTailscaleOnly, terminalOn, withManualEntry, withShared,
+} from "./deck-prefs.mjs";
 import { createLocalControl } from "./lan-control-local.mjs";
 import { eventsSince } from "./event-ring.mjs";
 import { summarizeSessions } from "./session-summary.mjs";
+import { withSessionContext } from "./lan-session-context.mjs";
 import { sseClients, trayClients, writeSse } from "./sse-clients.mjs";
 import { heldPrefs } from "./prefs-state.mjs";
 import { createEngine, defaultName } from "./lan-engine.mjs";
@@ -338,8 +341,14 @@ export const lanEngine = createEngine({
   },
   // This deck's sessions, read-only, for a paired deck that asks while the
   // owner shares them — the ring folded by summarizeSessions, then cut to the
-  // whitelist in lan-sessions.mjs before anything leaves.
-  sessions: () => summarizeSessions(eventsSince(0)),
+  // whitelist in lan-sessions.mjs before anything leaves. While the owner
+  // shares what they say as well, each row carries its context, read off the
+  // same ring (lan-session-context.mjs).
+  sessions: ({ context = false } = {}) => {
+    const envelopes = eventsSince(0);
+    const rows = summarizeSessions(envelopes);
+    return context ? withSessionContext(rows, envelopes) : rows;
+  },
   // What paired decks share with this one changed: the open pages hear it as
   // an `event: lan-sessions` frame (use-remote-sessions.ts listens).
   onRemoteSessions: () => broadcastRemoteSessions(),
@@ -419,6 +428,10 @@ export function lanApplyFields(prefs, { load = false, env = process.env } = {}) 
     // veto beside it — see lanSessionsVetoed.
     shareSessions: lan.shareSessions === true,
     sessionsVetoed: lanSessionsVetoed(env),
+    // What those sessions say, with them: the owner's second switch, read the
+    // same way, and the machine's own veto beside it.
+    shareSessionContext: lan.shareSessionContext === true,
+    contextVetoed: lanSessionContextVetoed(env),
     // Commands from paired decks for this deck's sessions: the owner's switch,
     // off unless a real true was stored, and the machine's veto beside it.
     acceptControl: lan.acceptControl === true,

@@ -77,6 +77,8 @@ const ACTION_HEADS: Record<string, string> = {
   "take commands from paired decks": "lan.act.acceptControl",
   "stop taking commands from paired decks": "lan.act.unacceptControl",
   "stop sharing this deck's sessions": "lan.act.unshareSessions",
+  "share what this deck's sessions say": "lan.act.shareSessionContext",
+  "stop sharing what this deck's sessions say": "lan.act.unshareSessionContext",
   "let decks pair on their own again": "lan.act.pairAuto",
   "pair new decks only by invite": "lan.act.pairInvite",
   "stop asking automatically": "lan.act.askOff",

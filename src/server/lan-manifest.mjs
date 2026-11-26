@@ -63,6 +63,11 @@ export function createManifests({ about, now, myFp, settings, usage = null }) {
       // lan-sessions.mjs). Absent while sharing is off, which is how a deck
       // that turned it off is heard to have done so.
       ...(cfg.shareSessions === true && cfg.sessionsVetoed !== true ? { sessions: 1 } : {}),
+      // AND THAT ITS ROWS CARRY WHERE EACH SESSION STANDS IN ITS OWN WORDS
+      // (lan-session-context.mjs): the asking deck keeps those fields only from
+      // a deck that said this, and cuts them from any other.
+      ...(cfg.shareSessions === true && cfg.sessionsVetoed !== true && cfg.shareSessionContext === true && cfg.contextVetoed !== true
+        ? { context: 1 } : {}),
       // THAT THIS DECK TAKES COMMANDS FOR ITS SESSIONS from paired decks
       // (lan-control.mjs), so the asking deck can offer them. Only a word: the
       // deck that hears it still has every command checked here.

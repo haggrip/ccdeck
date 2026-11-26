@@ -271,6 +271,9 @@ describe("the fields the engine authors", () => {
       // file says nothing, and the machine's veto beside it.
       shareSessions: false,
       sessionsVetoed: false,
+      // What those sessions say: the same pair, its own switch and veto.
+      shareSessionContext: false,
+      contextVetoed: false,
       // Commands from paired decks: the same pair, its own switch and veto.
       acceptControl: false,
       controlVetoed: false,

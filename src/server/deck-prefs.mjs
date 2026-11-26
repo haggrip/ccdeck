@@ -233,6 +233,13 @@ export const DEFAULTS = Object.freeze({
     // somebody here accepted. AGENTS_DECK_NO_LAN_SESSIONS=1 keeps it off
     // whatever this says — see lanSessionsVetoed.
     shareSessions: false,
+    // AND WHERE EACH OF THEM STANDS, IN ITS OWN WORDS — the newest prompt, the
+    // question standing, how the last turn ended — so a paired deck can put
+    // them in its brief and Todo list (lan-session-context.mjs). Off until the
+    // owner turns it on, and only ever sent while `shareSessions` is on.
+    // AGENTS_DECK_NO_LAN_SESSION_CONTEXT=1 keeps it off whatever this says —
+    // see lanSessionContextVetoed.
+    shareSessionContext: false,
     // COMMANDS FOR THIS DECK'S SESSIONS FROM A PAIRED DECK — send a prompt,
     // answer a permission or a question, interrupt or stop — off until the
     // owner turns it on, and only for sessions this deck's Command Panel started
@@ -385,6 +392,8 @@ function normaliseLan(raw) {
     tailscaleAccept: flagOr(src.tailscaleAccept, DEFAULTS.lan.tailscaleAccept),
     // Sharing sessions with paired decks: off unless a real true was stored.
     shareSessions: flagOr(src.shareSessions, DEFAULTS.lan.shareSessions),
+    // Their own words with them: off unless a real true was stored.
+    shareSessionContext: flagOr(src.shareSessionContext, DEFAULTS.lan.shareSessionContext),
     // Commands from paired decks: off unless a real true was stored.
     acceptControl: flagOr(src.acceptControl, DEFAULTS.lan.acceptControl),
   };
@@ -804,7 +813,8 @@ export const PAGE_FIELDS = Object.freeze({
   ]),
   lan: Object.freeze([
     "enabled", "name", "shared", "manual", "shareActive", "sendInUse", "pairingMode",
-    "autoAsk", "autoAccept", "tailscale", "tailscaleAsk", "tailscaleAccept", "shareSessions", "acceptControl",
+    "autoAsk", "autoAccept", "tailscale", "tailscaleAsk", "tailscaleAccept", "shareSessions", "shareSessionContext",
+    "acceptControl",
   ]),
 });
 
@@ -897,6 +907,17 @@ export function lanControlVetoed(env = process.env) {
 
 export function lanSessionsVetoed(env = process.env) {
   return env.AGENTS_DECK_NO_LAN_SESSIONS === "1";
+}
+
+/**
+ * Did the machine rule out sharing what this deck's sessions say (their newest
+ * prompt, the question standing, how the last turn ended) with paired decks?
+ * AGENTS_DECK_NO_LAN_SESSION_CONTEXT=1 does, whatever `lan.shareSessionContext`
+ * says, and nothing a page posts can lift it. Only ever a narrowing: the rows
+ * themselves still go while `lan.shareSessions` is on.
+ */
+export function lanSessionContextVetoed(env = process.env) {
+  return env.AGENTS_DECK_NO_LAN_SESSION_CONTEXT === "1";
 }
 
 /**

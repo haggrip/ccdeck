@@ -430,3 +430,15 @@ span.mi-task-title { cursor: default; }
   .mi-plain-row > a:hover, .mi-plain-row > button:not(.glyph-btn):hover { text-decoration: underline; text-underline-offset: 3px; }
   .mi-done:hover { color: var(--ok); }
 }
+/* A paired deck's session in Live: its machine's name between its own and its
+   state, and no hover where there is nothing to open. */
+.mi-live-row[data-far] .mi-live-main { grid-template-columns: 10px minmax(0, 1fr) auto auto; }
+.mi-live-machine {
+  max-width: 16ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+}
+span.mi-live-main { cursor: default; }

@@ -20,7 +20,7 @@ import MachinePanel from "./components/MachinePanel";
 import StatusPane from "./components/StatusPane";
 import MissionView from "./components/MissionView";
 import { useDesktopSessions } from "./use-desktop-links";
-import { inDesktop, openInDesktop } from "./desktop-links";
+import { inDesktop, openInDesktop, openRemoteInDesktop } from "./desktop-links";
 import { useStatusPane } from "./use-status-pane";
 import AccountsPanel from "./components/AccountsPanel";
 import AccountsSwitch, { type AccountSide } from "./components/AccountsSwitch";
@@ -1006,6 +1006,8 @@ function Inner() {
   // let those go (SessionList.tsx archivedAway).
   const { links: desktopLinks, archived: archivedSessions } = useDesktopSessions();
   const openDesktop = useCallback((sessionId: string) => { void openInDesktop(sessionId); }, []);
+  // A paired deck's Remote Control session, brought up in the desktop app.
+  const openRemote = useCallback((remoteId: string) => { void openRemoteInDesktop(remoteId); }, []);
   // Going to a session from Mission: one the desktop app runs opens there, where
   // it is driven, and Mission stays; any other goes to its card (goToSession,
   // below, once pickSession is known).
@@ -1692,7 +1694,7 @@ function Inner() {
             lives while it is up. */}
         {missionOn && (
           <MissionView rows={buildRows(stateRef.current, now, watchingSessions, archivedSessions)} now={now} desktop={desktopLinks}
-            onOpenSession={goToSession} onOpenDesktop={openDesktop} />
+            onOpenSession={goToSession} onOpenDesktop={openDesktop} remote={remoteMachines} onOpenRemote={openRemote} />
         )}
       </CanvasMain>
 

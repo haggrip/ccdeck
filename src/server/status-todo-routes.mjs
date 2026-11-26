@@ -21,6 +21,7 @@ import { sseClients, trayClients, writeSse } from "./sse-clients.mjs";
 import { sessionDigest } from "./status-brief.mjs";
 import { createStatusTodo } from "./status-todo.mjs";
 import { archivedDesktopSessions, withoutArchived } from "./desktop-sessions.mjs";
+import { pairedSessionRows, pairedSignature, withPairedRows } from "./paired-sessions.mjs";
 import { agentVetoed, runAgent } from "./claude-agent.mjs";
 
 export const STATUS_TODO_ROUTE = "/api/status-todo";
@@ -34,6 +35,7 @@ export function broadcastTodo(view) {
 let todo = null;
 let seenSeq = -1;
 let seenArchived = "";
+let seenPaired = "";
 /** The deck's one list, made the first time it is wanted. */
 export function statusTodo() {
   todo ??= createStatusTodo({
@@ -42,20 +44,26 @@ export function statusTodo() {
     // A session archived in the Claude desktop app is not one of the deck's
     // sessions here: it adds nothing, and what it added closes
     // (desktop-sessions.mjs, reconcileDeck).
+    // And the sessions paired decks share (paired-sessions.mjs): one of them
+    // waiting on the person is a wait here, and its item closes when it moves
+    // on, as a local one's does.
     sessions: async () => {
       const envelopes = eventsSince(0);
       const archived = await archivedDesktopSessions();
-      const rows = withoutArchived(summarizeSessions(envelopes), archived);
+      const rows = withPairedRows(withoutArchived(summarizeSessions(envelopes), archived), await pairedSessionRows());
       return { rows, digest: sessionDigest(rows, envelopes, { maxRows: 1000 }), archived };
     },
-    // The ring moving, or the person archiving or restoring a session in the
-    // desktop app, which moves nothing in the ring.
+    // The ring moving, the person archiving or restoring a session in the
+    // desktop app, which moves nothing in the ring, or a paired deck's
+    // sessions moving, which moves nothing here either.
     changed: async () => {
       const seq = lastSeq();
       const archived = [...await archivedDesktopSessions()].join("\n");
-      if (seq === seenSeq && archived === seenArchived) return false;
+      const paired = pairedSignature(await pairedSessionRows());
+      if (seq === seenSeq && archived === seenArchived && paired === seenPaired) return false;
       seenSeq = seq;
       seenArchived = archived;
+      seenPaired = paired;
       return true;
     },
     broadcast: broadcastTodo,

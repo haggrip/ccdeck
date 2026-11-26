@@ -136,6 +136,12 @@ export interface LanStatus {
    *  saying no (AGENTS_DECK_NO_LAN_SESSIONS=1) whatever the switch says. */
   shareSessions?: boolean;
   sessionsVetoed?: boolean;
+  /** Whether those rows also carry what each session says (its newest prompt,
+   *  the question standing, how its last turn ended), and whether the machine
+   *  said they may not (AGENTS_DECK_NO_LAN_SESSION_CONTEXT=1). Only ever true
+   *  while `shareSessions` is. */
+  shareSessionContext?: boolean;
+  contextVetoed?: boolean;
   /** Whether paired decks may send commands to this deck's sessions, and
    *  whether the machine said they may not (AGENTS_DECK_NO_LAN_CONTROL=1). */
   acceptControl?: boolean;

@@ -69,7 +69,9 @@ describe("every switch is the one switch (#886)", () => {
     // sessions with paired decks" switch (LanSetupModal.tsx).
     // CHANGED ON PURPOSE: twenty-seven with the same dialog's "Take commands
     // from paired decks" switch (LanSetupModal.tsx, lan-control.mjs).
-    expect(switches, "the twenty-seven switches in the source").toBe(27);
+    // CHANGED ON PURPOSE: twenty-eight with its "Share what my sessions say"
+    // switch (LanSetupModal.tsx, lan-session-context.mjs).
+    expect(switches, "the twenty-eight switches in the source").toBe(28);
     expect(count(/className="switch(?: ap-auto-state)?"/g)).toBe(switches);
     expect(count(/<span className="switch-knob" \/>/g)).toBe(switches);
   });
