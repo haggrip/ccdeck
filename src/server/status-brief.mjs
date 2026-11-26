@@ -37,7 +37,7 @@ import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { writeFileAtomic } from "./atomic-write.mjs";
 import { LINK_STATES, dismissKeyOf } from "./status-todo.mjs";
-import { FIRST_SINCE_MS, MAX_SINCE_MS, PR_URL, activityPromptLines, githubPromptLines, normaliseActivity, normalisePrs, prUrlOf, reviewSettledBy, waitsOnOthers } from "./status-gh.mjs";
+import { FIRST_SINCE_MS, MAX_SINCE_MS, PR_URL, activityPromptLines, activitySettledBy, githubPromptLines, normaliseActivity, normalisePrs, prUrlOf, reviewSettledBy, waitsOnOthers } from "./status-gh.mjs";
 
 export const BRIEF_FILE = "status-brief.json";
 export const MODELS = Object.freeze(["haiku", "sonnet", "opus"]);
@@ -878,10 +878,14 @@ export function createStatusBrief({ dir, agent, sessions, todo = null, github = 
         if (dkey) it.dkey = dkey;
       }
       const tracked = watched.filter(w => w.kind === "review" && isPr(w)).map(w => w.url);
+      // The PRs that moved since the last brief are read in the same go, so
+      // an entry already settled (merged, or I approved it) says so.
+      const activity = gh?.status === "on" ? normaliseActivity(gh.activity) : null;
+      const moved = activity ? activity.items.map(i => i.url) : [];
       let settled = [];
-      if ((asked.length || tracked.length) && gh?.status === "on" && typeof github?.reviewViews === "function") {
-        let views = null;
-        try { views = await github.reviewViews([...new Set([...asked.map(it => it.url), ...tracked])]); }
+      let views = null;
+      if ((asked.length || tracked.length || moved.length) && gh?.status === "on" && typeof github?.reviewViews === "function") {
+        try { views = await github.reviewViews([...new Set([...asked.map(it => it.url), ...tracked, ...moved])]); }
         catch (err) { log(`status brief: the review requests could not be checked with gh (${err?.message ?? err})`); }
         if (views) {
           const why = url => reviewSettledBy(views.get(url) ?? null, gh.account);
@@ -896,7 +900,10 @@ export function createStatusBrief({ dir, agent, sessions, todo = null, github = 
         const byGh = new Set(gh.linkStates.map(l => l.url));
         brief.linkStates = [...settled, ...brief.linkStates.filter(l => !byGh.has(l.url)), ...gh.linkStates].slice(0, 60);
       }
-      const activity = gh?.status === "on" ? normaliseActivity(gh.activity) : null;
+      for (const i of activity?.items ?? []) {
+        const how = activitySettledBy(i, views?.get(i.url) ?? null, gh.account);
+        if (how) i.settled = how;
+      }
       s.brief = {
         ...brief, at: now(), model: s.settings.model, reach,
         ...(gh?.status === "on" && gh.account ? { ghAccount: gh.account } : {}),

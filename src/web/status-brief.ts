@@ -73,6 +73,9 @@ export interface ActivityItem {
   state: "open" | "merged" | "closed";
   at: number;
   events: ActivityEvent[];
+  /** Read again when the brief was written: nothing is left for me on it,
+   *  and why (status-gh.mjs activitySettledBy). Drawn dimmed, not counted. */
+  settled?: "merged" | "closed" | "draft" | "approved" | "reviewed";
 }
 
 /** What moved on my PRs and the ones I review since the last brief. */

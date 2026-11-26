@@ -46,6 +46,8 @@ export const MAX_VIEWS = 12;
 export const MAX_WATCH = 20;
 /** PRs read for activity per brief, and what is kept of each. */
 export const MAX_ACTIVITY_PRS = 15;
+/** PRs read by reviewViews per brief: the review asks, and the activity's PRs. */
+export const MAX_REVIEW_VIEWS = MAX_WATCH + MAX_ACTIVITY_PRS;
 export const MAX_NOTIFICATIONS = 50;
 export const MAX_EXCERPT = 160;
 /** The first brief looks a day back; none looks back further than a week. */
@@ -336,8 +338,9 @@ async function inTurn(items, n, fn) {
  * `watch` is the Todo list's PR URLs whose state to read.
  *
  * reviewViews(urls) resolves to a Map of PR URL to gh's REVIEW_VIEW of it,
- * for the PRs someone asked for a review of in Slack (at most MAX_WATCH; a PR
- * gh could not read is left out), or null when there is no gh.
+ * for the PRs someone asked for a review of in Slack and the PRs that moved
+ * since the last brief (at most MAX_REVIEW_VIEWS; a PR gh could not read is
+ * left out), or null when there is no gh.
  */
 export function createGitHubReader({ run = execRunner, exists = canExec, now = () => Date.now() } = {}) {
   let gh;   // resolved once per process; null when there is none
@@ -486,7 +489,7 @@ export function createGitHubReader({ run = execRunner, exists = canExec, now = (
   async function reviewViews(urls) {
     if (gh === undefined) gh = await findGh(run, exists);
     if (!gh) return null;
-    const list = [...new Set((Array.isArray(urls) ? urls : []).map(prUrlOf).filter(Boolean))].slice(0, MAX_WATCH);
+    const list = [...new Set((Array.isArray(urls) ? urls : []).map(prUrlOf).filter(Boolean))].slice(0, MAX_REVIEW_VIEWS);
     const out = new Map();
     await inTurn(list, CONCURRENCY, async url => {
       const v = await json(["pr", "view", url, "--json", REVIEW_VIEW]);
@@ -712,6 +715,39 @@ export function todoActionsOf(item, facts) {
   return out;
 }
 
+/** How an activity entry can be settled; the pane dims it and says which. */
+export const ACTIVITY_SETTLED = Object.freeze(["merged", "closed", "draft", "approved", "reviewed"]);
+const MY_REVIEW = Object.freeze({ APPROVED: "approved", CHANGES_REQUESTED: "reviewed", COMMENTED: "reviewed" });
+
+/**
+ * Whether one activity entry (normaliseActivity) already needs nothing of
+ * me, as gh reads its PR when the brief is written (REVIEW_VIEW, `v`), and
+ * how; else null:
+ *
+ *   merged, closed  the PR is done with (also from the activity's own read,
+ *                   when gh could not read the PR again)
+ *   draft           someone else's PR went back to draft
+ *   approved        I approved someone else's PR, I am not among its
+ *                   requested reviewers, and no new commits came after it
+ *   reviewed        the same, but I asked for changes or commented
+ *
+ * My own PR's entry stands until it is merged or closed: what moved on it is
+ * mine to answer.
+ */
+export function activitySettledBy(item, v, account) {
+  const view = v && typeof v === "object" ? v : null;
+  if (view?.state === "MERGED" || view?.mergedAt || item?.state === "merged") return "merged";
+  if (view?.state === "CLOSED" || item?.state === "closed") return "closed";
+  if (!view || !item || item.mine) return null;
+  if (view.isDraft === true) return "draft";
+  const me = typeof account === "string" ? account.toLowerCase() : "";
+  if (!me || (Array.isArray(view.reviewRequests) ? view.reviewRequests : []).some(r => loginOf(r) === me)) return null;
+  const review = (Array.isArray(view.latestReviews) ? view.latestReviews : []).find(r => loginOf(r?.author) === me);
+  const how = MY_REVIEW[review?.state] ?? null;
+  const pushes = (Array.isArray(item.events) ? item.events : []).filter(e => e?.kind === "pushed").map(e => e.at);
+  return how && (!pushes.length || ms(review.submittedAt) > Math.max(...pushes)) ? how : null;
+}
+
 const MAX_ACTIVITY_ITEMS = 30;
 
 /** The activity as the brief keeps and the pane draws it: each event with its
@@ -737,6 +773,7 @@ export function normaliseActivity(raw) {
       url: i.url, repo: text(i.repo, 140), number: Number.isInteger(i.number) ? i.number : null, title: text(i.title, MAX_TITLE),
       author: text(i.author, 80) || null, mine: i.mine === true, state: ["open", "merged", "closed"].includes(i.state) ? i.state : "open",
       at: i.at, events: events.sort((a, b) => b.at - a.at),
+      ...(ACTIVITY_SETTLED.includes(i.settled) ? { settled: i.settled } : {}),
     });
     if (items.length >= MAX_ACTIVITY_ITEMS) break;
   }

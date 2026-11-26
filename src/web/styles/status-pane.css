@@ -117,6 +117,8 @@
 }
 .stp-item:is([data-kind="answer"], [data-kind="approve"], [data-kind="decide"]) .stp-kind { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--text); }
 .stp-item[data-kind="failed"] .stp-kind { background: color-mix(in srgb, var(--err) 18%, transparent); color: var(--text); }
+/* Since last brief: an entry already settled (merged, you approved) is dimmed. */
+.stp-item[data-settled] { opacity: var(--dim-off); }
 .stp-link {
   display: flex;
   flex: 1 1 auto;

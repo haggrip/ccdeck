@@ -16,7 +16,7 @@ import {
 import { channelNames, type BriefView } from "../status-brief";
 import { Settings } from "../components/StatusPane";
 import { t } from "../i18n";
-import { MAX_WATCH, createGitHubReader, prUrlOf, waitsOnMyReview } from "../../server/status-gh.mjs";
+import { MAX_REVIEW_VIEWS, createGitHubReader, prUrlOf, waitsOnMyReview } from "../../server/status-gh.mjs";
 
 const dirs: string[] = [];
 afterEach(() => { for (const d of dirs.splice(0)) rmTempDir(d); });
@@ -92,10 +92,10 @@ describe("gh's view of those PRs", () => {
     expect(viewed).toEqual([1, 2, 3].map(n => ["pr", "view", pr(n), "--json", "state,mergedAt,isDraft,reviewDecision,reviewRequests,author,latestReviews"]));
   });
 
-  it("reads at most MAX_WATCH, and nothing without gh", async () => {
+  it("reads at most MAX_REVIEW_VIEWS, and nothing without gh", async () => {
     const gh = fakeGh({});
-    await createGitHubReader({ run: gh.run, exists: async () => false }).reviewViews(Array.from({ length: MAX_WATCH + 5 }, (_, i) => pr(i + 1)));
-    expect(gh.calls.filter(a => a[0] === "pr")).toHaveLength(MAX_WATCH);
+    await createGitHubReader({ run: gh.run, exists: async () => false }).reviewViews(Array.from({ length: MAX_REVIEW_VIEWS + 5 }, (_, i) => pr(i + 1)));
+    expect(gh.calls.filter(a => a[0] === "pr")).toHaveLength(MAX_REVIEW_VIEWS);
     const none = async () => ({ code: 1, stdout: "", stderr: "", errno: "ENOENT" });
     expect(await createGitHubReader({ run: none, exists: async () => false }).reviewViews([pr(1)])).toBeNull();
   });
