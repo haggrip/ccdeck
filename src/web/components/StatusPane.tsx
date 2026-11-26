@@ -12,7 +12,7 @@
 // (status-brief.ts localBrief): who is stuck on a question, which turn failed,
 // which finished turn is unread. Each opens its card. The rest is the brief the
 // user's own Claude Code wrote the last time it was asked (status-brief.mjs),
-// with its time: GitHub, Slack and Jira through read-only connector tools. Each
+// with its time: GitHub, Slack, Jira and Linear, read and never written. Each
 // item opens its PR, message or ticket in the browser. Nothing here posts,
 // sends or changes anything anywhere: the only writes are the pane's own
 // settings, the people pinned or hidden, and what you dismissed, in the deck's
@@ -46,7 +46,7 @@ import type { Row } from "./SessionList";
 export const STATUS_PANE_ID = "status-pane";
 
 /** Product names, never translated (i18n/en.ts). */
-const SOURCE_NAMES = { github: "GitHub", slack: "Slack", jira: "Jira" } as const;
+const SOURCE_NAMES = { github: "GitHub", slack: "Slack", jira: "Jira", linear: "Linear" } as const;
 const MODEL_NAMES: Record<BriefModel, string> = { haiku: "Haiku", sonnet: "Sonnet", opus: "Opus" };
 
 /** The words on an item's kind chip (status-kinds.ts). */

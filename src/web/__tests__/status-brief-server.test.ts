@@ -52,7 +52,7 @@ describe("the tools a brief may use", () => {
     const { tools, reach } = pickTools(CONNECTORS);
     expect(tools).toEqual(READS);
     // GitHub's reach is gh's to say, in the runner; the connectors leave it "none".
-    expect(reach).toEqual({ github: "none", slack: "on", jira: "on" });
+    expect(reach).toEqual({ github: "none", slack: "on", jira: "on", linear: "none" });
   });
 
   it("drops a tool whose name reads like a write even when its connector calls it read-only", () => {
@@ -67,14 +67,14 @@ describe("the tools a brief may use", () => {
   it("leaves a source out when it is switched off, and says when no connector serves one", () => {
     const { tools, reach } = pickTools(CONNECTORS.filter(c => c.server !== "atlassian"), { github: false, slack: false, jira: true });
     expect(tools).toEqual([]);
-    expect(reach).toEqual({ github: "off", slack: "off", jira: "none" });
+    expect(reach).toEqual({ github: "off", slack: "off", jira: "none", linear: "none" });
   });
 
   it("picks only what Settings › Connectors has switched on, and says which source has none on", () => {
     const { tools, reach } = pickTools(CONNECTORS, undefined, ["mcp__atlassian__searchJiraIssuesUsingJql", "mcp__slack__slack_send_message", "mcp__github__pull_request_read"]);
     // A write switched on by name is still not picked: it is not read-only.
     expect(tools).toEqual(["mcp__atlassian__searchJiraIssuesUsingJql"]);
-    expect(reach).toEqual({ github: "none", slack: "disabled", jira: "on" });
+    expect(reach).toEqual({ github: "none", slack: "disabled", jira: "on", linear: "none" });
   });
 
   // CHANGED ON PURPOSE (the contract, 00018534): every tool is on unless it is
@@ -86,7 +86,7 @@ describe("the tools a brief may use", () => {
     const { tools, reach } = pickTools(listing, undefined, everything.filter(n => n !== "mcp__slack__slack_read_thread"), ["mcp__slack__slack_read_thread"]);
     expect(tools).toEqual(READS.filter(n => n !== "mcp__slack__slack_read_thread"));
     expect(tools.every(n => n.startsWith("mcp__"))).toBe(true);
-    expect(reach).toEqual({ github: "none", slack: "on", jira: "on" });
+    expect(reach).toEqual({ github: "none", slack: "on", jira: "on", linear: "none" });
     // The switched-off list alone is enough to keep a tool out.
     expect(pickTools(CONNECTORS, undefined, null, READS).tools).toEqual([]);
   });
@@ -119,7 +119,7 @@ describe("the tools a brief may use", () => {
     const { tools, reach } = pickTools(listing, undefined, listing.flatMap(c => c.tools.map(t => t.name)), []);
     // Slack's 12 and Atlassian's 27 make 39: the cut still keeps every prompt tool.
     expect(tools).toHaveLength(MAX_TOOLS);
-    expect(reach).toEqual({ github: "none", slack: "on", jira: "on" });
+    expect(reach).toEqual({ github: "none", slack: "on", jira: "on", linear: "none" });
     expect(tools.some(n => n.includes("GitHub"))).toBe(false);
     const servers = { slack: "claude_ai_Slack", jira: "claude_ai_Atlassian" } as const;
     for (const source of ["slack", "jira"] as const) {
@@ -393,7 +393,7 @@ describe("the brief's runner", () => {
     expect(fake.listed()).toBe(0);
     expect(fake.calls[0].tools).toEqual(["mcp__atlassian__searchJiraIssuesUsingJql", "mcp__slack__slack_read_thread"]);
     expect((fake.calls[0] as { tag?: string }).tag).toBe(RUN_TAG);
-    expect((await b.view()).brief?.reach).toEqual({ github: "none", slack: "on", jira: "on" });
+    expect((await b.view()).brief?.reach).toEqual({ github: "none", slack: "on", jira: "on", linear: "none" });
     expect(fake.calls[0].prompt).not.toMatch(/GitHub/);
   });
 
@@ -404,7 +404,7 @@ describe("the brief's runner", () => {
     const b = createStatusBrief({ dir, agent: async () => agent, sessions: SESSIONS, now: () => 1 });
     await b.refresh(); await b.settled();
     expect(fake.calls[0].tools).toEqual([]);
-    expect((await b.view()).brief?.reach).toEqual({ github: "none", slack: "none", jira: "none" });
+    expect((await b.view()).brief?.reach).toEqual({ github: "none", slack: "none", jira: "none", linear: "none" });
   });
 
   it("answers with the agent off, never calling anything, when the contract is absent", async () => {
