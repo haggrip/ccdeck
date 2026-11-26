@@ -121,12 +121,14 @@ function Section({ title, id, items, empty, onOpenSession, onDismiss, t }: {
 
 /** Since the last brief: what moved on my PRs and the ones I review, newest
  *  first, each opening its PR. Read by the deck with gh; the excerpt is
- *  someone else's words, drawn as text. */
+ *  someone else's words, drawn as text. An entry already settled (merged, I
+ *  approved it) is dimmed, says how in place of its kind, and is not counted. */
 export function Since({ activity, t }: { activity: BriefActivity; t: TFunction }) {
   const items = activity.items;
+  const open = items.filter(i => !i.settled).length;
   return (
     <section className="stp-section" aria-labelledby="stp-since">
-      <h3 className="stp-h" id="stp-since">{t("brief.section.since")}{items.length > 0 && <span className="stp-n">{items.length}</span>}</h3>
+      <h3 className="stp-h" id="stp-since">{t("brief.section.since")}{open > 0 && <span className="stp-n">{open}</span>}</h3>
       {items.length ? (
         <ul className="stp-list">
           {items.map(i => {
@@ -140,8 +142,8 @@ export function Since({ activity, t }: { activity: BriefActivity; t: TFunction }
               </>
             );
             return (
-              <li key={i.url} className="stp-item" data-kind={i.mine ? "mine" : "theirs"}>
-                <span className="stp-kind">{t(i.mine ? "brief.activity.mine" : "brief.activity.theirs")}</span>
+              <li key={i.url} className="stp-item" data-kind={i.mine ? "mine" : "theirs"} data-settled={i.settled}>
+                <span className="stp-kind">{t(i.settled ? `brief.activity.settled.${i.settled}` : i.mine ? "brief.activity.mine" : "brief.activity.theirs")}</span>
                 {href && (
                   <a className="stp-link" href={href} target="_blank" rel="noreferrer noopener" title={t("brief.open.link", { source: SOURCE_NAMES.github })}>
                     {label}<span className="stp-src">{SOURCE_NAMES.github}<ExternalLinkGlyph /></span>
