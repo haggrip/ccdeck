@@ -284,6 +284,25 @@ export function reopenItem(item, now) {
   return true;
 }
 
+/** The deck's close when a session left the board (reconcileDeck below). */
+const LEFT_THE_BOARD = "The session is no longer on the board";
+
+/**
+ * addItem, except that an item the deck itself closed because its session
+ * left the board opens again when the session comes back saying the same thing.
+ * A paired deck's sessions (paired-sessions.mjs) leave this board for a few
+ * minutes whenever that machine or this one sleeps, and come back with the
+ * same wait; addItem alone would find the closed item and add nothing, so the
+ * wait would be gone for good. An item the person closed stays closed.
+ */
+function addOrReturn(store, fields, now) {
+  const had = fields.key ? byKey(store, fields.key) : null;
+  if (had?.state === "closed" && had.closedBy === "deck" && had.closedReason === LEFT_THE_BOARD) {
+    return reopenItem(had, now) ? had : null;
+  }
+  return addItem(store, fields, now);
+}
+
 // ── dismissals ───────────────────────────────────────────────────────────────
 
 export const isDismissed = (store, key) => !!key && (store.dismissed ?? []).some(d => d.key === key);
@@ -386,10 +405,11 @@ export function reconcileDeck(store, rows, digest, now, { archived = null } = {}
   const byId = new Map((Array.isArray(rows) ? rows : []).map(r => [r.id, r]));
   const failed = new Map((Array.isArray(digest) ? digest : []).filter(d => d.state === "failed").map(d => [d.id, d]));
   for (const r of byId.values()) {
-    const link = normaliseLink({ sessionId: r.id, cwd: r.cwd });
+    // A paired deck's session has no folder here: its machine is where it is.
+    const link = normaliseLink({ sessionId: r.id, cwd: r.cwd, project: r.machine });
     const name = text(r.name ?? "", 80) || r.project || "A session";
     if (r.state === "waiting" && r.waiting && r.waiting.kind !== "idle") {
-      const added = addItem(store, {
+      const added = addOrReturn(store, {
         key: `session:${r.id}:wait:${r.waiting.kind}:${r.waiting.since}`,
         origin: "deck", kind: "answer", title: name,
         detail: r.waiting.message || (r.waiting.kind === "permission" ? "Asks for a permission" : "Asks you a question"),
@@ -416,7 +436,7 @@ export function reconcileDeck(store, rows, digest, now, { archived = null } = {}
     }
     const f = failed.get(r.id);
     if (f && r.state !== "working" && r.state !== "waiting" && r.state !== "ended") {
-      const added = addItem(store, {
+      const added = addOrReturn(store, {
         key: `session:${r.id}:failed:${r.lastEventAt ?? r.since}`,
         origin: "deck", kind: "failed", title: name,
         detail: f.prompt ? `Turn failed: ${f.prompt}` : "Its last turn failed",
@@ -434,7 +454,9 @@ export function reconcileDeck(store, rows, digest, now, { archived = null } = {}
     if (!r && archived?.has(sid) && (item.origin === "deck" || item.origin === "brief")) {
       changed = closeItem(item, { by: "deck", reason: ARCHIVED, now }) || changed;
     } else if (item.origin === "deck" && key.startsWith(`session:${sid}:wait:`)) {
-      const [, , , kind, since] = key.split(":");
+      // Read after the session's own id, which may hold colons itself (a
+      // paired deck's, `peer:<fp>:<id>`, paired-sessions.mjs).
+      const [kind, since] = key.slice(`session:${sid}:wait:`.length).split(":");
       if (!r) changed = closeItem(item, { by: "deck", reason: "The session is no longer on the board", now }) || changed;
       else if (r.state === "ended") changed = closeItem(item, { by: "deck", reason: "The session ended", now }) || changed;
       else if (!(r.state === "waiting" && r.waiting && r.waiting.kind === kind && String(r.waiting.since) === since)) {
@@ -490,7 +512,7 @@ export function ingestBrief(store, brief, now, { rows = [] } = {}) {
     const item = addItem(store, {
       key, origin: "brief", kind: KINDS.includes(raw.kind) ? raw.kind : "todo",
       title: raw.person ? `${raw.person} · ${raw.title}` : raw.title, detail: raw.detail,
-      link: normaliseLink({ url: raw.url, sessionId: raw.sessionId }),
+      link: normaliseLink({ url: raw.url, sessionId: raw.sessionId, project: raw.sessionId ? byId.get(raw.sessionId)?.machine : undefined }),
       ...(seen ? { seen } : {}),
     }, now);
     if (item) added.push(item);

@@ -20,6 +20,7 @@ import { summarizeSessions } from "./session-summary.mjs";
 import { createStatusBrief } from "./status-brief.mjs";
 import { statusTodo } from "./status-todo-routes.mjs";
 import { archivedDesktopSessions, withoutArchived } from "./desktop-sessions.mjs";
+import { pairedSessionRows, withPairedRows } from "./paired-sessions.mjs";
 // The shared contract: the user's own Claude Code, headless, read-only.
 import { agentVetoed, connectorsState, listConnectors, runAgent } from "./claude-agent.mjs";
 
@@ -40,9 +41,12 @@ export function statusBrief() {
     agent: () => loadAgent(),
     // Without what the person archived in the Claude desktop app: the brief
     // writes nothing about a session they put away (desktop-sessions.mjs).
+    // With the sessions paired decks share, each marked with its machine
+    // (paired-sessions.mjs).
     sessions: async () => {
       const envelopes = eventsSince(0);
-      return { rows: withoutArchived(summarizeSessions(envelopes), await archivedDesktopSessions()), envelopes };
+      const local = withoutArchived(summarizeSessions(envelopes), await archivedDesktopSessions());
+      return { rows: withPairedRows(local, await pairedSessionRows()), envelopes };
     },
     todo: statusTodo(),
     // GitHub through the user's own gh, read-only (status-gh.mjs).

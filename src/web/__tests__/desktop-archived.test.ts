@@ -96,10 +96,13 @@ describe("the server's sessions without the archived ones", () => {
 
   it("is what the brief and the Todo list read, and the Todo list looks again when only the archive moved", () => {
     const brief = src("../../server/status-brief-routes.mjs");
-    expect(brief).toContain("rows: withoutArchived(summarizeSessions(envelopes), await archivedDesktopSessions())");
+    // CHANGED ON PURPOSE: the paired decks' sessions join after the archived
+    // are dropped from this deck's own (paired-sessions.mjs).
+    expect(brief).toContain("const local = withoutArchived(summarizeSessions(envelopes), await archivedDesktopSessions());");
+    expect(brief).toContain("rows: withPairedRows(local, await pairedSessionRows())");
     const todo = src("../../server/status-todo-routes.mjs");
-    expect(todo).toContain("const rows = withoutArchived(summarizeSessions(envelopes), archived);");
-    expect(todo).toMatch(/if \(seq === seenSeq && archived === seenArchived\) return false;/);
+    expect(todo).toContain("const rows = withPairedRows(withoutArchived(summarizeSessions(envelopes), archived), await pairedSessionRows());");
+    expect(todo).toMatch(/if \(seq === seenSeq && archived === seenArchived && paired === seenPaired\) return false;/);
     expect(src("../../server/status-todo.mjs")).toContain("reconcileDeck(store, rows, digest, now(), { archived })");
   });
 });

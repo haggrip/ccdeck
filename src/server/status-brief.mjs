@@ -451,6 +451,11 @@ export function sessionDigest(rows, envelopes, { now = Date.now(), maxRows = 30,
       if (was?.failed) last.set(id, { ...was, failed: false });
     }
   }
+  // A paired deck's session (paired-sessions.mjs) is in no envelope here: its
+  // newest prompt is what that deck shared with its row, when it shares one.
+  for (const r of Array.isArray(rows) ? rows : []) {
+    if (r?.machine && typeof r.prompt === "string" && r.prompt && !last.has(r.id)) last.set(r.id, { prompt: r.prompt, failed: false });
+  }
   const out = [];
   for (const r of Array.isArray(rows) ? rows : []) {
     if (r.state === "ended" && now - (r.lastEventAt ?? 0) > recentMs) continue;
@@ -458,7 +463,8 @@ export function sessionDigest(rows, envelopes, { now = Date.now(), maxRows = 30,
     out.push({
       id: r.id,
       name: text(r.name ?? "", 120) || null,
-      project: r.project ?? null,
+      // Where it runs, for one on another machine: "<folder> on <machine>".
+      project: r.machine ? `${r.project ?? "?"} on ${text(r.machine, 80)}` : r.project ?? null,
       state: seen?.failed && r.state !== "working" && r.state !== "waiting" ? "failed" : r.state,
       since: r.since ?? null,
       question: r.waiting && r.waiting.kind !== "idle" ? text(r.waiting.message, 200) || null
@@ -671,6 +677,9 @@ export function buildPrompt({ sessions, reach, tools = [], since, now = Date.now
     "",
     "SESSIONS ON THIS DECK (id, name, project, state, since, standing question, where the session says it stands or else my last prompt):",
     ...lines,
+    ...(sessions.some(s => typeof s.id === "string" && s.id.startsWith("peer:"))
+      ? ["(A session whose project reads \"… on <machine>\" runs on another of my machines, paired with this deck. It counts like any other, and its id links it.)"]
+      : []),
     "",
     ...(given.length
       ? ["TOOLS (the only ones you have, all read-only):", ...given.map(n => `- ${n}`)]

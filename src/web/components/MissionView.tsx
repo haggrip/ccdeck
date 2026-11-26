@@ -32,9 +32,12 @@ import { useStatusBrief, type StatusBriefHandle } from "../use-status-brief";
 import { useStatusTodo, type StatusTodoHandle } from "../use-status-todo";
 import { NO_LINKS, prStateWords, prTone, type SessionLinks, type SessionLinksView } from "../session-links";
 import { useSessionLinks } from "../use-session-links";
+import { missionRemote, remoteOpeners, type RemoteLive, type RemoteMachine } from "../remote-sessions";
 import { rank, type Row } from "./SessionList";
 
 export const MISSION_ID = "mission";
+/** No paired deck: the default, one array so the memos below hold. */
+const NO_MACHINES: readonly RemoteMachine[] = [];
 
 /** What colour a task is: the kind of ask it is, not where it came from. */
 export type Tone = "ask" | "err" | "review" | "talk" | "do" | "note";
@@ -82,17 +85,21 @@ export function DesktopButton({ label, onPress, compact = false }: { label: stri
   );
 }
 
-function Task({ item, now, sessions, desktop, linked, onOpenSession, onOpenDesktop, act, dismiss, t }: {
+function Task({ item, now, sessions, desktop, linked, remote, onOpenSession, onOpenDesktop, onOpenRemote, act, dismiss, t }: {
   item: TodoItem; now: number; sessions: ReadonlySet<string>; desktop: DesktopLinks;
   /** The session its PR or ticket is worked on in (session-links.ts). */
   linked?: string;
-  onOpenSession: (id: string) => void; onOpenDesktop: (id: string) => void;
+  remote: ReadonlyMap<string, string>;
+  onOpenSession: (id: string) => void; onOpenDesktop: (id: string) => void; onOpenRemote?: (remoteId: string) => void;
   act: StatusTodoHandle["act"]; dismiss: StatusTodoHandle["dismiss"]; t: TFunction;
 }) {
   const open = openerOf(item, sessions, desktop, linked);
+  // A paired deck's Remote Control session opens in the desktop app too.
+  const remoteId = onOpenRemote && item.link?.sessionId ? remote.get(item.link.sessionId) : undefined;
+  const openApp = open.desktop ? () => onOpenDesktop(open.desktop!) : remoteId ? () => onOpenRemote!(remoteId) : null;
   const snoozed = isSnoozed(item, now);
   const overdue = isOverdue(item, now);
-  const src = sourceOf(item, !!open.desktop && !open.href);
+  const src = sourceOf(item, !!openApp && !open.href);
   const title = <span className="mi-task-title-text">{item.title}</span>;
   // The title goes where the task is acted on: its session's card, its page,
   // else the desktop app for a session the board no longer has.
@@ -101,8 +108,8 @@ function Task({ item, now, sessions, desktop, linked, onOpenSession, onOpenDeskt
       title={t(open.desktop ? "brief.open.desktop" : "brief.open.session")}>{title}</button>
   ) : open.href ? (
     <a className="mi-task-title" href={open.href} target="_blank" rel="noreferrer noopener" title={t("brief.open.link", { source: src?.name ?? "" })}>{title}<ExternalLinkGlyph /></a>
-  ) : open.desktop ? (
-    <button type="button" className="mi-task-title" onClick={() => onOpenDesktop(open.desktop!)} title={t("brief.open.desktop")}>{title}</button>
+  ) : openApp ? (
+    <button type="button" className="mi-task-title" onClick={openApp} title={t("brief.open.desktop")}>{title}</button>
   ) : <span className="mi-task-title">{title}</span>;
   return (
     <li className="mi-task" data-tone={toneOf(item.kind)} data-snoozed={snoozed ? "" : undefined} data-overdue={overdue ? "" : undefined}>
@@ -125,7 +132,7 @@ function Task({ item, now, sessions, desktop, linked, onOpenSession, onOpenDeskt
         </div>
       </div>
       <div className="mi-task-acts">
-        {open.desktop && <DesktopButton label={t("brief.open.desktop")} onPress={() => onOpenDesktop(open.desktop!)} />}
+        {openApp && <DesktopButton label={t("brief.open.desktop")} onPress={openApp} />}
         <span className="mi-glyphs">
           {snoozed ? (
             <button type="button" className="glyph-btn" onClick={() => act("unsnooze", item.id)}
@@ -203,15 +210,19 @@ export function SessionChips({ links, t }: { links: SessionLinks | undefined; t:
   );
 }
 
-function Live({ rows, desktop, links, onOpenSession, onOpenDesktop, t }: {
-  rows: readonly Row[]; desktop: DesktopLinks; links: SessionLinksView; onOpenSession: (id: string) => void; onOpenDesktop: (id: string) => void; t: TFunction;
+function Live({ rows, remote, desktop, links, onOpenSession, onOpenDesktop, onOpenRemote, t }: {
+  rows: readonly Row[]; remote: readonly RemoteLive[]; desktop: DesktopLinks; links: SessionLinksView;
+  onOpenSession: (id: string) => void; onOpenDesktop: (id: string) => void; onOpenRemote?: (remoteId: string) => void; t: TFunction;
 }) {
   const live = rows.map(r => ({ r, s: liveState(r) })).filter((x): x is { r: Row; s: LiveState } => x.s != null)
     .sort((a, b) => LIVE_ORDER.indexOf(a.s) - LIVE_ORDER.indexOf(b.s) || b.r.lastActivity - a.r.lastActivity);
+  // A paired deck's sessions after this deck's own, in the same order, each
+  // with its machine's name (paired-sessions.mjs on the deck).
+  const far = [...remote].sort((a, b) => LIVE_ORDER.indexOf(a.live) - LIVE_ORDER.indexOf(b.live) || b.lastActivity - a.lastActivity);
   return (
     <section className="mi-card mi-live" aria-labelledby="mi-live">
-      <h3 className="mi-h" id="mi-live"><span className="mi-pulse" aria-hidden />{t("brief.mission.live")}<span className="mi-n">{live.length}</span></h3>
-      {live.length ? (
+      <h3 className="mi-h" id="mi-live"><span className="mi-pulse" aria-hidden />{t("brief.mission.live")}<span className="mi-n">{live.length + far.length}</span></h3>
+      {live.length || far.length ? (
         <ul className="mi-live-list">
           {live.map(({ r, s }) => {
             // A session the desktop app runs opens there; any other, its card.
@@ -234,6 +245,28 @@ function Live({ rows, desktop, links, onOpenSession, onOpenDesktop, t }: {
               {app && <DesktopButton label={t("brief.open.desktop")} onPress={() => onOpenDesktop(r.sessionId)} />}
               <SessionChips links={links.sessions[r.sessionId]} t={t} />
             </li>
+            );
+          })}
+          {far.map(x => {
+            // A Remote Control session opens in the desktop app; any other
+            // has no card here to open.
+            const open = x.remoteId && onOpenRemote ? () => onOpenRemote(x.remoteId!) : null;
+            const inner = (
+              <>
+                <span className="mi-dot" aria-hidden />
+                <span className="mi-live-name">{x.label}</span>
+                <span className="mi-live-machine">{x.machine}</span>
+                <span className="mi-live-state">{t(LIVE_MSGS[x.live])}</span>
+                {x.detail && <span className="mi-live-detail">{x.detail}</span>}
+              </>
+            );
+            return (
+              <li key={x.sessionId} className="mi-live-row" data-live={x.live} data-far="">
+                {open
+                  ? <button type="button" className="mi-live-main" onClick={open} title={t("brief.open.desktop")}>{inner}</button>
+                  : <span className="mi-live-main">{inner}</span>}
+                {open && <DesktopButton label={t("brief.open.desktop")} onPress={open} />}
+              </li>
             );
           })}
         </ul>
@@ -314,6 +347,10 @@ export interface MissionProps {
   onOpenDesktop: (sessionId: string) => void;
   /** Each session's PRs and tickets, and the session each item is about. */
   links?: SessionLinksView;
+  /** The sessions paired decks share with this one (use-remote-sessions.ts). */
+  remote?: readonly RemoteMachine[];
+  /** A Remote Control session (`session_…`) brought up in the desktop app. */
+  onOpenRemote?: (remoteId: string) => void;
 }
 
 /** The page as App mounts it, with its own line to the deck. */
@@ -324,12 +361,16 @@ export default function MissionView(props: MissionProps) {
   return <MissionPage {...props} brief={brief} todo={todo} links={links} />;
 }
 
-export function MissionPage({ rows, now, desktop, onOpenSession, onOpenDesktop, links = NO_LINKS, brief, todo }: MissionProps & { brief: StatusBriefHandle; todo: StatusTodoHandle }) {
+export function MissionPage({ rows, now, desktop, onOpenSession, onOpenDesktop, links = NO_LINKS, remote = NO_MACHINES, onOpenRemote, brief, todo }: MissionProps & { brief: StatusBriefHandle; todo: StatusTodoHandle }) {
   const t = useT();
   const [draft, setDraft] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const local = useMemo(() => localBrief(rows), [rows]);
   const sessions = useMemo(() => new Set(rows.map(r => r.sessionId)), [rows]);
+  // A paired deck's sessions: Live's rows, and the Remote Control session a
+  // Todo item about one of them opens in the desktop app.
+  const far = useMemo(() => missionRemote(remote), [remote]);
+  const farOpen = useMemo(() => remoteOpeners(remote), [remote]);
   const view = brief.view;
   const b = view?.brief ?? null;
   const runningRef = useRef(false);
@@ -362,11 +403,11 @@ export function MissionPage({ rows, now, desktop, onOpenSession, onOpenDesktop, 
   const stats: { key: string; n: number; label: string }[] = [
     { key: "ask", n: waiting.length, label: t("brief.mission.stat.waiting") },
     { key: "err", n: local.counts.failed, label: t("brief.mission.stat.failed") },
-    { key: "work", n: local.counts.working, label: t("brief.mission.stat.working") },
+    { key: "work", n: local.counts.working + far.filter(x => x.live === "working").length, label: t("brief.mission.stat.working") },
     { key: "ok", n: local.counts.fresh, label: t("brief.mission.stat.unread") },
     { key: "do", n: next.length, label: t("brief.mission.stat.todo") },
   ];
-  const rest = { now, sessions, desktop, onOpenSession, onOpenDesktop, act: todo.act, dismiss: todo.dismiss, t };
+  const rest = { now, sessions, desktop, remote: farOpen, onOpenSession, onOpenDesktop, onOpenRemote, act: todo.act, dismiss: todo.dismiss, t };
 
   return (
     <section className="mission" id={MISSION_ID} aria-labelledby="mi-title">
@@ -434,7 +475,7 @@ export function MissionPage({ rows, now, desktop, onOpenSession, onOpenDesktop, 
           </div>
 
           <aside className="mi-side" aria-label={t("brief.mission.context")}>
-            <Live rows={rows} desktop={desktop} links={links} onOpenSession={onOpenSession} onOpenDesktop={onOpenDesktop} t={t} />
+            <Live rows={rows} remote={far} desktop={desktop} links={links} onOpenSession={onOpenSession} onOpenDesktop={onOpenDesktop} onOpenRemote={onOpenRemote} t={t} />
             {b?.activity && b.reach?.github === "on" && <div className="mi-card"><Since activity={b.activity} t={t} /></div>}
             <WaitingOnOthers items={b?.waitingOn ?? []} now={now} t={t} />
             <TalkTo items={talkTo} onOpenSession={onOpenSession} onDismiss={todo.dismiss ? it => todo.dismiss!({ item: it }) : undefined} t={t} />

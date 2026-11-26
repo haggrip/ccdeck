@@ -79,14 +79,17 @@ export function createServe({
         // and only while the owner shares them, to an address the tailnet rule
         // allows (the listener refused any other already; this says it again
         // for the one answer that names what somebody is working on).
-        // Whitelisted in lan-sessions.mjs: no prompt, question, tool input or
-        // path ever leaves.
+        // Whitelisted in lan-sessions.mjs: no tool input, transcript or path
+        // ever leaves, and no prompt, question or end-of-turn words unless the
+        // owner turned that second tier on as well (lan.shareSessionContext),
+        // asked again after the read so a switch turned off meanwhile holds.
         const mayShare = () => mayAnswer() && settings().shareSessions === true && settings().sessionsVetoed !== true && !!localSessions
           && mayTalkTo(ctx?.peerAddr);
+        const mayTell = () => settings().shareSessionContext === true && settings().contextVetoed !== true;
         if (!mayShare()) return ctx.send({ t: "no", why: "not shared" });
-        const rows = shareRows(await localSessions());
+        const read = await localSessions({ context: mayTell() });
         if (!mayShare()) return ctx.send({ t: "no", why: "not shared" });
-        return ctx.send({ t: "sessions", rows });
+        return ctx.send({ t: "sessions", rows: shareRows(read, { context: mayTell() }) });
       }
       if (msg.t === "manifest") {
         // THE CALLER'S CARD RIDES THE QUESTION, which is the only way a deck

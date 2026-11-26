@@ -17,6 +17,16 @@
 // the row summarizeSessions builds (`cwd`, `waiting.message`, `waiting.tool`),
 // and none of them is copied. The same whitelist runs again over what a peer
 // sends back, so a deck that sends more than this is cut down to it here.
+//
+// A SECOND TIER, OFF UNLESS THE OWNER TURNS IT ON TOO (`lan.shareSessionContext`,
+// held off by AGENTS_DECK_NO_LAN_SESSION_CONTEXT=1): where each session stands
+// in its own words, so the deck that shows it can put it in its brief and its
+// Todo list (lan-session-context.mjs). Four more fields, each cut here: the
+// newest prompt, the question standing and since when, and the end of the last
+// turn as `{ id, at, recap, ask }`, the shape session-wrap.mjs keeps. Still never
+// a tool's input or output, a transcript or a path. A deck that shares them says
+// so in its manifest (`context: 1`), and the asking deck keeps them only from a
+// deck that said so; from any other, they are cut as before.
 
 /** The most sessions one deck hands over, and keeps of one peer. */
 export const MAX_SHARED_SESSIONS = 200;
@@ -24,6 +34,12 @@ export const MAX_SHARED_SESSIONS = 200;
 export const MAX_ID = 128;
 export const MAX_NAME = 120;
 export const MAX_PROJECT = 80;
+export const MAX_PROMPT = 240;
+export const MAX_QUESTION = 200;
+export const MAX_RECAP = 600;
+export const MAX_ASK = 300;
+export const MAX_CHOICE = 60;
+export const MAX_CHOICES = 4;
 
 const STATES = new Set(["waiting", "working", "idle", "ended", "failed"]);
 const KINDS = new Set(["permission", "asked", "idle"]);
@@ -44,8 +60,47 @@ const folder = v => {
   return text(last ?? "", MAX_PROJECT);
 };
 
-/** One row, cut to the whitelist; null for a row that names no session. */
-export function shareRow(row) {
+/** Words drawn as one line: whitespace folded, cut with an ellipsis. */
+const words = (v, max) => {
+  if (typeof v !== "string") return null;
+  const s = v.replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim();
+  if (!s) return null;
+  return s.length > max ? s.slice(0, max - 1).trimEnd() + "…" : s;
+};
+
+/** The end of a turn, as session-wrap.mjs keeps it: `{ id, at, recap, ask }`,
+ *  each field cut; null when it says nothing. */
+export function shareWrap(w) {
+  if (!w || typeof w !== "object") return null;
+  const at = time(w.at);
+  if (!at) return null;
+  const recap = words(w.recap, MAX_RECAP);
+  const ask = w.ask && typeof w.ask === "object" ? w.ask : null;
+  const question = ask ? words(ask.question, MAX_ASK) : null;
+  const blocked = ask?.blocked === true;
+  if (!recap && !question && !blocked) return null;
+  const choices = ask && Array.isArray(ask.choices)
+    ? ask.choices.map(c => words(c, MAX_CHOICE)).filter(Boolean).slice(0, MAX_CHOICES)
+    : [];
+  return { id: text(w.id, MAX_ID), at, recap, ask: question || blocked ? { question, choices, blocked } : null };
+}
+
+/** The second tier's four fields, from a row's `context` (this deck's rows,
+ *  lan-session-context.mjs) or from the row itself (what a peer sent). */
+function contextFields(row, state) {
+  const src = row.context && typeof row.context === "object" ? row.context : row;
+  const question = state === "ended" ? null : words(src.question, MAX_QUESTION);
+  return {
+    prompt: words(src.prompt, MAX_PROMPT),
+    question,
+    askedAt: question ? time(src.askedAt) : null,
+    wrap: state === "ended" ? null : shareWrap(src.wrap),
+  };
+}
+
+/** One row, cut to the whitelist; null for a row that names no session. With
+ *  `context`, the second tier's fields as well. */
+export function shareRow(row, { context = false } = {}) {
   if (!row || typeof row !== "object") return null;
   const id = text(row.id, MAX_ID);
   if (!id) return null;
@@ -65,6 +120,7 @@ export function shareRow(row) {
     since: time(row.since),
     lastEventAt: time(row.lastEventAt),
     waiting,
+    ...(context === true ? contextFields(row, state) : {}),
   };
 }
 
@@ -74,13 +130,14 @@ export const MAX_SHARED_BYTES = 48 * 1024;
 
 /** This deck's answer: summarizeSessions' rows, whitelisted and capped by
  *  count and by size. summarizeSessions puts the waiting first, so a cut
- *  drops the ended and the idle before anything that needs somebody. */
-export function shareRows(rows, { max = MAX_SHARED_SESSIONS, maxBytes = MAX_SHARED_BYTES } = {}) {
+ *  drops the ended and the idle before anything that needs somebody. With
+ *  `context`, the second tier rides each row too, inside the same byte cap. */
+export function shareRows(rows, { max = MAX_SHARED_SESSIONS, maxBytes = MAX_SHARED_BYTES, context = false } = {}) {
   const out = [];
   let bytes = 0;
   for (const row of Array.isArray(rows) ? rows : []) {
     if (out.length >= max) break;
-    const r = shareRow(row);
+    const r = shareRow(row, { context });
     if (!r) continue;
     bytes += Buffer.byteLength(JSON.stringify(r)) + 1;
     if (bytes > maxBytes) break;
@@ -105,9 +162,11 @@ export function createRemoteSessions({ now = Date.now, staleMs, onChange = null 
   const byFp = new Map();
   const changed = () => { try { onChange?.(); } catch { /* a listener's failure is not the store's */ } };
   return {
-    keep(fp, rows, { control = false } = {}) {
+    // `context`: the deck said in its manifest that it shares the second tier.
+    // From any other, those fields are cut as the first tier always was.
+    keep(fp, rows, { control = false, context = false } = {}) {
       if (typeof fp !== "string" || !fp) return;
-      byFp.set(fp, { at: now(), rows: heardRows(rows), control: control === true });
+      byFp.set(fp, { at: now(), rows: heardRows(rows, { context: context === true }), control: control === true });
       changed();
     },
     drop(fp) {

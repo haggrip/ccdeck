@@ -252,6 +252,14 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
     const p = pressProps("share-sessions");
     return { ...p, disabled: p.disabled || sessionsVetoed };
   })();
+  // And what those sessions say, with them (lan-session-context.mjs): the
+  // same rules, and only offered while the sessions are shared at all.
+  const contextVetoed = status.contextVetoed === true;
+  const sharesContext = status.shareSessionContext === true && !contextVetoed && sharesSessions;
+  const contextPress = (() => {
+    const p = pressProps("share-session-context");
+    return { ...p, disabled: p.disabled || contextVetoed || !sharesSessions };
+  })();
   // And the sixth: commands from paired decks for this deck's sessions
   // (lan-control.mjs). Off unless a real true was stored, held off by the
   // machine's veto, and only offered while the sessions are shared at all —
@@ -458,7 +466,9 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
               <div className="lan-switch">
                 <span className="lan-switch-what">
                   {t("lan.setup.shareSessions")}
-                  {(sharesSessions || sessionsVetoed) && (
+                  {/* "Never a prompt or a question" stops being true once the
+                      switch below sends them, which says so itself. */}
+                  {((sharesSessions && !sharesContext) || sessionsVetoed) && (
                     <span id="lan-share-sessions-detail" className="lan-switch-detail">
                       {sessionsVetoed ? t("lan.setup.shareSessionsVetoed") : t("lan.setup.shareSessionsDetail")}
                     </span>
@@ -470,7 +480,7 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                   role="switch"
                   aria-checked={sharesSessions}
                   aria-label={t("lan.setup.shareSessions")}
-                  aria-describedby={sharesSessions || sessionsVetoed ? "lan-share-sessions-detail" : undefined}
+                  aria-describedby={(sharesSessions && !sharesContext) || sessionsVetoed ? "lan-share-sessions-detail" : undefined}
                   {...sessionsPress}
                   onClick={() => void write(
                     { shareSessions: !sharesSessions },
@@ -478,6 +488,37 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                     "share-sessions",
                   )}
                   title={sharesSessions ? t("lan.setup.shareSessionsOn") : t("lan.setup.shareSessionsOff")}
+                >
+                  <span className="switch-knob" />
+                </button>
+              </div>
+              {/* WHAT THOSE SESSIONS SAY, WITH THEM — the newest prompt, the
+                  question standing, how the last turn ended — so the paired
+                  deck can put them in its brief and Todo list. Off until
+                  somebody turns it on, and only while the sessions are shared. */}
+              <div className="lan-switch">
+                <span className="lan-switch-what">
+                  {t("lan.setup.shareSessionContext")}
+                  <span id="lan-share-context-detail" className="lan-switch-detail">
+                    {contextVetoed ? t("lan.setup.shareSessionContextVetoed")
+                      : !sharesSessions ? t("lan.setup.shareSessionContextNeedsShare")
+                      : t("lan.setup.shareSessionContextDetail")}
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  className="switch ap-auto-state"
+                  role="switch"
+                  aria-checked={sharesContext}
+                  aria-label={t("lan.setup.shareSessionContext")}
+                  aria-describedby="lan-share-context-detail"
+                  {...contextPress}
+                  onClick={() => void write(
+                    { shareSessionContext: !sharesContext },
+                    sharesContext ? "stop sharing what this deck's sessions say" : "share what this deck's sessions say",
+                    "share-session-context",
+                  )}
+                  title={sharesContext ? t("lan.setup.shareSessionContextOn") : t("lan.setup.shareSessionContextOff")}
                 >
                   <span className="switch-knob" />
                 </button>
