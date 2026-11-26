@@ -19,6 +19,7 @@ const catalog: Catalog = {
   "brief.count.quiet": "没有等你处理的事",
   "brief.meta": "简报 {ago} · {model} · {sources}",
   "brief.meta.sessionsOnly": "仅会话",
+  "brief.reads.partial": "{source}：{asked} 次搜索只运行了 {done} 次，可能有遗漏。刷新以重试。",
   "brief.none": "还没有简报。刷新后，Claude Code 会根据你的会话和连接器生成一份。",
   "brief.agentOff": "简报需要此 deck 上的 Claude Code。你的会话在下方实时列出。",
   "brief.failed": "上一次简报失败：{message}",

@@ -445,6 +445,7 @@ export function normaliseStore(raw) {
       ...(typeof b.ghAccount === "string" && /^[A-Za-z0-9-]{1,39}$/.test(b.ghAccount) ? { ghAccount: b.ghAccount } : {}),
       ...(normaliseActivity(b.activity) ? { activity: normaliseActivity(b.activity) } : {}),
       ...(normalisePrs(b.prs).length ? { prs: normalisePrs(b.prs) } : {}),
+      ...(normaliseReads(b.reads) ? { reads: normaliseReads(b.reads) } : {}),
     } : null,
     lastRunAt: Number.isFinite(r.lastRunAt) ? r.lastRunAt : null,
     failures: Number.isInteger(r.failures) && r.failures > 0 ? Math.min(r.failures, 99) : 0,
@@ -670,14 +671,63 @@ export async function mergeWaitingOn({ asked, gh = null, github = null, ignore =
 }
 
 /** How each bullet of the brief is written: short, one fact, its subject first
- *  so the page can set it in bold (pointLead in status-brief.ts). */
-const POINTS_HOW = "3 to 6 short bullets, most important first, one fact each, under 120 characters. Start each with what it is about (a PR as repo#number, a ticket key, a session's name or a person) and a colon, then the fact. No bullet repeats another.";
+ *  so the page can set it in bold (pointLead in status-brief.ts). Every source
+ *  with something for the user gets its own bullet: the first Sonnet brief
+ *  (2026-11-26) gave Slack none, though it was the source he wanted most. */
+const POINTS_HOW = "3 to 6 short bullets, most important first, one fact each, under 120 characters. Start each with what it is about (a PR as repo#number, a ticket key, a Slack person or channel, a session's name) and a colon, then the fact. Every source you read, and the sessions, that has something waiting on me or something I asked that is still unanswered gets at least one bullet of its own. No bullet repeats another.";
+
+/**
+ * The reads a brief must make, by source: the search each one's ask names, and
+ * how many times. On 2026-11-26 the first Sonnet brief made one Slack search of
+ * the four the ask names and no Jira search at all, wrote a confident brief
+ * from that, and Slack came out as one review request (owner: "I feel slack is
+ * not adequately represented here"). So the rules name every read up front,
+ * and the deck counts them afterwards (readsShort) and says on the page what a
+ * brief left unread.
+ */
+export const REQUIRED_READS = Object.freeze({
+  slack: Object.freeze({ tail: "slack_search_public_and_private", n: 4, what: "four searches: direct messages, replies in threads I am in, pull request links in my channels, and my own messages; then the thread reads" }),
+  jira: Object.freeze({ tail: "searchJiraIssuesUsingJql", n: 1, what: "one search for my issues in the current sprint" }),
+  linear: Object.freeze({ tail: "list_issues", n: 2, what: "two lists: issues I created, and issues assigned to me" }),
+});
+
+/** The reads this brief must make: a source that is on and has its tool. */
+export function requiredReads(reach, given) {
+  const out = {};
+  for (const [source, r] of Object.entries(REQUIRED_READS)) {
+    const tool = reach?.[source] === "on" ? given.find(n => toolTail(n) === r.tail) : null;
+    if (tool) out[source] = { tool, n: r.n, what: r.what };
+  }
+  return out;
+}
+
+/** The sources a run read less than it was asked to, as { done, asked }, from
+ *  the run's own count of its calls (claude-agent.mjs usageFrom `calls`). */
+export function readsShort(required, calls) {
+  const out = {};
+  for (const [source, r] of Object.entries(required ?? {})) {
+    const done = Object.entries(calls ?? {}).reduce((n, [name, c]) => (toolTail(name) === toolTail(r.tool) ? n + (Number(c) || 0) : n), 0);
+    if (done < r.n) out[source] = { done, asked: r.n };
+  }
+  return out;
+}
+
+/** A stored brief's reads note, checked. */
+function normaliseReads(raw) {
+  const out = {};
+  for (const source of Object.keys(REQUIRED_READS)) {
+    const r = raw?.[source];
+    if (r && Number.isInteger(r.done) && Number.isInteger(r.asked) && r.done >= 0 && r.asked > r.done && r.asked <= 10) out[source] = { done: r.done, asked: r.asked };
+  }
+  return Object.keys(out).length ? out : null;
+}
 
 /** What the model is asked. Pure, so the suite can read it. */
 export function buildPrompt({ sessions, reach, tools = [], since, now = Date.now(), hidden = [], watch = [], dismissed = [], github = null, slackIgnore = [] }) {
   // Named in full, so the model never reaches for one it was not given: a
   // call outside the run's list ends the run (claude-agent.mjs).
   const given = [...new Set((Array.isArray(tools) ? tools : []).filter(t => typeof t === "string"))].sort();
+  const must = requiredReads(reach, given);
   const use = (source) => {
     const names = PROMPT_TOOLS[source].map(tail => given.find(n => toolTail(n) === tail)).filter(Boolean);
     return names.length ? ` Use ${names.join(", ")}.` : "";
@@ -706,6 +756,9 @@ export function buildPrompt({ sessions, reach, tools = [], since, now = Date.now
     "- Every item must link to its source: \"url\" (an https link to the PR, Slack message, or ticket) or \"sessionId\" (one of the ids in brackets below).",
     "- Keep titles under 120 characters. Prefer fewer, sharper items. Do not invent anything you did not see.",
     ...(hidden.length ? [`- Leave these people out entirely: ${hidden.map(h => JSON.stringify(h)).join(", ")}.`] : []),
+    ...(Object.keys(must).length ? [
+      `- Before you answer, make every read ALSO LOOK AT asks for, each as its own call with the parameters it gives: ${Object.entries(must).map(([s, r]) => `${s[0].toUpperCase()}${s.slice(1)}, ${r.what}, with ${r.tool}`).join("; ")}. Do not skip one, or fold two into one call, because another seemed to be enough: the deck counts them, and a brief that skipped one says so on the page.`,
+    ] : []),
     ...(dismissed.length ? [
       "- The developer dismissed the items below. Leave each out, unless its source shows activity (a new message, comment, review, commit or status change) after the time it was dismissed; then include it with \"activityAt\" set to that activity's time.",
       ...dismissed.map(d => `  - ${d.url ?? d.key} · ${JSON.stringify(d.title)} · dismissed ${clock(d.at)}`),
@@ -943,8 +996,12 @@ export function createStatusBrief({ dir, agent, sessions, todo = null, github = 
         const how = activitySettledBy(i, views?.get(i.url) ?? null, gh.account);
         if (how) i.settled = how;
       }
+      // What the model read less of than it was asked to (REQUIRED_READS).
+      const short = readsShort(requiredReads(reach, tools), result.usage?.calls);
+      if (Object.keys(short).length) log(`status brief: read in part: ${Object.entries(short).map(([k, r]) => `${k} ${r.done} of ${r.asked}`).join(", ")}`);
       s.brief = {
         ...brief, at: now(), model: s.settings.model, reach,
+        ...(Object.keys(short).length ? { reads: short } : {}),
         ...(gh?.status === "on" && gh.account ? { ghAccount: gh.account } : {}),
         ...(activity ? { activity } : {}),
         // My open PRs as gh read them, for the sessions' PR chips

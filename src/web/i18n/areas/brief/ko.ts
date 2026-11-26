@@ -19,6 +19,7 @@ const catalog: Catalog = {
   "brief.count.quiet": "나를 기다리는 일 없음",
   "brief.meta": "브리핑 {ago} · {model} · {sources}",
   "brief.meta.sessionsOnly": "세션만",
+  "brief.reads.partial": "{source}: 검색 {asked}개 중 {done}개만 실행되어 빠진 항목이 있을 수 있습니다. 새로 고쳐 다시 시도하세요.",
   "brief.none": "아직 브리핑이 없습니다. 새로 고치면 Claude Code가 세션과 커넥터로 작성합니다.",
   "brief.agentOff": "브리핑에는 이 데크의 Claude Code가 필요합니다. 세션은 아래에 실시간으로 표시됩니다.",
   "brief.failed": "마지막 브리핑이 실패했습니다: {message}",

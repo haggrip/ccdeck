@@ -65,6 +65,18 @@ export function countsLine(counts: LocalBrief["counts"], t: TFunction): string {
   return parts.length ? parts.join(" · ") : t("brief.count.quiet");
 }
 
+/** The sources a brief read only in part, each as a line for under the
+ *  summary: the model made fewer of its searches than it was asked to. */
+export function readsLines(view: BriefView | null, t: TFunction): string[] {
+  const reads = view?.brief?.reads;
+  if (!reads) return [];
+  return (Object.keys(SOURCE_NAMES) as (keyof typeof SOURCE_NAMES)[])
+    .flatMap(s => {
+      const r = s === "github" ? undefined : reads[s];
+      return r ? [t("brief.reads.partial", { source: SOURCE_NAMES[s], done: r.done, asked: r.asked })] : [];
+    });
+}
+
 /** What the brief's line under the summary says: when, which model, and the
  *  sources it read. */
 export function metaLine(view: BriefView, now: number, t: TFunction): string | null {
@@ -422,6 +434,7 @@ export function StatusPaneView({ rows, now, brief, todo, pinned, onTogglePin, be
             {b?.points?.length ? <BriefPoints points={b.points} className="stp-points" />
               : b?.summary && <p className="stp-summary-text">{b.summary}</p>}
             {view && b && <p className="stp-meta">{metaLine(view, now, t)}</p>}
+            {readsLines(view, t).map(line => <p key={line} className="stp-flag">{line}</p>)}
             {state}
             {failed && <p className="stp-flag">{t("brief.failed", { message: failed.message || failed.code })}</p>}
           </section>

@@ -20,6 +20,7 @@ const catalog: Catalog = {
   "brief.count.quiet": "Nothing waiting on you",
   "brief.meta": "Brief {ago} · {model} · {sources}",
   "brief.meta.sessionsOnly": "sessions only",
+  "brief.reads.partial": "{source}: only {done} of {asked} searches ran, so items may be missing. Refresh to try again.",
   "brief.none": "No brief yet. Refresh, and Claude Code writes one from your sessions and connectors.",
   "brief.agentOff": "Briefs need Claude Code on this deck. Your sessions are listed live below.",
   "brief.failed": "The last brief failed: {message}",

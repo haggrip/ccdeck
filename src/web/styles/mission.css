@@ -116,6 +116,8 @@
 /* The brief as bullets, each led by its subject in bold. */
 .mi-points { display: flex; flex-direction: column; gap: 4px; margin: 0; padding-left: 18px; max-width: 90ch; color: var(--text); }
 .mi-points strong { font-weight: 600; }
+/* A source the brief read only in part. */
+.mi-reads { margin: 4px 0 0; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); color: var(--warn); }
 .mi-meta { margin: 6px 0 0; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); color: var(--muted); }
 .mi-state { margin: 0; color: var(--muted); }
 .mi-flag { margin: 0; color: var(--err); }
