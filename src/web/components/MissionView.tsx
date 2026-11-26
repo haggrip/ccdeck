@@ -34,6 +34,7 @@ import { NO_LINKS, prStateWords, prTone, type SessionLinks, type SessionLinksVie
 import { useSessionLinks } from "../use-session-links";
 import { missionRemote, remoteOpeners, type RemoteLive, type RemoteMachine } from "../remote-sessions";
 import { rank, type Row } from "./SessionList";
+import BriefPoints from "./BriefPoints";
 
 export const MISSION_ID = "mission";
 /** No paired deck: the default, one array so the memos below hold. */
@@ -438,7 +439,8 @@ export function MissionPage({ rows, now, desktop, onOpenSession, onOpenDesktop, 
         <div className="mi-grid">
           <div className="mi-main">
             <section className="mi-brief" aria-label={t("brief.section.summary")}>
-              {b?.summary && <p className="mi-brief-text">{b.summary}</p>}
+              {b?.points?.length ? <BriefPoints points={b.points} className="mi-points" />
+                : b?.summary && <p className="mi-brief-text">{b.summary}</p>}
               {view && b && <p className="mi-meta">{metaLine(view, now, t)}</p>}
               {state}
               {failed && <p className="mi-flag">{t("brief.failed", { message: failed.message || failed.code })}</p>}

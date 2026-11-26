@@ -42,6 +42,7 @@ import { useStatusTodo, type StatusTodoHandle } from "../use-status-todo";
 import type { Dismissal } from "../status-todo";
 import StatusTodo from "./StatusTodo";
 import type { Row } from "./SessionList";
+import BriefPoints from "./BriefPoints";
 
 export const STATUS_PANE_ID = "status-pane";
 
@@ -418,7 +419,8 @@ export function StatusPaneView({ rows, now, brief, todo, pinned, onTogglePin, be
           <p className="stp-counts">{counts}</p>
           {settingsOpen && view && <Settings view={view} handle={brief} t={t} />}
           <section className="stp-summary" aria-label={t("brief.section.summary")}>
-            {b?.summary && <p className="stp-summary-text">{b.summary}</p>}
+            {b?.points?.length ? <BriefPoints points={b.points} className="stp-points" />
+              : b?.summary && <p className="stp-summary-text">{b.summary}</p>}
             {view && b && <p className="stp-meta">{metaLine(view, now, t)}</p>}
             {state}
             {failed && <p className="stp-flag">{t("brief.failed", { message: failed.message || failed.code })}</p>}

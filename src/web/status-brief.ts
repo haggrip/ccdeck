@@ -106,6 +106,9 @@ export interface Brief {
   at: number;
   model: BriefModel | null;
   summary: string;
+  /** The summary as bullets, each led by its subject. Absent from a brief
+   *  written before the deck asked for them, which shows `summary`. */
+  points?: string[];
   waiting: BriefItem[];
   todo: BriefItem[];
   talkTo: BriefItem[];
@@ -257,4 +260,16 @@ export function waitingOnShown(list: readonly WaitingOn[] | undefined): WaitingO
  *  request when the answer is plainly no. */
 export function autoDue(view: Pick<BriefView, "running" | "nextAutoAt" | "agent">, now: number): boolean {
   return view.agent === "ready" && !view.running && view.nextAutoAt != null && now >= view.nextAutoAt;
+}
+
+/**
+ * A bullet's subject, to set in bold, and the rest. The brief is asked to lead
+ * each bullet with what it is about and a colon ("saas-platform#18515: failing
+ * enforce-pr-title check"). A colon far in, or after the end of a sentence, is
+ * part of the words, so the bullet has no lead.
+ */
+export function pointLead(point: string): { lead: string | null; rest: string } {
+  const i = point.indexOf(": ");
+  if (i > 0 && i <= 60 && !/[.!?]/.test(point.slice(0, i))) return { lead: point.slice(0, i), rest: point.slice(i + 2) };
+  return { lead: null, rest: point };
 }

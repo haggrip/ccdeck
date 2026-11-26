@@ -71,8 +71,22 @@ export const BACKOFF_MS = Object.freeze([5 * 60_000, 15 * 60_000, 30 * 60_000, 6
  *  the DMs do; gh drops whatever was approved or turned draft since
  *  (reviewSettledBy). */
 export const SLACK_REVIEW_LOOKBACK_MS = 3 * 24 * 3600_000;
-/** A brief with connector reads in it takes longer than the contract's default. */
-export const RUN_TIMEOUT_MS = 180_000;
+/** A brief with connector reads in it takes longer than the contract's default.
+ *  Measured on 2026-11-26 with GitHub, Slack, Jira and Linear on: Haiku briefs
+ *  took 134 to 174 seconds, too close to the 180 this was. */
+export const RUN_TIMEOUT_MS = 240_000;
+/**
+ * What one brief may take and spend, by its model. The contract's own cap is
+ * $0.50 a run; Haiku briefs cost $0.11 to $0.20 on 2026-11-26, and the same
+ * reads on Sonnet cost about three times that, slower, so a Sonnet brief at
+ * the Haiku limits would be cut off part of the time. The owner runs Sonnet
+ * on demand only (2026-11-26), which is what makes its cost fine.
+ */
+export const RUN_LIMITS = Object.freeze({
+  haiku: Object.freeze({ timeoutMs: RUN_TIMEOUT_MS, maxBudgetUsd: 0.5 }),
+  sonnet: Object.freeze({ timeoutMs: 360_000, maxBudgetUsd: 1.5 }),
+  opus: Object.freeze({ timeoutMs: 480_000, maxBudgetUsd: 3 }),
+});
 /** The brief's own cap on its allowlist (runAgent takes more): every tool
  *  handed over is described to the model, so a short list keeps the prompt
  *  short and the model on the tools that matter. */
@@ -122,6 +136,10 @@ const MAX_ITEMS = 12;
 export const MAX_WAITING = 24;
 const MAX_PEOPLE = 16;
 const MAX_SUMMARY = 700;
+/** The summary as bullets (owner, 2026-11-26: "needs way better formatting,
+ *  bullet points"): two or three sentences ran six facts into one paragraph. */
+const MAX_POINTS = 6;
+const MAX_POINT = 200;
 const MAX_TITLE = 200;
 const MAX_DETAIL = 300;
 const MAX_PINNED = 40;
@@ -341,8 +359,21 @@ export function normaliseWaitingOn(list, max = MAX_WAITING_ON) {
 }
 
 /** The model's JSON, cut to what the pane draws. */
+/** The brief's bullets: words only, a leading "- " or "• " taken off, at most
+ *  MAX_POINTS. */
+function normalisePoints(raw) {
+  const out = [];
+  for (const v of Array.isArray(raw) ? raw : []) {
+    const point = text(v, MAX_POINT).replace(/^(?:[-*•]|\d+[.)])\s+/, "");
+    if (point) out.push(point);
+    if (out.length >= MAX_POINTS) break;
+  }
+  return out;
+}
+
 export function normaliseBrief(json) {
   const j = json && typeof json === "object" ? json : {};
+  const points = normalisePoints(j.points);
   const people = [];
   const seen = new Set();
   for (const raw of Array.isArray(j.people) ? j.people : []) {
@@ -361,7 +392,10 @@ export function normaliseBrief(json) {
     if (linkStates.length >= 60) break;
   }
   return {
-    summary: text(j.summary, MAX_SUMMARY),
+    // The bullets, and the same words as one line for whatever reads a
+    // summary (the phone's sheet before this, an older page).
+    summary: text(j.summary, MAX_SUMMARY) || text(points.join(" "), MAX_SUMMARY),
+    points,
     waiting: items(j.waiting, WAITING_KINDS, null, MAX_WAITING),
     todo: items(j.todo, TODO_KINDS, "todo"),
     talkTo: items(j.talkTo, TALK_KINDS, "talk"),
@@ -529,7 +563,7 @@ function slackAsk(since, given, now = Date.now(), ignore = []) {
   const rest = PROMPT_TOOLS.slack.map(tail => given.find(n => toolTail(n) === tail)).filter(n => n && n !== search && n !== thread);
   return `Slack: direct messages, mentions of me, and replies by others in threads I started or took part in, since ${clock(since)}, that still need an answer, a review or a decision from me. A reply that hands me something to review or answers my question counts even without a mention. Link each such item by its message's permalink.`
     + ` Also review requests in the channels I am a member of since ${clock(reviewFrom)}: every message from a person that links https://github.com/<owner>/<repo>/pull/<n>, whether or not it mentions me or asks in words. A bare link counts: that is how review requests are usually posted. Skip posts by bots and automations (CI, deploys, test reports, stale-PR notices), my own messages, and a message that plainly links the pull request for another reason (it says it was merged or deployed, or cites it as where a bug came from).`
-    + ` Each is a "review" item in "waiting" with "url" set to the pull request's own link (not the Slack message's), "source" "slack", "person" who posted it, the channel's name in "channel" and in "detail", and the message's time as "activityAt". Leave out pull requests I opened. Do not judge whether one is approved, merged or closed: the deck checks each with gh and drops those itself. So in the summary, neither count nor describe these review requests, give no total of what waits on me, and never say that nothing does: the deck checks them after you answer, and the page counts what is left.`
+    + ` Each is a "review" item in "waiting" with "url" set to the pull request's own link (not the Slack message's), "source" "slack", "person" who posted it, the channel's name in "channel" and in "detail", and the message's time as "activityAt". Leave out pull requests I opened. Do not judge whether one is approved, merged or closed: the deck checks each with gh and drops those itself. So in the points, neither count nor describe these review requests, give no total of what waits on me, and never say that nothing does: the deck checks them after you answer, and the page counts what is left.`
     + (ignore.length ? ` Leave out everything posted in ${ignore.map(c => `#${c}`).join(", ")}.` : "")
     + how + (rest.length ? ` You may also use ${rest.join(", ")}.` : "");
 }
@@ -635,6 +669,10 @@ export async function mergeWaitingOn({ asked, gh = null, github = null, ignore =
   return normaliseWaitingOn([...fromGh, ...kept, ...rest]);
 }
 
+/** How each bullet of the brief is written: short, one fact, its subject first
+ *  so the page can set it in bold (pointLead in status-brief.ts). */
+const POINTS_HOW = "3 to 6 short bullets, most important first, one fact each, under 120 characters. Start each with what it is about (a PR as repo#number, a ticket key, a session's name or a person) and a colon, then the fact. No bullet repeats another.";
+
 /** What the model is asked. Pure, so the suite can read it. */
 export function buildPrompt({ sessions, reach, tools = [], since, now = Date.now(), hidden = [], watch = [], dismissed = [], github = null, slackIgnore = [] }) {
   // Named in full, so the model never reaches for one it was not given: a
@@ -650,7 +688,7 @@ export function buildPrompt({ sessions, reach, tools = [], since, now = Date.now
       + (s.recap ? ` · where it stands: ${JSON.stringify(s.recap)}` : s.prompt ? ` · last prompt: ${JSON.stringify(s.prompt)}` : ""))
     : ["- (no sessions on this deck right now)"];
   const want = [];
-  if (reach.github === "on" && github?.status === "on" && github.activity) want.push("GitHub activity, from SINCE THE LAST BRIEF below: open the summary with what moved on my PRs and the ones I review (approvals, changes requested, comments, merges, CI). The deck puts the replies, merges and re-reviews it asks for on the to-do list itself.");
+  if (reach.github === "on" && github?.status === "on" && github.activity) want.push("GitHub activity, from SINCE THE LAST BRIEF below: open the points with what moved on my PRs and the ones I review (approvals, changes requested, comments, merges, CI). The deck puts the replies, merges and re-reviews it asks for on the to-do list itself.");
   if (reach.github === "on" && github?.status === "on") want.push("GitHub, from the GITHUB section below: a \"review\" item for each pull request where my review is requested; for my own, \"merge\" when it is approved with no failed or pending checks and not behind, \"fix\" when checks failed, it conflicts or it is behind its base, and \"reply\" when changes were requested. Use each one's updated time as \"activityAt\".");
   if (reach.slack === "on") want.push(slackAsk(since, given, now, (Array.isArray(slackIgnore) ? slackIgnore : []).map(channelName).filter(Boolean)));
   if (reach.slack === "on") want.push(waitingOnAsk(given, now, (Array.isArray(slackIgnore) ? slackIgnore : []).map(channelName).filter(Boolean)));
@@ -698,8 +736,8 @@ export function buildPrompt({ sessions, reach, tools = [], since, now = Date.now
     "JSON SHAPE:",
     "{",
     github?.status === "on" && reach.github === "on" && github.activity
-      ? '  "summary": "two or three plain sentences: the first says what moved on GitHub since the last brief (from SINCE THE LAST BRIEF, or that nothing did), the rest what is going on across the sessions and sources",'
-      : '  "summary": "two or three plain sentences on what is going on across the sessions and sources",',
+      ? `  "points": ["${POINTS_HOW} The first says what moved on GitHub since the last brief (from SINCE THE LAST BRIEF, or that nothing did); then what waits on me; then what is going on across the sessions and sources."],`
+      : `  "points": ["${POINTS_HOW} What waits on me first, then what is going on across the sessions and sources."],`,
     '  "waiting": [{ "kind": "approve|merge|review|reply|decide", "title": "...", "detail": "...", "source": "github|slack|jira|linear|session", "url": "https://...", "sessionId": "...", "person": "...", "channel": "the Slack channel\'s name, for a Slack item posted in one", "activityAt": "ISO time of the newest activity you saw on its source" }],',
     '  "todo": [{ "kind": "todo|fix|follow-up", "title": "...", "detail": "...", "source": "...", "url": "...", "sessionId": "...", "activityAt": "..." }],',
     '  "talkTo": [{ "kind": "feedback|talk", "person": "name", "title": "what about", "source": "...", "url": "...", "activityAt": "..." }],',
@@ -841,7 +879,8 @@ export function createStatusBrief({ dir, agent, sessions, todo = null, github = 
     });
     let result;
     try {
-      result = await a.runAgent({ prompt, model: s.settings.model, tools, timeoutMs: RUN_TIMEOUT_MS, tag: RUN_TAG });
+      const limits = RUN_LIMITS[s.settings.model] ?? RUN_LIMITS.haiku;
+      result = await a.runAgent({ prompt, model: s.settings.model, tools, ...limits, tag: RUN_TAG });
     } catch (err) {
       result = { ok: false, code: "threw", error: String(err?.message ?? err) };
     }
