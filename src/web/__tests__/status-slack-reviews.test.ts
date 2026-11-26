@@ -134,7 +134,7 @@ describe("the brief's Slack ask", () => {
     // The summary is written before gh's check: it neither counts nor
     // describes them, and says no total, so it cannot say seven where gh
     // left two, nor that nothing waits.
-    expect(line).toMatch(/in the summary, neither count nor describe these review requests, give no total of what waits on me, and never say that nothing does/);
+    expect(line).toMatch(/in the points, neither count nor describe these review requests, give no total of what waits on me, and never say that nothing does/);
     expect(line).not.toMatch(/Count them/);
   });
 
