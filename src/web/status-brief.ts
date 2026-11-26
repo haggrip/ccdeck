@@ -12,7 +12,7 @@ import { isAlarming } from "./ambient-counts";
 import type { Row } from "./components/SessionList";
 import { rank } from "./components/SessionList";
 
-export type BriefSource = "github" | "slack" | "jira" | "session";
+export type BriefSource = "github" | "slack" | "jira" | "linear" | "session";
 export type WaitingKind = "approve" | "merge" | "review" | "reply" | "decide";
 export type TodoKind = "todo" | "fix" | "follow-up";
 export type TalkKind = "feedback" | "talk";
@@ -109,7 +109,7 @@ export interface Brief {
   /** Absent from a brief written before the deck kept it. */
   waitingOn?: WaitingOn[];
   people: BriefPerson[];
-  reach: Record<"github" | "slack" | "jira", Reach>;
+  reach: Record<"github" | "slack" | "jira" | "linear", Reach>;
   /** The gh account GitHub was read as. */
   ghAccount?: string;
   /** Read with gh: what moved since the brief before. */
@@ -119,7 +119,7 @@ export interface Brief {
 export interface BriefSettings {
   model: BriefModel;
   everyMinutes: 0 | 15 | 30 | 60;
-  sources: Record<"github" | "slack" | "jira", boolean>;
+  sources: Record<"github" | "slack" | "jira" | "linear", boolean>;
   /** Slack channels the brief reads nothing from, by name, without "#". */
   slackIgnore?: string[];
 }

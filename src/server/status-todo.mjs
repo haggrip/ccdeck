@@ -137,7 +137,7 @@ function normaliseDismissal(raw) {
   const out = { key, at: raw.at, title };
   const url = safeUrl(raw.url);
   if (url) out.url = url;
-  if (["github", "slack", "jira", "session", "deck"].includes(raw.source)) out.source = raw.source;
+  if (["github", "slack", "jira", "linear", "session", "deck"].includes(raw.source)) out.source = raw.source;
   return out;
 }
 
@@ -592,13 +592,14 @@ export function ingestActivity(store, activity, now) {
   return { added, changed, revived };
 }
 
-/** The states of a linked page that settle each kind of ask. */
+/** The states of a linked page that settle each kind of ask. "done" is a
+ *  ticket's: a Linear issue finished settles the review or answer it asked for. */
 const SETTLES = Object.freeze({
-  review: ["approved", "reviewed", "draft", "merged", "closed"],
-  approve: ["approved", "reviewed", "draft", "merged", "closed"],
+  review: ["approved", "reviewed", "draft", "merged", "closed", "done"],
+  approve: ["approved", "reviewed", "draft", "merged", "closed", "done"],
   merge: ["merged", "closed"],
   fix: ["green", "merged", "closed"],
-  reply: ["answered"],
+  reply: ["answered", "done"],
   todo: ["done", "merged", "closed"],
   "follow-up": ["done", "merged", "closed"],
   decide: ["done", "closed"],

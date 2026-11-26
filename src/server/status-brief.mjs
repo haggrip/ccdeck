@@ -2,7 +2,7 @@
 // the user, who to talk to and the people worth keeping an eye on, written by
 // the user's own Claude Code from the deck's sessions, from GitHub as the
 // user's own `gh` reads it (status-gh.mjs), and, where this machine's Claude
-// Code reaches them, Slack and Jira.
+// Code reaches them, Slack, Jira and Linear.
 //
 // READ-ONLY, END TO END, AND THIS FILE IS WHAT KEEPS IT SO. The brief is asked
 // for through runAgent (claude-agent.mjs, the shared contract), which offers a
@@ -11,7 +11,7 @@
 // every tool, built-in or connector, is on unless the person switches it off.
 // So this module always hands it an explicit list (pickTools): only connector
 // tools (`mcp__…`, never a built-in such as Bash, Edit, Write or Task), only
-// from the GitHub, Slack and Jira connectors, only ones their own server marks
+// from the Slack, Jira and Linear connectors, only ones their own server marks
 // read-only, none switched off, and none whose name still reads like a write
 // (writeShaped below), so a connector that labels a send as a read does not
 // slip through. An empty list is a run with no tools at all. Nothing here
@@ -41,13 +41,13 @@ import { FIRST_SINCE_MS, MAX_SINCE_MS, PR_URL, activityPromptLines, githubPrompt
 
 export const BRIEF_FILE = "status-brief.json";
 export const MODELS = Object.freeze(["haiku", "sonnet", "opus"]);
-export const SOURCES = Object.freeze(["github", "slack", "jira"]);
+export const SOURCES = Object.freeze(["github", "slack", "jira", "linear"]);
 /** Minutes between the page's automatic runs; 0 is on demand only. */
 export const EVERY_CHOICES = Object.freeze([0, 15, 30, 60]);
 export const DEFAULT_SETTINGS = Object.freeze({
   model: "haiku",
   everyMinutes: 30,
-  sources: Object.freeze({ github: true, slack: true, jira: true }),
+  sources: Object.freeze({ github: true, slack: true, jira: true, linear: true }),
   // Slack channels the brief reads nothing from (owner, 2026-11-25:
   // #prs-data-platform is another team's review queue).
   slackIgnore: Object.freeze([]),
@@ -92,9 +92,11 @@ export const PROMPT_TOOLS = Object.freeze({
   // v2 (`atlassian`) and v1 (claude.ai) share the Jira names; Confluence's
   // search is searchConfluence on v2 and searchConfluenceUsingCql on v1.
   jira: Object.freeze(["searchJiraIssuesUsingJql", "getJiraIssue", "atlassianUserInfo", "getAccessibleAtlassianResources", "searchConfluence", "searchConfluenceUsingCql"]),
+  // The claude.ai Linear connector's names (2026-11-25).
+  linear: Object.freeze(["list_issues", "list_comments", "get_issue"]),
 });
 /** The sources a connector serves. GitHub is not one of them any more. */
-export const CONNECTOR_SOURCES = Object.freeze(["slack", "jira"]);
+export const CONNECTOR_SOURCES = Object.freeze(["slack", "jira", "linear"]);
 /**
  * The connector a source prefers when it has more than one: Jira and
  * Confluence through Atlassian's own v2 server (`atlassian`, which the deck
@@ -111,7 +113,7 @@ export const RUN_TAG = "status-brief";
 export const WAITING_KINDS = Object.freeze(["approve", "merge", "review", "reply", "decide"]);
 export const TODO_KINDS = Object.freeze(["todo", "fix", "follow-up"]);
 export const TALK_KINDS = Object.freeze(["feedback", "talk"]);
-const ITEM_SOURCES = Object.freeze(["github", "slack", "jira", "session"]);
+const ITEM_SOURCES = Object.freeze(["github", "slack", "jira", "linear", "session"]);
 
 const MAX_ITEMS = 12;
 /** Waiting on you holds more: review requests from Slack channels come
@@ -129,14 +131,37 @@ const MAX_HIDDEN = 200;
 const SOURCE_MATCH = Object.freeze({
   slack: /slack/i,
   jira: /jira|atlassian/i,
+  // "claude.ai Linear" (label "Linear"), or a server the person named linear.
+  linear: /\blinear\b/i,
 });
+/**
+ * A source's connector when its name says nothing, by tools no other has all
+ * of. The desktop app files a claude.ai connector under an opaque id, and a
+ * person may name a server anything. GitHub's MCP has a list_issues too, but
+ * none of Linear's statuses or cycles.
+ */
+const SOURCE_SIGNATURE = Object.freeze({
+  linear: Object.freeze(["list_issues", "get_issue", "list_comments", "list_issue_statuses", "list_cycles"]),
+});
+function servesSource(source, c) {
+  if (SOURCE_MATCH[source].test(`${c?.server ?? ""} ${c?.label ?? ""}`)) return true;
+  const signature = SOURCE_SIGNATURE[source];
+  if (!signature) return false;
+  const tails = new Set((Array.isArray(c?.tools) ? c.tools : []).map(t => toolTail(t?.name)));
+  return signature.every(tail => tails.has(tail));
+}
 
-/** A tool name that reads like a write, whatever its connector says about it. */
-const WRITE_SHAPED = /(^|[_\-.])(send|post|create|update|delete|remove|add|merge|write|edit|set|transition|schedule|react|reply|comment|assign|close|reopen|approve|submit|upload|push|fork|archive|invite|move|rename|resolve|unshare|share|dismiss|mark)(?=$|[_\-.A-Z])/i;
+/**
+ * A tool name that reads like a write, whatever its connector says about it.
+ * A plural is a noun, not the verb: list_comments and get_status_updates read
+ * (Linear's, 2026-11-25), and with the case folded the old rule took the "s"
+ * for the next word and kept them out.
+ */
+const WRITE_SHAPED = /(^|[_\-.])(send|post|create|update|delete|remove|add|merge|write|edit|set|transition|schedule|react|reply|comment|assign|close|reopen|approve|submit|upload|push|fork|archive|invite|move|rename|resolve|unshare|share|dismiss|mark|save|retire|restore)(?!s(?:$|[_\-.]))(?=$|[_\-.A-Z])/i;
 export function writeShaped(name) {
   const tail = String(name ?? "").split("__").pop() ?? "";
   // camelCase too: addCommentToJiraIssue, transitionJiraIssue.
-  return WRITE_SHAPED.test(tail) || /^(send|post|create|update|delete|remove|add|merge|write|edit|set|transition|schedule|react|reply|comment|assign|close|approve|submit|upload|push|archive|invite|move|rename|resolve|share|unshare|dismiss|mark)[A-Z]/.test(tail);
+  return WRITE_SHAPED.test(tail) || /^(send|post|create|update|delete|remove|add|merge|write|edit|set|transition|schedule|react|reply|comment|assign|close|approve|submit|upload|push|archive|invite|move|rename|resolve|share|unshare|dismiss|mark|save|retire|restore)[A-Z]/.test(tail);
 }
 
 /** A connector tool's name, as Claude Code spells it. A built-in tool (Bash,
@@ -170,9 +195,8 @@ export function pickTools(connectors, sources = DEFAULT_SETTINGS.sources, enable
   for (const source of SOURCES) perServer[source] = new Map();
   for (const c of Array.isArray(connectors) ? connectors : []) {
     if (c?.server === "builtin" || c?.source === "builtin") continue;
-    const name = `${c?.server ?? ""} ${c?.label ?? ""}`;
     for (const source of CONNECTOR_SOURCES) {
-      if (reach[source] === "off" || !SOURCE_MATCH[source].test(name)) continue;
+      if (reach[source] === "off" || !servesSource(source, c)) continue;
       if (reach[source] === "none") reach[source] = "disabled";
       for (const tool of Array.isArray(c?.tools) ? c.tools : []) {
         if (tool?.readOnly !== true || typeof tool.name !== "string" || !CONNECTOR_TOOL.test(tool.name)) continue;
@@ -532,6 +556,32 @@ function waitingOnAsk(given, now = Date.now(), ignore = []) {
     + (search && reads.length ? ` For each message that asks something, read what came after it (${reads.join(", or ")}), at most 10 reads; skip a read when what you already read shows the answer.` : "");
 }
 
+/**
+ * The Linear ask (owner, 2026-11-25): he files tickets that an agent (Grip
+ * Monkey) picks up and turns into pull requests. Its review requests reach the
+ * brief through gh; what only Linear says is the agent asking him something in
+ * a comment, failing or stalling, or saying it is done and waits on him. So the
+ * ask reads the issues he created or is assigned to that moved since the last
+ * brief, and each one's newest comments. Every item links to the issue itself,
+ * which the Todo list watches and closes once a brief reads it "done".
+ */
+function linearAsk(since, given, github, watched) {
+  const list = given.find(n => toolTail(n) === "list_issues");
+  const comments = given.find(n => toolTail(n) === "list_comments");
+  const issue = given.find(n => toolTail(n) === "get_issue");
+  const how = list ? [
+    ` Find them with ${list}, twice: once with creator "me" and once with assignee "me", each with updatedAt "${clock(since)}" and orderBy "updatedAt", and fields ["title", "url", "status", "statusType", "updatedAt", "createdBy", "assignee", "delegate"] where it takes them.`,
+    ...(comments ? [` Read the newest comments of each one that is not completed or canceled with ${comments} (issueId set to its identifier) before you judge it.`] : []),
+    ...(issue && watched ? [` Read each Linear issue among the open to-do links below with ${issue}.`] : []),
+  ].join("") : "";
+  return `Linear: issues I created or am assigned to, updated since ${clock(since)}, that need my answer or action: the agent or person working one (it may be the issue's delegate) asking me a question, saying it failed or is stuck, or saying it is done and waits for my review.`
+    + ` A question to me is a "reply" item, a failure or a stall a "decide" item, and finished work waiting on my review a "review" item, each in "waiting" with "source" "linear", "url" the issue's own link (https://linear.app/…), "person" who asked or reported, and the time of that comment or change as "activityAt".`
+    + ` Leave out an issue whose newest comment is mine, and one that is completed or canceled.`
+    + (github?.status === "on" ? " Leave out one whose only ask is to review a pull request already listed in GITHUB under REVIEW REQUESTED FROM ME: that review is on the list already." : "")
+    + ` In "linkStates", report a Linear issue that is completed or canceled as "done", and one where my comment came after the question it waited on as "answered".`
+    + how;
+}
+
 /** Whether a brief item came from a Slack channel the settings ignore: by its
  *  channel, else by a #channel its detail or title names. */
 export function fromIgnoredChannel(it, ignore) {
@@ -600,6 +650,7 @@ export function buildPrompt({ sessions, reach, tools = [], since, now = Date.now
   if (reach.slack === "on") want.push(waitingOnAsk(given, now, (Array.isArray(slackIgnore) ? slackIgnore : []).map(channelName).filter(Boolean)));
   if (reach.jira === "on") want.push("Jira: my issues in the current sprint that are not done." + use("jira"));
   if (reach.jira === "on" && given.some(n => ["searchConfluence", "searchConfluenceUsingCql"].includes(toolTail(n)))) want.push(`Confluence: comments on my pages or mentions of me since ${clock(since)} that still need an answer.` + use("jira"));
+  if (reach.linear === "on") want.push(linearAsk(since, given, reach.github === "on" ? github : null, watch.some(w => /^https:\/\/([\w-]+\.)*linear\.app\//.test(w?.url ?? ""))));
   return [
     "You write a short status brief for one developer who runs many Claude Code sessions.",
     "Answer with exactly one JSON object and nothing else.",
@@ -640,7 +691,7 @@ export function buildPrompt({ sessions, reach, tools = [], since, now = Date.now
     github?.status === "on" && reach.github === "on" && github.activity
       ? '  "summary": "two or three plain sentences: the first says what moved on GitHub since the last brief (from SINCE THE LAST BRIEF, or that nothing did), the rest what is going on across the sessions and sources",'
       : '  "summary": "two or three plain sentences on what is going on across the sessions and sources",',
-    '  "waiting": [{ "kind": "approve|merge|review|reply|decide", "title": "...", "detail": "...", "source": "github|slack|jira|session", "url": "https://...", "sessionId": "...", "person": "...", "channel": "the Slack channel\'s name, for a Slack item posted in one", "activityAt": "ISO time of the newest activity you saw on its source" }],',
+    '  "waiting": [{ "kind": "approve|merge|review|reply|decide", "title": "...", "detail": "...", "source": "github|slack|jira|linear|session", "url": "https://...", "sessionId": "...", "person": "...", "channel": "the Slack channel\'s name, for a Slack item posted in one", "activityAt": "ISO time of the newest activity you saw on its source" }],',
     '  "todo": [{ "kind": "todo|fix|follow-up", "title": "...", "detail": "...", "source": "...", "url": "...", "sessionId": "...", "activityAt": "..." }],',
     '  "talkTo": [{ "kind": "feedback|talk", "person": "name", "title": "what about", "source": "...", "url": "...", "activityAt": "..." }],',
     ...(reach.slack === "on" ? ['  "waitingOn": [{ "person": "whom I asked", "title": "what I asked", "source": "slack", "url": "https://...", "channel": "the Slack channel\'s name, for a message posted in one", "askedAt": "ISO time of my first unanswered message" }],'] : []),

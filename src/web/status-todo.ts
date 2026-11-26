@@ -41,7 +41,7 @@ export interface Dismissal {
   at: number;
   title: string;
   url?: string;
-  source?: "github" | "slack" | "jira" | "session" | "deck";
+  source?: "github" | "slack" | "jira" | "linear" | "session" | "deck";
 }
 
 export interface TodoView {
