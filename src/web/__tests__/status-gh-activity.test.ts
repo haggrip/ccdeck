@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { rmTempDir } from "./rm-temp-dir";
 import {
-  MAX_ACTIVITY_PRS, activityOf, activityPromptLines, createGitHubReader, excerpt, normaliseActivity, todoActionsOf,
+  MAX_ACTIVITY_PRS, WAITING_QUERY, WAITING_SEARCH, activityOf, activityPromptLines, createGitHubReader, excerpt, normaliseActivity, todoActionsOf,
 } from "../../server/status-gh.mjs";
 import { createStatusBrief } from "../../server/status-brief.mjs";
 import { addItem, dismiss, ingestActivity, ingestBrief, normaliseStore } from "../../server/status-todo.mjs";
@@ -188,7 +188,12 @@ describe("the gh reader's activity", () => {
     expect(argv).toContain(`search prs --involves=@me --updated=>=${sinceIso} --json number,title,url,repository,author,updatedAt,isDraft --limit 20`);
     expect(argv).toContain(`api --method GET repos/acme/api/pulls/412/comments -f since=${sinceIso} -f per_page=100 --jq ${gh.calls.find(c => c[3]?.endsWith("/pulls/412/comments"))!.at(-1)}`);
     // Every API call is a GET: nothing is ever marked read, posted or changed.
-    for (const c of gh.calls.filter(c => c[0] === "api" && c[1] !== "user")) expect(c.slice(1, 3)).toEqual(["--method", "GET"]);
+    // The one exception is Waiting on others' GraphQL read, which GitHub takes
+    // only as a POST: one fixed query, never a mutation, no value from outside.
+    for (const c of gh.calls.filter(c => c[0] === "api" && c[1] !== "user" && c[1] !== "graphql")) expect(c.slice(1, 3)).toEqual(["--method", "GET"]);
+    expect(gh.calls.filter(c => c[0] === "api" && c[1] === "graphql")).toEqual([["api", "graphql", "-f", `query=${WAITING_QUERY}`, "-f", `q=${WAITING_SEARCH}`]]);
+    expect(WAITING_QUERY).toMatch(/^query\(/);
+    expect(WAITING_QUERY).not.toMatch(/mutation/i);
     for (const c of gh.calls) expect(c.join(" ")).not.toMatch(/PATCH|PUT|POST|DELETE|-X |--input|mark|read=/);
     // The activity view leaves the slow checks out.
     for (const c of gh.calls.filter(c => c[0] === "pr" && c.includes("--jq"))) expect(c.join(" ")).not.toContain("statusCheckRollup");

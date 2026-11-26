@@ -84,6 +84,21 @@ export interface BriefActivity {
   partial?: true;
 }
 
+/** Something the user asked of someone and still waits on (status-brief.mjs
+ *  normaliseWaitingOn): a review GitHub requests on his PR, or a Slack ask
+ *  nobody has answered. Never on the Todo list: it is not his to do. */
+export interface WaitingOn {
+  /** Whom he asked: a name, several, or a #channel. */
+  person: string;
+  title: string;
+  url: string;
+  source: "github" | "slack";
+  /** When he asked, as far as the deck can tell. */
+  askedAt?: number;
+  detail?: string;
+  channel?: string;
+}
+
 export interface Brief {
   at: number;
   model: BriefModel | null;
@@ -91,6 +106,8 @@ export interface Brief {
   waiting: BriefItem[];
   todo: BriefItem[];
   talkTo: BriefItem[];
+  /** Absent from a brief written before the deck kept it. */
+  waitingOn?: WaitingOn[];
   people: BriefPerson[];
   reach: Record<"github" | "slack" | "jira", Reach>;
   /** The gh account GitHub was read as. */
@@ -213,6 +230,23 @@ export function liveItems(items: readonly BriefItem[], sessions: ReadonlySet<str
     out.push(next);
   }
   return out;
+}
+
+/** How long something has waited, in its largest whole unit: minutes under
+ *  an hour, hours under a day, else days. */
+export function waitedFor(ms: number): { n: number; unit: "m" | "h" | "d" } {
+  const m = Math.max(0, Math.floor(ms / 60_000));
+  if (m < 60) return { n: m, unit: "m" };
+  if (m < 24 * 60) return { n: Math.floor(m / 60), unit: "h" };
+  return { n: Math.floor(m / (24 * 60)), unit: "d" };
+}
+
+/** Waiting on others as the page lists it: only what links somewhere it will
+ *  draw, oldest ask first (the longest wait is the first to nudge), undated
+ *  last. */
+export function waitingOnShown(list: readonly WaitingOn[] | undefined): WaitingOn[] {
+  const at = (w: WaitingOn) => (typeof w.askedAt === "number" && Number.isFinite(w.askedAt) ? w.askedAt : Number.MAX_SAFE_INTEGER);
+  return (list ?? []).filter(w => safeHref(w.url) && w.person && w.title).sort((a, b) => at(a) - at(b));
 }
 
 /** Whether the page's interval should ask the deck for a run now. The deck

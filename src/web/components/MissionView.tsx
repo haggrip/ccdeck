@@ -8,7 +8,8 @@
 // that takes your own words; Now (someone waits on you) and Next (things to
 // do), each task a card whose colour says what kind of ask it is; and beside
 // them the live context: the sessions running right now, what moved on GitHub
-// since the brief, who to talk to and the people worth watching.
+// since the brief, what you asked of others and still wait on, who to talk to
+// and the people worth watching.
 //
 // SESSIONS ARE CONTEXT. A session's task or row goes to its card on the Board,
 // and "Open in Claude Desktop" brings it up in the desktop app, where it is
@@ -24,7 +25,7 @@ import { ExternalLinkGlyph, RefreshGlyph } from "./action-glyphs";
 import { KIND_MSGS } from "./status-kinds";
 import { Dismissed, People, Settings, Since, UndoLine, metaLine } from "./StatusPane";
 import { selfPressAccepted, selfPressProps } from "../panel-press";
-import { liveItems, localBrief, peopleShown, safeHref, type BriefItem } from "../status-brief";
+import { liveItems, localBrief, peopleShown, safeHref, waitedFor, waitingOnShown, type BriefItem, type WaitingOn } from "../status-brief";
 import { isOverdue, isSnoozed, openerOf, splitOpen, tomorrowMorning, whenShort, type TodoItem, type TodoKind } from "../status-todo";
 import { inDesktop, type DesktopLinks } from "../desktop-links";
 import { useStatusBrief, type StatusBriefHandle } from "../use-status-brief";
@@ -268,6 +269,41 @@ function TalkTo({ items, onOpenSession, onDismiss, t }: { items: BriefItem[]; on
   );
 }
 
+const WAITED_MSGS = { m: "brief.waitingOn.age.m", h: "brief.waitingOn.age.h", d: "brief.waitingOn.age.d" } as const;
+const WAITING_ON_SOURCES = { github: "GitHub", slack: "Slack" } as const;
+/** A wait this many days long or longer is drawn in the warning colour. */
+export const LONG_WAIT_DAYS = 3;
+
+/** What the user asked of someone and still waits on, oldest first, each with
+ *  how long it has waited and a link to where he asked: whom to nudge. Read
+ *  only: an entry leaves once it is answered (status-brief.mjs mergeWaitingOn). */
+export function WaitingOnOthers({ items, now, t }: { items: readonly WaitingOn[]; now: number; t: TFunction }) {
+  const shown = waitingOnShown(items);
+  return (
+    <section className="mi-card" aria-labelledby="mi-waiting-on">
+      <h3 className="mi-h" id="mi-waiting-on">{t("brief.section.waitingOn")}<span className="mi-n">{shown.length}</span></h3>
+      {shown.length ? (
+        <ul className="mi-plain">
+          {shown.map(w => {
+            const waited = w.askedAt != null ? waitedFor(now - w.askedAt) : null;
+            return (
+              <li key={w.url} className="mi-plain-row" data-src={w.source}>
+                <a href={safeHref(w.url)!} target="_blank" rel="noreferrer noopener" title={t("brief.open.link", { source: WAITING_ON_SOURCES[w.source] })}>
+                  <b>{w.person}</b> · {w.title}
+                </a>
+                {waited && (
+                  <span className="mi-waited" data-long={waited.unit === "d" && waited.n >= LONG_WAIT_DAYS ? "" : undefined}
+                    title={t("brief.waitingOn.since", { time: new Date(w.askedAt!).toLocaleString() })}>{t(WAITED_MSGS[waited.unit], { n: waited.n })}</span>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      ) : <p className="mi-empty">{t("brief.waitingOn.empty")}</p>}
+    </section>
+  );
+}
+
 export interface MissionProps {
   rows: readonly Row[];
   now: number;
@@ -400,6 +436,7 @@ export function MissionPage({ rows, now, desktop, onOpenSession, onOpenDesktop, 
           <aside className="mi-side" aria-label={t("brief.mission.context")}>
             <Live rows={rows} desktop={desktop} links={links} onOpenSession={onOpenSession} onOpenDesktop={onOpenDesktop} t={t} />
             {b?.activity && b.reach?.github === "on" && <div className="mi-card"><Since activity={b.activity} t={t} /></div>}
+            <WaitingOnOthers items={b?.waitingOn ?? []} now={now} t={t} />
             <TalkTo items={talkTo} onOpenSession={onOpenSession} onDismiss={todo.dismiss ? it => todo.dismiss!({ item: it }) : undefined} t={t} />
             <div className="mi-card"><People people={people} onPerson={brief.person} t={t} /></div>
             <Dismissed list={dismissed} onRestore={restore} t={t} />

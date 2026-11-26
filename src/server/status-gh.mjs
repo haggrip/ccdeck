@@ -27,6 +27,11 @@
 //
 // WHICH ACCOUNT. Whichever `gh` has active (`gh auth switch` changes it); the
 // answer says which login it was, and the pane shows it.
+//
+// WHAT MY PRS WAIT ON. One `gh api graphql` call with a fixed query and a
+// fixed search (WAITING_QUERY, WAITING_SEARCH; a query, never a mutation, and
+// no value from outside): my open PRs that are neither drafts nor approved,
+// whose reviewers are still requested, and when each was asked (waitingOnOf).
 import { execFile } from "node:child_process";
 import { access } from "node:fs/promises";
 import { constants as fsc } from "node:fs";
@@ -106,6 +111,24 @@ export function reviewSettledBy(v, account) {
 
 /** Whether a PR someone asked me to review still waits on me (reviewSettledBy). */
 export const waitsOnMyReview = (v, account) => reviewSettledBy(v, account) === null;
+
+/**
+ * Whether my own PR, whose review I asked for in a Slack channel, still waits
+ * on others, as gh reads it (REVIEW_VIEW): open, not a draft, and no one but
+ * me has approved it or sent it back. A COMMENTED review is not an answer.
+ * Someone else's PR does not wait on others for me. A PR gh could not read
+ * (`v` null) stands as it was asked.
+ */
+export function waitsOnOthers(v, account) {
+  if (!v || typeof v !== "object") return true;
+  if (v.state === "MERGED" || v.mergedAt || v.state === "CLOSED" || v.isDraft === true) return false;
+  if (v.reviewDecision === "APPROVED" || v.reviewDecision === "CHANGES_REQUESTED") return false;
+  const me = typeof account === "string" ? account.toLowerCase() : "";
+  const author = loginOf(v.author);
+  if (me && author && author !== me) return false;
+  const reviews = Array.isArray(v.latestReviews) ? v.latestReviews : [];
+  return !reviews.some(r => (r?.state === "APPROVED" || r?.state === "CHANGES_REQUESTED") && loginOf(r.author) !== author);
+}
 
 /** A PR's API address, as notifications name it. */
 const API_PR = /^https:\/\/api\.github\.com\/repos\/([A-Za-z0-9][A-Za-z0-9_.-]{0,99})\/([A-Za-z0-9_.-]{1,100})\/pulls\/(\d{1,9})$/;
@@ -218,6 +241,79 @@ const VIEW_JQ = "{title, state, mergedAt, closedAt, author: .author.login, revie
 /** What reviewSettledBy reads of a PR. */
 const REVIEW_VIEW = "state,mergedAt,isDraft,reviewDecision,reviewRequests,author,latestReviews";
 const REVIEWS_JQ = "[.[] | {user: {login: .user.login, type: .user.type}, state, submitted_at, body: ((.body // \"\")[0:600])}]";
+
+/** My open PRs read for Waiting on others, at most. */
+export const MAX_WAITING_PRS = 50;
+/** Reviewers an entry names; the rest are counted ("+2"). CODEOWNERS asked
+ *  five people on each of his new PRs on 2026-11-25. */
+export const MAX_NAMED = 3;
+/** Which PRs: mine, open, not drafts, not approved. Fixed text, no outside value. */
+export const WAITING_SEARCH = "is:pr is:open author:@me draft:false -review:approved archived:false";
+const REVIEWER = "__typename ... on User { login name } ... on Team { slug name } ... on Mannequin { login } ... on Bot { login }";
+/** A query only: who is still requested on each, and when each was asked
+ *  (the review requests and ready-for-review marks on its timeline). */
+export const WAITING_QUERY = `query($q: String!) { search(query: $q, type: ISSUE, first: ${MAX_WAITING_PRS}) { nodes { ... on PullRequest {`
+  + " url number title isDraft state reviewDecision repository { name }"
+  + ` reviewRequests(first: 20) { nodes { requestedReviewer { ${REVIEWER} } } }`
+  + ` timelineItems(last: 50, itemTypes: [REVIEW_REQUESTED_EVENT, READY_FOR_REVIEW_EVENT]) { nodes { __typename ... on ReviewRequestedEvent { createdAt requestedReviewer { ${REVIEWER} } } ... on ReadyForReviewEvent { createdAt } } }`
+  + " } } } }";
+
+/** A requested reviewer's key and the name a nudge is addressed to, or null
+ *  for one no one can nudge (a bot, a deleted account). */
+function reviewerOf(r) {
+  if (!r || typeof r !== "object" || r.__typename === "Bot") return null;
+  if (r.__typename === "Team") {
+    const slug = text(r.slug, 100);
+    return slug ? { key: `team:${slug.toLowerCase()}`, name: text(r.name, 80) || slug } : null;
+  }
+  const login = text(r.login, 80);
+  if (!login || /\[bot\]$/i.test(login)) return null;
+  return { key: `user:${login.toLowerCase()}`, name: text(r.name, 80) || login };
+}
+
+/**
+ * What my own open PRs wait on, from WAITING_QUERY's answer: one entry per PR
+ * whose review is still requested from someone. GitHub drops a request once
+ * its reviewer reviews, so whoever is still requested has not answered. Each
+ * reviewer has waited since they were last asked (a re-request starts the
+ * clock again), or since the PR left draft if that came later; the PR has
+ * waited as long as its longest-waiting reviewer. Drafts, approved and closed
+ * PRs wait on no one. Pure.
+ */
+export function waitingOnOf(nodes) {
+  const out = [];
+  for (const n of Array.isArray(nodes) ? nodes : []) {
+    const url = typeof n?.url === "string" && PR_URL.test(n.url) ? n.url : null;
+    if (!url || n.isDraft === true || (n.state && n.state !== "OPEN") || n.reviewDecision === "APPROVED") continue;
+    const pending = new Map();
+    for (const r of Array.isArray(n.reviewRequests?.nodes) ? n.reviewRequests.nodes : []) {
+      const who = reviewerOf(r?.requestedReviewer);
+      if (who && !pending.has(who.key)) pending.set(who.key, who);
+    }
+    if (!pending.size) continue;
+    const asked = new Map();
+    let readyAt = null;
+    for (const e of Array.isArray(n.timelineItems?.nodes) ? n.timelineItems.nodes : []) {
+      const at = ms(e?.createdAt);
+      if (!Number.isFinite(at)) continue;
+      if (e.__typename === "ReadyForReviewEvent") { readyAt = Math.max(readyAt ?? 0, at); continue; }
+      const who = e.__typename === "ReviewRequestedEvent" ? reviewerOf(e.requestedReviewer) : null;
+      if (who && pending.has(who.key)) asked.set(who.key, Math.max(asked.get(who.key) ?? 0, at));
+    }
+    const since = [...asked.values()].map(at => Math.max(at, readyAt ?? 0));
+    const parts = prParts(url);
+    const names = [...pending.values()].map(w => w.name);
+    const entry = {
+      person: names.length > MAX_NAMED ? `${names.slice(0, MAX_NAMED).join(", ")} +${names.length - MAX_NAMED}` : names.join(", "),
+      title: `${text(n.repository?.name, 100) || parts.repo}#${parts.number}${n.title ? ` · ${text(n.title, MAX_TITLE)}` : ""}`,
+      url,
+      source: "github",
+    };
+    if (since.length) entry.askedAt = Math.min(...since);
+    out.push(entry);
+  }
+  return out;
+}
 const COMMENTS_JQ = "[.[] | {user: {login: .user.login, type: .user.type}, created_at, body: ((.body // \"\")[0:600])}]";
 
 /** Run `fn` over `items`, at most `n` at a time. */
@@ -235,7 +331,7 @@ async function inTurn(items, n, fn) {
  * suite runs it against a fake gh.
  *
  * read({ watch }) resolves to:
- *   { status: "on", account, review: [...], mine: [...], linkStates: [...] }
+ *   { status: "on", account, review: [...], mine: [...], linkStates: [...], waitingOn?: [...] }
  *   { status: "missing" | "logged-out" | "error", message }
  * `watch` is the Todo list's PR URLs whose state to read.
  *
@@ -372,8 +468,19 @@ export function createGitHubReader({ run = execRunner, exists = canExec, now = (
       const v = views.get(url);
       if (v) for (const state of statesOf(v)) linkStates.push({ url, state });
     }
-    const activity = Number.isFinite(since) ? await readActivity(account, since, fields, views) : null;
-    return { status: "on", account, at: now(), review: reviewRows, mine: mineOut, linkStates, ...(activity ? { activity } : {}) };
+    const [activity, waitingOn] = await Promise.all([
+      Number.isFinite(since) ? readActivity(account, since, fields, views) : null,
+      readWaitingOn(),
+    ]);
+    return { status: "on", account, at: now(), review: reviewRows, mine: mineOut, linkStates, ...(activity ? { activity } : {}), ...(waitingOn ? { waitingOn } : {}) };
+  }
+
+  /** What my open PRs wait on (waitingOnOf), or null when gh could not say:
+   *  never fails the read. */
+  async function readWaitingOn() {
+    const r = await json(["api", "graphql", "-f", `query=${WAITING_QUERY}`, "-f", `q=${WAITING_SEARCH}`]);
+    const nodes = r.ok ? r.value?.data?.search?.nodes : null;
+    return Array.isArray(nodes) ? waitingOnOf(nodes) : null;
   }
 
   async function reviewViews(urls) {

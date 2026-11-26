@@ -37,7 +37,7 @@ import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { writeFileAtomic } from "./atomic-write.mjs";
 import { LINK_STATES, dismissKeyOf } from "./status-todo.mjs";
-import { FIRST_SINCE_MS, MAX_SINCE_MS, PR_URL, activityPromptLines, githubPromptLines, normaliseActivity, normalisePrs, prUrlOf, reviewSettledBy } from "./status-gh.mjs";
+import { FIRST_SINCE_MS, MAX_SINCE_MS, PR_URL, activityPromptLines, githubPromptLines, normaliseActivity, normalisePrs, prUrlOf, reviewSettledBy, waitsOnOthers } from "./status-gh.mjs";
 
 export const BRIEF_FILE = "status-brief.json";
 export const MODELS = Object.freeze(["haiku", "sonnet", "opus"]);
@@ -275,6 +275,47 @@ export function normalisePerson(raw) {
   return out;
 }
 
+/** Waiting on others: the most it holds, where its entries come from, and how
+ *  far back Slack is searched for the user's own asks. An ask waits until it
+ *  is answered, so this looks further back than the DMs do. */
+export const MAX_WAITING_ON = 24;
+export const WAITING_ON_SOURCES = Object.freeze(["github", "slack"]);
+export const WAITING_ON_LOOKBACK_MS = 7 * 24 * 3600_000;
+
+/** One thing the user asked of someone and still waits on: whom, what, a
+ *  link and a source, else nothing; when it was asked, if known. */
+export function waitingOnEntry(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const person = text(raw.person, 120);
+  const title = text(raw.title, MAX_TITLE);
+  const url = safeUrl(raw.url);
+  const source = WAITING_ON_SOURCES.includes(raw.source) ? raw.source : null;
+  if (!person || !title || !url || !source) return null;
+  const out = { person, title, url, source };
+  const askedAt = typeof raw.askedAt === "number" ? raw.askedAt : Date.parse(String(raw.askedAt ?? ""));
+  if (Number.isFinite(askedAt) && askedAt > 0) out.askedAt = askedAt;
+  const detail = text(raw.detail, MAX_DETAIL);
+  if (detail) out.detail = detail;
+  const channel = source === "slack" ? channelName(raw.channel) : null;
+  if (channel) out.channel = channel;
+  return out;
+}
+
+/** Waiting on others as the page draws it: one entry per link, oldest ask
+ *  first (the longest wait is the first to nudge), undated last. */
+export function normaliseWaitingOn(list, max = MAX_WAITING_ON) {
+  const out = [];
+  const seen = new Set();
+  for (const raw of Array.isArray(list) ? list : []) {
+    const w = waitingOnEntry(raw);
+    if (!w || seen.has(w.url)) continue;
+    seen.add(w.url);
+    out.push(w);
+  }
+  const at = w => w.askedAt ?? Number.MAX_SAFE_INTEGER;
+  return out.sort((a, b) => at(a) - at(b)).slice(0, max);
+}
+
 /** The model's JSON, cut to what the pane draws. */
 export function normaliseBrief(json) {
   const j = json && typeof json === "object" ? json : {};
@@ -300,6 +341,7 @@ export function normaliseBrief(json) {
     waiting: items(j.waiting, WAITING_KINDS, null, MAX_WAITING),
     todo: items(j.todo, TODO_KINDS, "todo"),
     talkTo: items(j.talkTo, TALK_KINDS, "talk"),
+    waitingOn: normaliseWaitingOn(j.waitingOn),
     people,
     linkStates,
   };
@@ -462,6 +504,34 @@ function slackAsk(since, given, now = Date.now(), ignore = []) {
     + how + (rest.length ? ` You may also use ${rest.join(", ")}.` : "");
 }
 
+/**
+ * The Slack ask's other half: what the user asked of others and still waits
+ * on (Waiting on others), where Talk to used to file it. His own messages,
+ * WAITING_ON_LOOKBACK_MS back, that ask something and that nobody has
+ * answered since: the newest in their DM, unreplied in their thread, or a
+ * post linking his own PR for review (the team asks for reviews that way: on
+ * 2026-11-25 only 4 of his 21 open, non-draft PRs had a reviewer requested on
+ * GitHub).
+ * One search and a few reads, since a brief already takes 90 to 120 seconds
+ * of RUN_TIMEOUT_MS. The model finds them; gh decides whether a PR still
+ * waits (run below), and the next brief drops a DM or thread it no longer
+ * reports.
+ */
+function waitingOnAsk(given, now = Date.now(), ignore = []) {
+  const search = given.find(n => toolTail(n) === "slack_search_public_and_private");
+  const thread = given.find(n => toolTail(n) === "slack_read_thread");
+  const channel = given.find(n => toolTail(n) === "slack_read_channel");
+  const from = now - WAITING_ON_LOOKBACK_MS;
+  const reads = [channel && `its direct message with ${channel} ("oldest" set to its timestamp, limit 10)`, thread && `its thread with ${thread}`].filter(Boolean);
+  return `Slack, what I am waiting on: my own messages since ${clock(from)} that ask someone for something (an answer, a decision, a review, a document) and that nobody has answered since. In a direct message, mine is still the newest message; in a thread, no one else replied after it; and a post of mine in a channel that links a pull request I opened asks for its review (a bare link counts).`
+    + ` Each is an item in "waitingOn" with "person" (whom I asked: the other person in a direct message, else the people I mentioned, else "#" and the channel's name for a review asked of a channel), "title" (what I asked, in a few words), "url" (the message's permalink; for a review request, the pull request's own link), "source" "slack", the channel's name in "channel" for a message posted in one, and "askedAt" (the time of my first message they have not answered).`
+    + ` Leave out greetings, thanks, status updates, answers I gave and anything else that waits on no one, and a conversation where they answered after my message. Do not judge whether a pull request was reviewed: the deck checks each itself.`
+    + ` These go in "waitingOn" only, not in "talkTo": "talkTo" keeps feedback and conversations that are not a pending ask of mine.`
+    + (ignore.length ? ` Leave out everything posted in ${ignore.map(c => `#${c}`).join(", ")}.` : "")
+    + (search ? ` Search once with ${search}: filters "from:<@MY_ID>", "after" set to ${Math.floor(from / 1000)}, sorted by timestamp, response_format "detailed" and include_context false, reading up to 2 pages.` : "")
+    + (search && reads.length ? ` For each message that asks something, read what came after it (${reads.join(", or ")}), at most 10 reads; skip a read when what you already read shows the answer.` : "");
+}
+
 /** Whether a brief item came from a Slack channel the settings ignore: by its
  *  channel, else by a #channel its detail or title names. */
 export function fromIgnoredChannel(it, ignore) {
@@ -471,6 +541,42 @@ export function fromIgnoredChannel(it, ignore) {
     if (ignore.has(m[1].toLowerCase())) return true;
   }
   return false;
+}
+
+/**
+ * Waiting on others, put together after the run: the model's Slack asks (none
+ * from an ignored channel, and none it files under GitHub) and gh's reading
+ * of my PRs' requested reviewers (status-gh.mjs waitingOnOf). A Slack ask
+ * that links a PR is linked by the PR's own address, and stays only while gh
+ * says it still waits on others (waitsOnOthers); where gh lists the PR
+ * already, gh's entry stands, with the earlier of the two times. These never
+ * reach the Todo list: they are not the user's to do.
+ */
+export async function mergeWaitingOn({ asked, gh = null, github = null, ignore = new Set(), log = () => {} }) {
+  const on = gh?.status === "on";
+  const fromGh = on ? normaliseWaitingOn(gh.waitingOn, Infinity) : [];
+  const byUrl = new Map(fromGh.map(w => [w.url, w]));
+  const prs = [];
+  const rest = [];
+  for (const raw of Array.isArray(asked) ? asked : []) {
+    if (raw?.source !== "slack" || fromIgnoredChannel(raw, ignore)) continue;
+    const pr = prUrlOf(raw.url);
+    const w = pr ? { ...raw, url: pr } : raw;
+    const listed = byUrl.get(w.url);
+    if (listed) {
+      if (w.askedAt && !(listed.askedAt <= w.askedAt)) listed.askedAt = w.askedAt;
+      continue;
+    }
+    (pr ? prs : rest).push(w);
+  }
+  let kept = prs;
+  if (prs.length && on && typeof github?.reviewViews === "function") {
+    try {
+      const views = await github.reviewViews(prs.map(w => w.url));
+      if (views) kept = prs.filter(w => waitsOnOthers(views.get(w.url) ?? null, gh.account));
+    } catch (err) { log(`status brief: the PRs waiting on others could not be checked with gh (${err?.message ?? err})`); }
+  }
+  return normaliseWaitingOn([...fromGh, ...kept, ...rest]);
 }
 
 /** What the model is asked. Pure, so the suite can read it. */
@@ -491,6 +597,7 @@ export function buildPrompt({ sessions, reach, tools = [], since, now = Date.now
   if (reach.github === "on" && github?.status === "on" && github.activity) want.push("GitHub activity, from SINCE THE LAST BRIEF below: open the summary with what moved on my PRs and the ones I review (approvals, changes requested, comments, merges, CI). The deck puts the replies, merges and re-reviews it asks for on the to-do list itself.");
   if (reach.github === "on" && github?.status === "on") want.push("GitHub, from the GITHUB section below: a \"review\" item for each pull request where my review is requested; for my own, \"merge\" when it is approved with no failed or pending checks and not behind, \"fix\" when checks failed, it conflicts or it is behind its base, and \"reply\" when changes were requested. Use each one's updated time as \"activityAt\".");
   if (reach.slack === "on") want.push(slackAsk(since, given, now, (Array.isArray(slackIgnore) ? slackIgnore : []).map(channelName).filter(Boolean)));
+  if (reach.slack === "on") want.push(waitingOnAsk(given, now, (Array.isArray(slackIgnore) ? slackIgnore : []).map(channelName).filter(Boolean)));
   if (reach.jira === "on") want.push("Jira: my issues in the current sprint that are not done." + use("jira"));
   if (reach.jira === "on" && given.some(n => ["searchConfluence", "searchConfluenceUsingCql"].includes(toolTail(n)))) want.push(`Confluence: comments on my pages or mentions of me since ${clock(since)} that still need an answer.` + use("jira"));
   return [
@@ -536,6 +643,7 @@ export function buildPrompt({ sessions, reach, tools = [], since, now = Date.now
     '  "waiting": [{ "kind": "approve|merge|review|reply|decide", "title": "...", "detail": "...", "source": "github|slack|jira|session", "url": "https://...", "sessionId": "...", "person": "...", "channel": "the Slack channel\'s name, for a Slack item posted in one", "activityAt": "ISO time of the newest activity you saw on its source" }],',
     '  "todo": [{ "kind": "todo|fix|follow-up", "title": "...", "detail": "...", "source": "...", "url": "...", "sessionId": "...", "activityAt": "..." }],',
     '  "talkTo": [{ "kind": "feedback|talk", "person": "name", "title": "what about", "source": "...", "url": "...", "activityAt": "..." }],',
+    ...(reach.slack === "on" ? ['  "waitingOn": [{ "person": "whom I asked", "title": "what I asked", "source": "slack", "url": "https://...", "channel": "the Slack channel\'s name, for a message posted in one", "askedAt": "ISO time of my first unanswered message" }],'] : []),
     '  "people": [{ "name": "...", "handle": "...", "why": "reviews, DMs or mentions that make them worth watching", "source": "github|slack|jira", "url": "https://..." }],',
     '  "linkStates": [{ "url": "https://...", "state": "open|approved|merged|closed|green|done|answered" }]',
     "}",
@@ -722,6 +830,7 @@ export function createStatusBrief({ dir, agent, sessions, todo = null, github = 
           settled = tracked.map(url => ({ url, state: why(url) })).filter(l => l.state && l.state !== "mine");
         }
       }
+      brief.waitingOn = await mergeWaitingOn({ asked: brief.waitingOn, gh, github, ignore, log });
       // gh's own reading of the tracked PRs stands over the model's.
       if (gh?.status === "on") {
         const byGh = new Set(gh.linkStates.map(l => l.url));
