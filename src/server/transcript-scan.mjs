@@ -23,6 +23,8 @@ import { foldWrapLine } from "./session-wrap.mjs";
 // The bounded, cursor-moving chunk read every pass below goes through — see
 // jsonl-chunks.mjs.
 import { readAppendedLines } from "./jsonl-chunks.mjs";
+// The PRs and tickets the session works on — see session-links.mjs.
+import { foldLinksLine, newLinksState } from "./session-links.mjs";
 
 // ─── Incremental transcript scanning ─────────────────────────────────────
 // Model, usage and context enrichment all derive from the same append-only
@@ -362,6 +364,7 @@ function newTranscriptState() {
     gitBranch: null,    // the branch the root's newest assistant line was written on
     recap: null,        // newest "away_summary" no later turn retired — session-recap.mjs
     wrap: null,         // newest end-of-turn call no later prompt answered — session-wrap.mjs
+    links: newLinksState(), // the PRs and tickets it works on — session-links.mjs
     usage: newUsageTotals(),
     // The same totals, split by the model that produced them (#686). The flat
     // bucket above stays the whole-transcript sum and is what every token count
@@ -456,6 +459,9 @@ function foldTranscriptLine(state, line) {
   // goal titler's hint at what the session is for (goal-context.mjs). The
   // root's own lines only — a sidechain runs in the same checkout anyway.
   if (record && typeof record.gitBranch === "string" && record.gitBranch && record.isSidechain !== true) state.gitBranch = record.gitBranch;
+  // The PRs and tickets, off the same parse where there is one: a handful of
+  // substring tests for the ordinary line. See session-links.mjs.
+  foldLinksLine(state.links, line, record);
   foldUsageLine(state, line, record);
   foldContextLine(state, line, record);
 }

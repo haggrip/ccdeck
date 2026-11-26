@@ -331,6 +331,33 @@ span.mi-task-title { cursor: default; }
 .mi-live-row[data-live="working"] .mi-dot { animation: mi-pulse var(--pulse-live) infinite alternate; }
 .mi-live-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .mi-live-state { color: var(--mi-live); font-size: calc(11px + var(--ui-text-increase, 0px)); }
+/* The session's PRs and tickets: a line of chips under the row
+   (session-links.ts), filled like the project tag and named by their text.
+   A PR's dot is its state; a ticket's is the ticket's ink. */
+.mi-live-links { display: flex; flex-wrap: wrap; flex-basis: 100%; gap: 4px; margin: 0 0 4px 26px; padding: 0; list-style: none; }
+.mi-chip {
+  --mi-chip: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 6px;
+  border-radius: var(--r-pill);
+  background: var(--bg-soft);
+  color: var(--text);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: calc(18px + var(--ui-text-increase, 0px));
+  font-variant-numeric: tabular-nums;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.mi-chip::before { content: ""; width: 6px; height: 6px; border-radius: var(--r-pill); background: var(--mi-chip); }
+.mi-chip[data-kind="ticket"] { --mi-chip: var(--usage-blue); }
+.mi-chip[data-tone="merged"] { --mi-chip: var(--usage-purple); }
+.mi-chip[data-tone="closed"], .mi-chip[data-tone="draft"] { --mi-chip: var(--muted); color: var(--muted); }
+.mi-chip[data-tone="fail"] { --mi-chip: var(--err); }
+.mi-chip[data-tone="changes"], .mi-chip[data-tone="pending"] { --mi-chip: var(--warn); }
+.mi-chip[data-tone="approved"], .mi-chip[data-tone="pass"] { --mi-chip: var(--ok); }
+.mi-chip[data-tone="open"] { --mi-chip: var(--text); }
 .mi-live-detail {
   grid-column: 2 / -1;
   overflow: hidden;
@@ -389,6 +416,7 @@ span.mi-task-title { cursor: default; }
   .mi-task:hover { border-color: color-mix(in srgb, var(--mi-tone) 45%, var(--line-soft)); border-left-color: var(--mi-tone); background: color-mix(in srgb, var(--mi-tone) 4%, var(--panel)); }
   .mi-desktop:hover { background: color-mix(in srgb, var(--mi-claude) 20%, transparent); }
   .mi-live-main:hover { background: var(--bg-soft); }
+  a.mi-chip:hover { background: color-mix(in srgb, var(--mi-chip) 16%, var(--bg-soft)); }
   .mi-plain-row > a:hover, .mi-plain-row > button:not(.glyph-btn):hover { text-decoration: underline; text-underline-offset: 3px; }
   .mi-done:hover { color: var(--ok); }
 }
