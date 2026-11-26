@@ -14,6 +14,7 @@ import { rootAgentId, subagentIdFor, type GraphState } from "./graph-state";
 import { EFFORT_LEVEL_RE } from "./payload-effort";
 import { usageByModelFromWire, usageFromWire } from "./usage-wire";
 import type { BackgroundJob, ContextBreakdown, HookPayload, SessionWrap } from "./types";
+import { wrapFromInput } from "../server/session-wrap.mjs";
 
 /** A breakdown that asserts nothing, for a root that has not been told anything
  *  about its context yet.
@@ -272,6 +273,24 @@ export function applySessionRecapped(state: GraphState, p: HookPayload, sessionI
     const w = wrapFromWire(p.wrap);
     if (w && (!root.wrap || root.wrap.at <= w.at)) root.wrap = w;
   }
+}
+
+/**
+ * The desktop app's end-of-turn call off its own hook: the root's PostToolUse
+ * for `mcp__ccd_turn__wrap_up`, parsed by the server's rule (session-wrap.mjs),
+ * timed by when it reached the deck, as the prompts that retire it are.
+ *
+ * WHY THE PAGE READS THE HOOK TOO. SessionRecapped carries the call once the
+ * transcript cursor folds it, and the cursor runs on a session's hook events.
+ * After a restart, a session resting on its turn sends none, so its recap was
+ * missing from Mission until it moved (owner, 2026-11-26). The log the deck
+ * replays still holds the hook, and this reads it. The same call heard from
+ * the transcript too keeps the hook's copy: never backwards, as below.
+ */
+export function applyWrapCall(state: GraphState, p: HookPayload, sessionId: string, at: number): void {
+  const root = state.agents.get(sessionId);
+  const w = root ? wrapFromInput(p.tool_input, p.tool_use_id, at) : null;
+  if (root && w && (!root.wrap || root.wrap.at <= w.at)) root.wrap = w;
 }
 
 /** The wire's wrap, checked: a malformed one says nothing. */

@@ -301,3 +301,37 @@ describe("the page", () => {
     expect(liveState(row)).not.toBe("waiting");
   });
 });
+
+describe("the page, after a restart", () => {
+  // The deck replays its log into the page. A session resting on its turn
+  // sends no hook after the restart, so the transcript cursor says nothing,
+  // and the recap must come from the replayed hook (owner, 2026-11-26).
+  const at = (receivedAt: number, payload: Record<string, unknown>): HookEnvelope =>
+    ({ seq: ++seq, receivedAt, source: "hook", payload: { session_id: SID, cwd: "/Users/me/saas-platform", ...payload } as HookPayload });
+  const replay = (extra: object = {}) => [
+    at(T0 - 6 * MIN, { hook_event_name: "SessionStart" }),
+    at(T0 - 5 * MIN, { hook_event_name: "UserPromptSubmit", prompt: "batch the Splunk alerts" }),
+    at(T0 - 200, { hook_event_name: "PreToolUse", tool_name: WRAP_TOOL, tool_use_id: CALL, tool_input: INPUT, ...extra }),
+    at(T0, { hook_event_name: "PostToolUse", tool_name: WRAP_TOOL, tool_use_id: CALL, tool_input: INPUT, tool_response: "ok", ...extra }),
+    at(T0 + 3 * SEC, { hook_event_name: "Stop" }),
+  ];
+  const fold = (envs: HookEnvelope[]) => envs.reduce((s, e) => applyEvent(s, e), initialState());
+
+  it("shows the recap and the question from the replayed hook alone", () => {
+    const [row] = buildRows(fold(replay()), T0 + MIN);
+    expect(row.wrap).toEqual({ id: CALL, at: T0, recap: INPUT.recap, ask: { question: INPUT.ask, choices: ["New batching ticket", "Use DIS-25544"], blocked: true } });
+    expect(liveState(row)).toBe("waiting");
+  });
+
+  it("keeps the hook's copy when the transcript says the same call later", () => {
+    const s = fold([...replay(), at(T0 + MIN, { hook_event_name: "SessionRecapped", recap: null, wrap: wrapFromInput(INPUT, CALL, T0 - 400) })]);
+    expect(s.agents.get(SID)!.wrap?.at).toBe(T0);
+  });
+
+  it("lets the next prompt retire it, and a subagent's call say nothing", () => {
+    const answered = fold([...replay(), at(T0 + 2 * MIN, { hook_event_name: "UserPromptSubmit", prompt: "Use DIS-25544" })]);
+    expect(buildRows(answered, T0 + 3 * MIN)[0].wrap).toBeUndefined();
+    const sub = fold(replay({ agent_id: "sub-1" }));
+    expect(sub.agents.get(SID)!.wrap).toBeUndefined();
+  });
+});

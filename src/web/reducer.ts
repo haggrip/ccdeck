@@ -29,12 +29,13 @@ import { adoptParkedEnrichment, parkEnrichment } from "./parked-enrichment";
 import { adoptPanelLaunch } from "./panel-launch";
 import { applySessionStart, applyTurnEnd, applyUserPromptSubmit, clearStopFailure, noteSessionHeard } from "./session-lifecycle";
 import { stopFailureOf } from "../server/stop-failure.mjs";
+import { WRAP_TOOL } from "../server/session-wrap.mjs";
 import { payloadProvider } from "../server/provider-ids.mjs";
 import { applySubagentStart, applySubagentStop } from "./subagent-lifecycle";
 import { applyPreToolUse, applyToolOutcome, returnLentCalls } from "./tool-calls";
 import {
   applyActivityObserved, applyContextObserved, applyJobObserved, applyModelObserved, applyOutputObserved,
-  applySessionNamed, applySessionRecapped, applyUsageObserved, stampSessionFacts,
+  applySessionNamed, applySessionRecapped, applyWrapCall, applyUsageObserved, stampSessionFacts,
 } from "./transcript-events";
 import { applyNotification, clearAnsweredWaiting } from "./waiting-block";
 // /resume inside a running Claude: the empty card it left goes (resume-fold.ts).
@@ -212,6 +213,9 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
   if ((name === "PreToolUse" || name === "PostToolUse" || name === "PostToolUseFailure") && namedKey == null) {
     clearStopFailure(state.agents.get(rootAgentId(sessionId)), now);
   }
+
+  // The desktop app's end-of-turn call, on the root's own hook (applyWrapCall).
+  if (name === "PostToolUse" && namedKey == null && p.tool_name === WRAP_TOOL) applyWrapCall(state, p, sessionId, now);
 
   switch (name) {
     case "SessionStart": applySessionStart(state, p, sessionId, now); break;
